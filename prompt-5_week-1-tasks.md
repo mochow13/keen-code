@@ -1,5 +1,7 @@
 Prompts used to implement the tasks in week 1. The prompts here updated the design doc for config system (@output-5_config-design.md) and the implementation (@internal/config/config.go).
 
+### Tasks 1 & 2
+
 1. Check the plan in @output-3_week-1-plan.md and implement the very first task.
 2. In logger/logger.go, you have free string checks for log levels. Let's use enum for it.
 3. For task 2, we need to implement the config system. Before implementing it, explain how the configs will be setup based on user's input when user uses this CLI in their machine. For example, the user wants to add Gemini as a provider. How would they set the provider and the API key?
@@ -16,3 +18,13 @@ Prompts used to implement the tasks in week 1. The prompts here updated the desi
 14. Now review the implementation for config again. Does it support get and set correctly?
 15. In @internal/config/config.go, let's use constants for provider names.
 16. Write unit tests for each function for the happy paths in @internal/config/config.go. One unit test per function.
+17. Let's also implement 1 unit test for success and 1 unit test for failure for each function in @internal/config/loader.go.
+18. Add minimal and critical logs for the code implemented in @internal/config/config.go and @internal/config/loader.go.
+19. I don't think the logger should be sent as a parameter. Let's have a local logger in each file and use it.
+20. You are using `logger.Must` but that's not implemented.
+
+### Review Task 1 & 2
+1. Check the plan in @output-3_week-1-plan.md and @output-4_config-design.md. Then also check the implementation in @internal/config/config.go and @internal/config/loader.go. Review the code and criticize it.
+2. I have some code review comments for you. Let's go through them one by one.
+ - First, instead of using logger in each file, let's use `slog` directly. It's a standard library and we can use it directly. We don't need to create a wrapper around it.
+ - For config loader, do we really need viper? We are already using `yaml` to marshal and unmarshal the config. We can just use `yaml` to load the config as well.

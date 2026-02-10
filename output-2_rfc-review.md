@@ -1,14 +1,14 @@
 # Architecture RFC Review by Gemini 3 Pro
 
 ## Executive Summary
-The proposed architecture in `ARCHITECTURE.md` provides a robust and idiomatic foundation for a Go-based Coding Agent CLI. The layered design (UI, Core, Tools, LLM) and the choice of the "Charm" stack (Bubbletea, Lipgloss) for the TUI are excellent choices that align well with modern Go CLI standards. Standardizing on `spf13/cobra` and `spf13/viper` ensures maintainability and familiar UX.
+The proposed architecture in `ARCHITECTURE.md` provides a robust and idiomatic foundation for a Go-based Coding Agent CLI. The layered design (UI, Core, Tools, LLM) and the choice of the "Charm" stack (Bubbletea, Lipgloss) for the TUI are excellent choices that align well with modern Go CLI standards. Standardizing on `spf13/cobra` ensures maintainability and familiar UX.
 
 However, a few critical areas—specifically git awareness, context window management, and update mechanisms—should be addressed earlier in the development lifecycle to avoid technical debt.
 
 ## Strengths
 - **Clear Separation of Concerns**: The distinction between Orchestrator, Tool Manager, and LLM Provider layers is well-defined.
 - **Security First**: Explicitly designing a `FileGuard` component is a strong move for an agent that modifies files.
-- **Idiomatic Stack**: The selected libraries (`cobra`, `viper`, `bubbletea`, `slog`) are the industry standard for high-quality Go tools.
+- **Idiomatic Stack**: The selected libraries (`cobra`, `bubbletea`, `slog`) are the industry standard for high-quality Go tools.
 - **Mode-Based Security**: The `Plan` vs `Work` mode distinction is a great way to handle user trust and safety.
 
 ## Suggestions for Improvement

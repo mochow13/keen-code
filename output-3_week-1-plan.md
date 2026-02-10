@@ -9,7 +9,7 @@ Based on the RFC (`output-1_rfc.md`) and PRD (`prd.md`), this document outlines 
 Phase 1 focuses on building the foundational infrastructure before any LLM integration or tool implementation. The key deliverables are:
 
 1. Project structure and Go module setup
-2. Configuration system with Viper
+2. Configuration system with YAML
 3. FileGuard for secure file access
 4. **GitAwareness component (CRITICAL)** - Respects `.gitignore` to avoid wasting tokens
 5. Basic CLI structure with Cobra
@@ -26,7 +26,7 @@ keen-cli/
 ├── internal/
 │   ├── config/
 │   │   ├── config.go              # Config struct and defaults
-│   │   └── loader.go              # Viper-based config loading
+│   │   └── loader.go              # YAML config loading
 │   ├── filesystem/
 │   │   ├── guard.go               # FileGuard - path security
 │   │   └── gitawareness.go        # GitAwareness - .gitignore handling
@@ -53,7 +53,7 @@ keen-cli/
 2. Create directory structure as outlined above
 3. Add core dependencies:
    - `github.com/spf13/cobra` - CLI framework
-   - `github.com/spf13/viper` - Configuration management
+   - `gopkg.in/yaml.v3` - YAML marshal/unmarshal
    - `github.com/go-git/go-git/v5` - For .gitignore parsing
    - `github.com/go-git/go-git/v5/plumbing/format/gitignore` - Gitignore matcher
 
@@ -74,7 +74,7 @@ keen-cli/
 
 **Files:**
 - `config.go` - Config structs, resolution logic, and defaults
-- `loader.go` - Viper-based loading and saving
+- `loader.go` - YAML loading and saving
 
 **Two-Level Configuration:**
 
@@ -128,12 +128,10 @@ func Resolve(global *GlobalConfig, session *SessionConfig) (*ResolvedConfig, err
 2. API Key: `session.APIKey` → `global.GetProviderConfig().APIKey` → error
 3. Model: `session.Model` → `global.GetProviderConfig().Model` → `defaultModel(provider)`
 
-**Loader (Viper-based):**
+**Loader:**
 
 ```go
-type Loader struct {
-    viper *viper.Viper
-}
+type Loader struct{}
 
 func NewLoader() *Loader
 func (l *Loader) Load() (*GlobalConfig, error)    // Load from ~/.config/keen/config.yaml
@@ -144,7 +142,7 @@ func (l *Loader) Exists() bool                    // Check if config exists
 **Deliverables:**
 - `GlobalConfig`, `SessionConfig`, `ResolvedConfig` structs
 - `Resolve()` function with proper error handling
-- `Loader` with Viper for YAML persistence
+- `Loader` for YAML persistence
 - Helper methods: `GetProviderConfig()`, `SetProviderConfig()`, `ConfigPath()`
 - Unit tests with 80%+ coverage
 
@@ -453,7 +451,7 @@ internal/
 // go.mod requirements:
 require (
     github.com/spf13/cobra v1.8.0
-    github.com/spf13/viper v1.18.0
+    gopkg.in/yaml.v3 v3.0.1
     github.com/go-git/go-git/v5 v5.11.0
 )
 ```

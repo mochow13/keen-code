@@ -2,9 +2,12 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
+
+var configLog = slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 const (
 	ProviderAnthropic = "anthropic"
@@ -25,9 +28,6 @@ type ProviderConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
-/* SessionConfig holds CLI flag overrides for the current session.
- * These are not persisted and apply only to the current session.
- */
 type SessionConfig struct {
 	Provider string
 	APIKey   string
@@ -67,17 +67,13 @@ func (g *GlobalConfig) SetProviderConfig(provider string, cfg ProviderConfig) er
 	return nil
 }
 
-/* Resolve merges global and session configs into the final ResolvedConfig.
- * Resolution order: Session > Global
- * Returns an error if no provider is configured.
- */
 func Resolve(global *GlobalConfig, session *SessionConfig) (*ResolvedConfig, error) {
 	provider := session.Provider
 	if provider == "" {
 		provider = global.ActiveProvider
 	}
 	if provider == "" {
-		return nil, fmt.Errorf("no provider configured. Run /provider to set up a provider")
+		return nil, fmt.Errorf("no provider configured")
 	}
 
 	providerGlobal, err := global.GetProviderConfig(provider)
@@ -86,7 +82,7 @@ func Resolve(global *GlobalConfig, session *SessionConfig) (*ResolvedConfig, err
 	}
 	apiKey := firstNonEmpty(session.APIKey, providerGlobal.APIKey)
 	if apiKey == "" {
-		return nil, fmt.Errorf("no API key configured for %s. Run /provider to set up", provider)
+		return nil, fmt.Errorf("no API key configured for %s", provider)
 	}
 	resolved := &ResolvedConfig{
 		Provider: provider,
@@ -94,12 +90,10 @@ func Resolve(global *GlobalConfig, session *SessionConfig) (*ResolvedConfig, err
 		Model:    firstNonEmpty(session.Model, providerGlobal.Model, defaultModel(provider)),
 	}
 
+	configLog.Info("config resolved", "provider", resolved.Provider, "model", resolved.Model)
 	return resolved, nil
 }
 
-/* DefaultGlobalConfig returns an empty GlobalConfig.
- * Users must explicitly configure a provider using /provider command.
- */
 func DefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{}
 }

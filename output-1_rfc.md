@@ -15,7 +15,7 @@ graph TB
     subgraph "User Interface Layer"
         CLI[CLI Parser<br/>github.com/spf13/cobra]
         REPL[Interactive REPL<br/>github.com/charmbracelet/bubbletea]
-        CONFIG[Config Manager<br/>github.com/spf13/viper]
+        CONFIG[Config Manager]
     end
 
     subgraph "Core Engine Layer"
@@ -142,7 +142,7 @@ keen-cli/
 │   │   └── config.go            # Config commands
 │   ├── config/
 │   │   ├── config.go            # Config struct and defaults
-│   │   └── loader.go            # Viper-based config loading
+│   │   └── loader.go            # YAML config loading
 │   ├── orchestrator/
 │   │   ├── orchestrator.go      # Main orchestration logic
 │   │   ├── context.go           # Context/conversation management
@@ -321,7 +321,7 @@ flowchart TD
 **Tasks:**
 1. Initialize Go module with `go mod init`
 2. Set up directory structure
-3. Implement configuration system using Viper
+3. Implement configuration system using YAML
 4. Implement `FileGuard` for secure file access
 5. Implement `GitAwareness` component - **CRITICAL**
    - Parse `.gitignore` files (local and global)
@@ -440,7 +440,7 @@ flowchart TD
 | Category | Library | Purpose |
 |----------|---------|---------|
 | CLI Framework | `github.com/spf13/cobra` | Command-line interface |
-| Config Management | `github.com/spf13/viper` | Configuration loading |
+| Config Management | `gopkg.in/yaml.v3` | Configuration loading |
 | TUI Framework | `github.com/charmbracelet/bubbletea` | Interactive REPL |
 | TUI Components | `github.com/charmbracelet/lipgloss` | Styled terminal output |
 | User Prompts | `github.com/charmbracelet/huh` | Interactive forms and prompts |

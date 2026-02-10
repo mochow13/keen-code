@@ -111,15 +111,13 @@ Resolution rules:
 - **API Key**: `session.APIKey` → `global.GetProviderConfig().APIKey` → error
 - **Model**: `session.Model` → `global.GetProviderConfig().Model` → `defaultModel(provider)`
 
-### Config Storage (Viper-based Loader)
+### Config Storage
 
 ```go
 package config
 
 // Loader handles loading and saving the global configuration.
-type Loader struct {
-    viper *viper.Viper
-}
+type Loader struct{}
 
 // NewLoader creates a new configuration loader.
 func NewLoader() *Loader
@@ -170,7 +168,7 @@ os.WriteFile(path, data, 0600) // -rw-------
 | **Global storage** | `~/.config/keen/config.yaml` |
 | **Session storage** | In-memory struct only |
 | **Resolution** | Session > Global > Default |
-| **Persistence** | Viper-based YAML loader |
+| **Persistence** | YAML file loader |
 | **Security** | 0600 file permissions |
 
 ---

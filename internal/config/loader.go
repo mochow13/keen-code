@@ -2,42 +2,37 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
-	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
-type Loader struct {
-	viper *viper.Viper
-}
+var loaderLog = slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+type Loader struct{}
 
 func NewLoader() *Loader {
-	v := viper.New()
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(ConfigDir())
-
-	defaults := DefaultGlobalConfig()
-	v.SetDefault("provider", defaults.ActiveProvider)
-
-	return &Loader{viper: v}
+	return &Loader{}
 }
 
 func (l *Loader) Load() (*GlobalConfig, error) {
 	cfg := DefaultGlobalConfig()
 
-	if err := l.viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("failed to read config: %w", err)
+	data, err := os.ReadFile(ConfigPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			loaderLog.Info("config file not found, using defaults")
+			return cfg, nil
 		}
-		return cfg, nil
+		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	if err := l.viper.Unmarshal(cfg); err != nil {
+	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	loaderLog.Info("config loaded", "provider", cfg.ActiveProvider)
 	return cfg, nil
 }
 
@@ -56,6 +51,7 @@ func (l *Loader) Save(cfg *GlobalConfig) error {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
+	loaderLog.Info("config saved", "path", path)
 	return nil
 }
 
