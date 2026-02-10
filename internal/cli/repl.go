@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewReplCommand creates the REPL command.
 func NewReplCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "repl",

@@ -11,3 +11,8 @@ Prompts used to implement the tasks in week 1. The prompts here updated the desi
 9. Let's also remove handling of `maxTokens`. We can think about it later.
 10. We don't want to have a default config at the beginning. Users have to set it explicitly using the `/provider` command in the user interface. If users don't set it, then the interface will show an error message.
 11. Review the @output-3_week-1-plan.md and @output-4_config-design.md. Based on the design, update the plan for task 2.
+12. Now review both the @output-4_config-design.md and Task 2 in @output-3_week-1-plan.md. Then figure out what to implement to support the feature.
+13. No actually we just want to implement the code to get-set configs. We don't want to support it through CLI operations or REPL commands yet. Update the @output-4_config-design.md to reflect this.
+14. Now review the implementation for config again. Does it support get and set correctly?
+15. In @internal/config/config.go, let's use constants for provider names.
+16. Write unit tests for each function for the happy paths in @internal/config/config.go. One unit test per function.

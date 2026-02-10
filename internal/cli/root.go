@@ -1,4 +1,3 @@
-// Package cli provides the command-line interface for Keen.
 package cli
 
 import (
@@ -7,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewRootCommand creates the root command for the CLI.
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "keen",

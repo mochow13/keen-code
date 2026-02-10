@@ -6,6 +6,12 @@ import (
 	"path/filepath"
 )
 
+const (
+	ProviderAnthropic = "anthropic"
+	ProviderOpenAI    = "openai"
+	ProviderGemini    = "gemini"
+)
+
 type GlobalConfig struct {
 	ActiveProvider string `yaml:"provider" mapstructure:"provider"`
 
@@ -36,11 +42,11 @@ type ResolvedConfig struct {
 
 func (g *GlobalConfig) GetProviderConfig(provider string) (ProviderConfig, error) {
 	switch provider {
-	case "anthropic":
+	case ProviderAnthropic:
 		return g.Anthropic, nil
-	case "openai":
+	case ProviderOpenAI:
 		return g.OpenAI, nil
-	case "gemini":
+	case ProviderGemini:
 		return g.Gemini, nil
 	default:
 		return ProviderConfig{}, fmt.Errorf("unknown provider: %s", provider)
@@ -49,11 +55,11 @@ func (g *GlobalConfig) GetProviderConfig(provider string) (ProviderConfig, error
 
 func (g *GlobalConfig) SetProviderConfig(provider string, cfg ProviderConfig) error {
 	switch provider {
-	case "anthropic":
+	case ProviderAnthropic:
 		g.Anthropic = cfg
-	case "openai":
+	case ProviderOpenAI:
 		g.OpenAI = cfg
-	case "gemini":
+	case ProviderGemini:
 		g.Gemini = cfg
 	default:
 		return fmt.Errorf("unknown provider: %s", provider)
@@ -125,11 +131,11 @@ func firstNonEmpty(values ...string) string {
 
 func defaultModel(provider string) string {
 	switch provider {
-	case "anthropic":
+	case ProviderAnthropic:
 		return "claude-3-sonnet"
-	case "openai":
+	case ProviderOpenAI:
 		return "gpt-4o"
-	case "gemini":
+	case ProviderGemini:
 		return "gemini-1.5-pro"
 	default:
 		return ""
