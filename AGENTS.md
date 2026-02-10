@@ -1,1 +1,2 @@
-- Don't add unneccessary comments here and there. Be very conservative with comments. Add comments only when it adds value.
+- Don't add unneccessary comments here and there. Be very conservative with comments. Add comments only when it is strictly necessary.
+- While writing unit tests, focus on testing the core and critical paths. Don't test every single line of code. We are not running after 100% test coverage.

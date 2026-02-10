@@ -154,65 +154,108 @@ func (l *Loader) Exists() bool                    // Check if config exists
 
 **File:** `guard.go`
 
-**Purpose:** Path security - prevent directory traversal and access to sensitive paths.
+**Purpose:** Path security - control file system access with permission-based rules.
+
+**Requirements (from PRD):**
+
+1. **Working Directory Access:**
+   - Read: Allowed by default
+   - Write: Requires explicit user permission
+
+2. **Outside Working Directory:**
+   - Read/Write: Requires explicit user permission
+
+3. **Blocked Paths (always denied):**
+   - Paths in `.gitignore`
+   - Sensitive directories: `~/.ssh`, `/etc`, `~/.aws`, `/usr`, etc.
+   - Path traversal attempts (`../`, `..\`)
 
 **Interface:**
 ```go
-type Guard interface {
-    ValidatePath(path string) error
-    ResolvePath(path string) (string, error)
+type Permission int
+
+const (
+    PermissionDenied Permission = iota
+    PermissionGranted
+    PermissionPending // Requires user confirmation
+)
+
+type Guard struct {
+    workingDir   string
+    blockedPaths []string
+    gitignore    GitAwareness // For checking .gitignore rules
 }
+
+func NewGuard(workingDir string, gitignore GitAwareness) *Guard
+
+// CheckPath evaluates if a path is accessible for the given operation
+// Returns PermissionGranted, PermissionDenied, or PermissionPending
+func (g *Guard) CheckPath(path string, operation string) Permission
+
+// IsBlocked checks if path matches blocked patterns (.gitignore, sensitive dirs)
+func (g *Guard) IsBlocked(path string) bool
+
+// ResolvePath returns the absolute, cleaned path
+func (g *Guard) ResolvePath(path string) (string, error)
+
+// IsInWorkingDir checks if path is within working directory
+func (g *Guard) IsInWorkingDir(path string) bool
 ```
+
+**Permission Matrix:**
+
+| Path Location | Read | Write |
+|---------------|------|-------|
+| Inside working dir | Granted | Pending |
+| Outside working dir | Pending | Pending |
+| In .gitignore | Denied | Denied |
+| Sensitive path | Denied | Denied |
 
 **Key Methods:**
 
-1. **ValidatePath(path string) error**
-   - Block paths containing `../` or `..\`
-   - Block absolute paths outside working directory
-   - Block paths matching blocked patterns (`~/.ssh`, `/etc`, etc.)
-   - Return descriptive errors
+1. **CheckPath(path, operation) Permission**
+   - Check if path is blocked (`.gitignore`, sensitive dirs)
+   - Check if path is within working directory
+   - Return appropriate permission based on operation and location
 
-2. **ResolvePath(path string) (string, error)**
-   - Resolve relative paths against working directory
-   - Clean path (remove `.`, `..`, extra slashes)
-   - Return absolute path
+2. **IsBlocked(path) bool**
+   - Check against `.gitignore` patterns
+   - Check against sensitive directory list: `~/.ssh`, `/etc`, `~/.aws`, `/usr`
+   - Check for path traversal patterns
 
-**Security Rules:**
-| Rule | Implementation |
-|------|----------------|
-| Path traversal | Reject paths containing `..` |
-| Absolute paths | Convert to relative from working dir |
-| Sensitive paths | Blocklist: `~/.ssh`, `/etc`, `~/.aws`, etc. |
-| Symlinks | Resolve and validate target |
+3. **IsInWorkingDir(path) bool**
+   - Resolve to absolute path
+   - Verify it's within or equals working directory
 
 **Testable Design:**
-- Pure functions for path validation
-- Constructor injection of working directory and blocked paths
+- Constructor injection of working directory and gitignore checker
 - No global state
+- Pure functions for permission logic
 
 **Test Cases:**
 ```go
-func TestValidatePath(t *testing.T) {
+func TestGuard_CheckPath(t *testing.T) {
     tests := []struct {
-        name    string
-        path    string
-        wantErr bool
+        name      string
+        path      string
+        operation string
+        want      Permission
     }{
-        {"valid file", "main.go", false},
-        {"valid nested", "src/main.go", false},
-        {"path traversal", "../etc/passwd", true},
-        {"absolute outside", "/etc/passwd", true},
-        {"dot slash", "./main.go", false},
-        {"double slash", "src//main.go", false},
+        {"read inside working dir", "main.go", "read", PermissionGranted},
+        {"write inside working dir", "main.go", "write", PermissionPending},
+        {"read outside working dir", "/tmp/file", "read", PermissionPending},
+        {"path traversal", "../etc/passwd", "read", PermissionDenied},
+        {"sensitive path", "~/.ssh/id_rsa", "read", PermissionDenied},
     }
     // ... table-driven test
 }
 ```
 
 **Deliverables:**
-- FileGuard implementation
+- FileGuard implementation with permission-based access control
+- Integration with GitAwareness for `.gitignore` checking
 - Comprehensive unit tests
-- Security audit of edge cases
+- Default sensitive path blocklist
 
 ---
 
@@ -342,61 +385,6 @@ func TestGitAwareness(t *testing.T) {
 - Version command
 - Basic error handling
 
----
-
-## Task 6: Structured Logging
-
-**Package:** `internal/logger/`
-
-**File:** `logger.go`
-
-**Purpose:** Centralized, configurable logging using Go's standard `log/slog`.
-
-**Features:**
-- Levels: debug, info, warn, error
-- Formats: text (development), JSON (production)
-- Output: stderr (default) or file
-- Structured fields using slog.Attr
-
-**Interface:**
-```go
-type Logger interface {
-    Debug(msg string, args ...any)
-    Info(msg string, args ...any)
-    Warn(msg string, args ...any)
-    Error(msg string, args ...any)
-    With(args ...any) Logger
-}
-```
-
-**Configuration:**
-```yaml
-logging:
-  level: info      # debug | info | warn | error
-  format: text     # text | json
-  file: ""         # empty = stderr
-```
-
-**Usage:**
-```go
-logger.Info("config loaded", "path", configPath, "provider", cfg.LLM.Provider)
-logger.Debug("file read", "path", path, "size", len(content))
-logger.Error("tool execution failed", "tool", name, "error", err)
-```
-
-**Testable Design:**
-- Interface-based for mocking in tests
-- Capture logs in tests using `slogtest` or custom handler
-- No global logger instance
-
-**Deliverables:**
-- Logger initialization from config
-- Text and JSON formatters
-- File output support
-- Unit tests for log levels
-
----
-
 ## Implementation Order
 
 | Order | Task | Depends On | Priority |
@@ -406,11 +394,9 @@ logger.Error("tool execution failed", "tool", name, "error", err)
 | 3 | Logger | Config | High |
 | 4 | FileGuard | Config | Critical |
 | 5 | GitAwareness | Config | Critical |
-| 6 | CLI | Config, Logger | High |
 
 **Rationale:**
 - Config is needed by almost all other components
-- Logger should be available early for debugging
 - FileGuard and GitAwareness are independent and can be done in parallel
 - CLI comes last as it integrates everything
 
@@ -474,7 +460,6 @@ require (
 - [ ] GitAwareness correctly filters node_modules, .git, etc.
 - [ ] Logging works at all levels
 - [ ] Code follows Go best practices (gofmt, golint)
-- [ ] 80%+ test coverage on core packages
 
 ---
 

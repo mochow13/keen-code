@@ -266,16 +266,6 @@ flowchart TD
     G -->|No| I[Include file]
 ```
 
-**Key Behaviors:**
-
-| Behavior | Description |
-|----------|-------------|
-| Default | All tools respect `.gitignore` by default |
-| Override | Config option to disable for specific use cases |
-| Performance | Cache parsed ignore patterns per directory |
-| Recursion | Properly handle nested `.gitignore` files |
-| Global | Respect global gitignore (`~/.gitignore_global`) |
-
 **Example Flow:**
 ```
 User: "explain this codebase"
