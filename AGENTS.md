@@ -1,0 +1,1 @@
+- Don't add unneccessary comments here and there. Be very conservative with comments. Add comments only when it adds value.
