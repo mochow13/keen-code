@@ -37,7 +37,15 @@ func TestLoader_Load_ExistingConfigFile(t *testing.T) {
 
 	os.MkdirAll(ConfigDir(), 0755)
 	configPath := ConfigPath()
-	content := "provider: anthropic\nanthropic:\n  model: claude-3-sonnet\n  api_key: sk-test\n"
+	content := `{
+	"active_provider": "anthropic",
+		"providers": {
+			"anthropic": {
+			"models": ["claude-3-sonnet"],
+			"api_key": "sk-test"
+			}
+		}
+	}`
 	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
@@ -50,8 +58,13 @@ func TestLoader_Load_ExistingConfigFile(t *testing.T) {
 	if cfg.ActiveProvider != "anthropic" {
 		t.Errorf("expected provider 'anthropic', got %q", cfg.ActiveProvider)
 	}
-	if cfg.Anthropic.Model != "claude-3-sonnet" {
-		t.Errorf("expected model 'claude-3-sonnet', got %q", cfg.Anthropic.Model)
+
+	pc, ok := cfg.GetProviderConfig("anthropic")
+	if !ok {
+		t.Fatal("expected to find anthropic provider config")
+	}
+	if len(pc.Models) != 1 || pc.Models[0] != "claude-3-sonnet" {
+		t.Errorf("expected models ['claude-3-sonnet'], got %v", pc.Models)
 	}
 }
 
@@ -63,9 +76,8 @@ func TestLoader_Save(t *testing.T) {
 	loader := NewLoader()
 	cfg := &GlobalConfig{
 		ActiveProvider: ProviderOpenAI,
-		OpenAI: ProviderConfig{
-			Model:  "gpt-4o",
-			APIKey: "sk-test",
+		Providers: map[string]ProviderConfig{
+			ProviderOpenAI: {Models: []string{"gpt-4o"}, APIKey: "sk-test"},
 		},
 	}
 
@@ -79,21 +91,21 @@ func TestLoader_Save(t *testing.T) {
 	}
 }
 
-func TestLoader_Load_InvalidYAML(t *testing.T) {
+func TestLoader_Load_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	os.Setenv("HOME", tmpDir)
 	defer os.Unsetenv("HOME")
 
 	os.MkdirAll(ConfigDir(), 0755)
 	configPath := ConfigPath()
-	if err := os.WriteFile(configPath, []byte("invalid: yaml: content: ["), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte("invalid json content"), 0600); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
 	loader := NewLoader()
 	_, err := loader.Load()
 	if err == nil {
-		t.Fatal("expected error when loading invalid YAML, got nil")
+		t.Fatal("expected error when loading invalid JSON, got nil")
 	}
 }
 
@@ -105,9 +117,9 @@ func TestLoader_SaveAndLoad(t *testing.T) {
 	loader := NewLoader()
 	cfg := &GlobalConfig{
 		ActiveProvider: ProviderOpenAI,
-		OpenAI: ProviderConfig{
-			Model:  "gpt-4o",
-			APIKey: "sk-test",
+		ActiveModel:    "gpt-4o",
+		Providers: map[string]ProviderConfig{
+			ProviderOpenAI: {Models: []string{"gpt-4o"}, APIKey: "sk-test"},
 		},
 	}
 
@@ -122,8 +134,16 @@ func TestLoader_SaveAndLoad(t *testing.T) {
 	if loaded.ActiveProvider != ProviderOpenAI {
 		t.Errorf("expected provider %q, got %q", ProviderOpenAI, loaded.ActiveProvider)
 	}
-	if loaded.OpenAI.Model != "gpt-4o" {
-		t.Errorf("expected model 'gpt-4o', got %q", loaded.OpenAI.Model)
+	if loaded.ActiveModel != "gpt-4o" {
+		t.Errorf("expected active model 'gpt-4o', got %q", loaded.ActiveModel)
+	}
+
+	pc, ok := loaded.GetProviderConfig(ProviderOpenAI)
+	if !ok {
+		t.Fatal("expected to find openai provider config")
+	}
+	if len(pc.Models) != 1 || pc.Models[0] != "gpt-4o" {
+		t.Errorf("expected models ['gpt-4o'], got %v", pc.Models)
 	}
 }
 
@@ -135,5 +155,22 @@ func TestLoader_Exists_False(t *testing.T) {
 	loader := NewLoader()
 	if loader.Exists() {
 		t.Error("expected Exists() to return false, got true")
+	}
+}
+
+func TestLoader_Exists_True(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HOME", tmpDir)
+	defer os.Unsetenv("HOME")
+
+	os.MkdirAll(ConfigDir(), 0755)
+	configPath := ConfigPath()
+	if err := os.WriteFile(configPath, []byte("{}"), 0600); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+
+	loader := NewLoader()
+	if !loader.Exists() {
+		t.Error("expected Exists() to return true, got false")
 	}
 }

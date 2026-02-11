@@ -345,44 +345,120 @@ func TestGitAwareness(t *testing.T) {
 **Package:** `internal/cli/`
 
 **Files:**
-- `root.go` - Root command and global flags
+- `root.go` - Root command
 - `repl.go` - REPL command (initial stub)
+- `setup.go` - Interactive config setup flow
 
 **Commands to Implement:**
 
 1. **Root Command (`keen`)**
    ```bash
-   keen                    # Start REPL
-   keen "create fibonacci" # One-shot mode
+   keen                    # Start REPL (interactive setup on first run)
    keen --version          # Show version
-   keen --config ~/.keen.yaml # Use custom config
    ```
 
-2. **Flags:**
-   - `-c, --config string` - Config file path
-   - `-v, --verbose` - Enable debug logging
-   - `--version` - Show version
+2. **No Flags** - All configuration done via interactive prompts
 
-3. **Config Subcommand (stub)**
-   ```bash
-   keen config get llm.provider
-   keen config set llm.provider openai
+**Interactive Setup Flow (First Run):**
+
+When `keen` is run for the first time (no config exists), user is guided through:
+
+1. **Select Provider** (arrow key selection)
    ```
+   Select a provider:
+   > anthropic
+     openai
+     gemini
+   ```
+
+2. **Enter API Key** (password input, hidden)
+   ```
+   Enter API key for anthropic: ****
+   ```
+
+3. **Select Model** (arrow key selection, provider-specific)
+   ```
+   Select a model for anthropic:
+   > claude-3-sonnet
+     claude-3-opus
+     claude-3-haiku
+   ```
+
+4. **Save Config** to `~/.keen/configs.json`
+
+**Predefined Provider and Model Lists:**
+
+```go
+var Providers = []string{"anthropic", "openai", "gemini"}
+
+var ProviderModels = map[string][]string{
+    "anthropic": {"claude-3-opus", "claude-3-sonnet", "claude-3-haiku"},
+    "openai":    {"gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"},
+    "gemini":    {"gemini-1.5-pro", "gemini-1.5-flash"},
+}
+```
+
+**Implementation:**
+
+Use `github.com/charmbracelet/huh` for interactive forms:
+
+```go
+func RunSetup(loader *config.Loader, global *config.GlobalConfig) error {
+    // Step 1: Select provider
+    var provider string
+    err := huh.NewSelect[string]().
+        Title("Select a provider:").
+        Options(
+            huh.NewOption("anthropic", "anthropic"),
+            huh.NewOption("openai", "openai"),
+            huh.NewOption("gemini", "gemini"),
+        ).
+        Value(&provider).
+        Run()
+    
+    // Step 2: Enter API key
+    var apiKey string
+    err = huh.NewInput().
+        Title("Enter API key for " + provider).
+        EchoMode(huh.EchoModePassword).
+        Value(&apiKey).
+        Run()
+    
+    // Step 3: Select model
+    var model string
+    err = huh.NewSelect[string]().
+        Title("Select a model for " + provider).
+        Options(getModelOptions(provider)...).
+        Value(&model).
+        Run()
+    
+    // Save config
+    global.ActiveProvider = provider
+    global.ActiveModel = model
+    // ... save provider config with API key and model
+    return loader.Save(global)
+}
+```
+
+**Future `/model` Command (REPL):**
+- Allows switching provider/model without restarting
+- Shows existing API key (masked) or prompts if not set
+- Updates active provider/model in config
 
 **Integration:**
-- Initialize config on startup
-- Initialize logger
-- Wire up FileGuard and GitAwareness
+- On startup: Load config
+- If no provider configured: Run interactive setup
+- Then: Start REPL with resolved config
 
 **Testable Design:**
 - Use Cobra's command testing utilities
-- Dependency injection for config and logger
-- Separate command logic from execution
+- Dependency injection for config and prompter
+- Separate setup logic from command execution
 
 **Deliverables:**
-- Working CLI with help text
-- Config flag handling
-- Version command
+- Working CLI with `keen` and `keen --version`
+- Interactive setup with arrow key selection
+- Config saved to `~/.keen/configs.json`
 - Basic error handling
 
 ## Implementation Order

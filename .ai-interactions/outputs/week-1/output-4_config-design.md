@@ -7,7 +7,7 @@ This document describes the two-level configuration system for Keen CLI.
 ## Two-Level Configuration
 
 ### Level 1: Global Config (Defaults)
-- **Stored in:** `~/.config/keen/config.yaml`
+- **Stored in:** `~/.keen/configs.json`
 - **Purpose:** Default settings for all sessions
 - **Access:** Go API via `config.Loader`
 
@@ -19,7 +19,7 @@ This document describes the two-level configuration system for Keen CLI.
 ### Resolution Order (Highest to Lowest Priority)
 
 1. **Session config** (`SessionConfig` struct) - Session-specific overrides
-2. **Global config** (`~/.config/keen/config.yaml`) - Defaults
+2. **Global config** (`~/.keen/configs.json`) - Defaults
 3. **Built-in defaults** - Fallbacks
 
 ---
@@ -28,26 +28,29 @@ This document describes the two-level configuration system for Keen CLI.
 
 ### Location
 ```
-~/.config/keen/config.yaml
+~/.keen/configs.json
 ```
 
 ### Structure
-```yaml
-# Active default provider
-provider: anthropic
-
-# Per-provider configurations
-anthropic:
-  model: claude-3-sonnet
-  api_key: sk-ant-xxxxx
-
-openai:
-  model: gpt-4o
-  api_key: sk-xxxxx
-
-gemini:
-  model: gemini-1.5-pro
-  api_key: xxxxxx
+```json
+{
+  "active_provider": "anthropic",
+  "active_model": "claude-3-sonnet",
+  "providers": {
+    "anthropic": {
+      "models": ["claude-3-sonnet"],
+      "api_key": "sk-ant-xxxxx"
+    },
+    "openai": {
+      "models": ["gpt-4o"],
+      "api_key": "sk-xxxxx"
+    },
+    "gemini": {
+      "models": ["gemini-1.5-pro"],
+      "api_key": "xxxxxx"
+    }
+  }
+}
 ```
 
 ---
@@ -59,18 +62,16 @@ gemini:
 ```go
 package config
 
-// GlobalConfig is persisted to ~/.config/keen/config.yaml
+// GlobalConfig is persisted to ~/.keen/configs.json
 type GlobalConfig struct {
-    ActiveProvider string `yaml:"provider" mapstructure:"provider"`
-    
-    Anthropic ProviderConfig `yaml:"anthropic"`
-    OpenAI    ProviderConfig `yaml:"openai"`
-    Gemini    ProviderConfig `yaml:"gemini"`
+    ActiveProvider string                    `json:"active_provider"`
+    ActiveModel    string                    `json:"active_model"`
+    Providers      map[string]ProviderConfig `json:"providers"`
 }
 
 type ProviderConfig struct {
-    Model  string `yaml:"model"`
-    APIKey string `yaml:"api_key"`
+    Models []string `json:"models"`
+    APIKey string   `json:"api_key"`
 }
 
 // SessionConfig holds runtime overrides for the current session only
@@ -91,11 +92,18 @@ type ResolvedConfig struct {
 ### Config Access Methods
 
 ```go
-// GetProviderConfig returns the ProviderConfig for a given provider name
-func (g *GlobalConfig) GetProviderConfig(provider string) (ProviderConfig, error)
+// GetProviderConfig returns the ProviderConfig for a given provider name.
+// Returns (config, true) if found, (zero value, false) if not found.
+func (g *GlobalConfig) GetProviderConfig(provider string) (ProviderConfig, bool)
 
-// SetProviderConfig sets the ProviderConfig for a given provider name
-func (g *GlobalConfig) SetProviderConfig(provider string, cfg ProviderConfig) error
+// SetProviderConfig sets the ProviderConfig for a given provider name.
+func (g *GlobalConfig) SetProviderConfig(provider string, cfg ProviderConfig)
+
+// AddModel adds a model to the provider's model list if not already present.
+func (g *GlobalConfig) AddModel(provider string, model string)
+
+// GetFirstModel returns the first model in the provider's model list.
+func (g *GlobalConfig) GetFirstModel(provider string) string
 ```
 
 ### Resolution Logic
@@ -108,8 +116,8 @@ func Resolve(global *GlobalConfig, session *SessionConfig) (*ResolvedConfig, err
 
 Resolution rules:
 - **Provider**: `session.Provider` → `global.ActiveProvider` → error
-- **API Key**: `session.APIKey` → `global.GetProviderConfig().APIKey` → error
-- **Model**: `session.Model` → `global.GetProviderConfig().Model` → `defaultModel(provider)`
+- **API Key**: `session.APIKey` → `global.Providers[provider].APIKey` → error
+- **Model**: `session.Model` → `global.ActiveModel` → `global.GetFirstModel(provider)` → `defaultModel(provider)`
 
 ### Config Storage
 
@@ -148,7 +156,7 @@ func ConfigDir() string
 
 | Method | Storage | Use Case |
 |--------|---------|----------|
-| Global config | `~/.config/keen/config.yaml` | Personal daily use |
+| Global config | `~/.keen/configs.json` | Personal daily use |
 | Session config | Memory only | Shared machines, CI/CD |
 
 ### File Permissions
@@ -165,15 +173,14 @@ os.WriteFile(path, data, 0600) // -rw-------
 | Aspect | Implementation |
 |--------|----------------|
 | **Config levels** | 2 (global + session) |
-| **Global storage** | `~/.config/keen/config.yaml` |
+| **Global storage** | `~/.keen/configs.json` |
 | **Session storage** | In-memory struct only |
 | **Resolution** | Session > Global > Default |
-| **Persistence** | YAML file loader |
+| **Persistence** | JSON file loader |
 | **Security** | 0600 file permissions |
 
 ---
 
 ## Future Work
 
-- CLI flags for session overrides (`--provider`, `--api-key`, `--model`)
-- REPL `/provider` command for interactive configuration
+- REPL `/model` command for interactive configuration

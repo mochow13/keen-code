@@ -2,22 +2,61 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/user/keen-cli/configs/providers"
+	"github.com/user/keen-cli/internal/config"
 )
 
-func NewRootCommand() *cobra.Command {
+func NewRootCommand(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "keen",
 		Short: "Keen - A coding agent CLI",
 		Long:  `Keen is a terminal-based coding agent that provides AI-assisted code editing.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Keen CLI - Use --help for available commands")
+		RunE: func(cmd *cobra.Command, args []string) error {
+			registry, err := providers.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load provider registry: %w", err)
+			}
+			loader := config.NewLoader()
+			globalCfg, err := loader.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			var resolvedCfg *config.ResolvedConfig
+
+			if globalCfg.ActiveProvider == "" {
+				resolvedCfg, err = RunSetup(loader, globalCfg, registry)
+				if err != nil {
+					return fmt.Errorf("setup failed: %w", err)
+				}
+			} else {
+				_, ok := registry.GetProvider(globalCfg.ActiveProvider)
+				if !ok {
+					return fmt.Errorf("configured provider %q not found in registry", globalCfg.ActiveProvider)
+				}
+				providerCfg, ok := globalCfg.GetProviderConfig(globalCfg.ActiveProvider)
+				if !ok {
+					return fmt.Errorf("failed to get provider config for %q", globalCfg.ActiveProvider)
+				}
+				resolvedCfg = &config.ResolvedConfig{
+					Provider: globalCfg.ActiveProvider,
+					Model:    globalCfg.ActiveModel,
+					APIKey:   providerCfg.APIKey,
+				}
+			}
+
+			wd, err := os.Getwd()
+			if err != nil {
+				wd = "."
+			}
+
+			return RunREPL(version, wd, resolvedCfg)
 		},
 	}
 
-	cmd.Flags().StringP("config", "c", "", "Config file path")
-	cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
-
+	cmd.Version = version
 	return cmd
 }

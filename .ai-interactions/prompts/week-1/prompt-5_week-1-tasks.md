@@ -34,7 +34,7 @@ This file contains the prompts used to implement the tasks in week 1. It also ha
     - Viper is mentioned in design docs and also in tests. Let's update those.
 
 
-## Task 3
+## Task 3 & 4
 ### Implementation
 1. Check the plan in @output-3_week-1-plan.md. We now want to focus on task 3. I have some specific requirements for file guard. Read the requirements in @prompt-6_file-guard-prd.md and update the plan for task 3 in @output-3_week-1-plan.md.
 2. Before implementing fileguard, let's first implement the git-awareness where we will ignore any files or directories in `.gitignore` in @internal/filesystem/gitawareness.go.
@@ -47,3 +47,31 @@ This file contains the prompts used to implement the tasks in week 1. It also ha
     - Let's block all directories that start with `~/.`.
     - Looks like we haven't really implemented recursive check for `.gitignore`. Any file that starts with `.gitignore` should be checked for gitignore rules and must be blocked.
     - The `LoadGitignore` function is taking `gitignorePath` as a parameter. This is okay. But we want to load all `.gitignore` files recursively from the root path. Let's write a helper function to find all `.gitignore` files recursively from the root path and then load them using `LoadGitignore`.
+
+## Task 5
+### Implementation
+1. First, review @output_1-rfc.md. Then check the plan in @output-3_week-1-plan.md. We now want to focus on task 5. Explain step by step what you are going to do to implement this task. Specifically focus on this task only.
+2. If no global config is set, and user doesn't provide all the required session configs, then the CLI should prompt for the missing configs. For API key, it should prompt for the key but hide the input. For others, it should show the input. For example, if user provides `--provider gemini`, then it should prompt for the API key and model. If user provides `--provider gemini --model gemini-2.5-flash`, then it should prompt for the API key only.
+3. In the config yaml file, let's also store multiple models per provider so that we can in future allow users to select a different model from the same provider.
+4. You are currently using default provider as `anthropic`. Don't do that. On the very first run, prompt user to set up configs including provider.
+5. On the very first run, the current implementation is not asking for a model to use! Let's fix it.
+6. We want to change the way we are currently setting up configs using user inputs. Read @prompt_7-cli-prd.md first. Then update the design docs in @output-3_week-1-plan.md accordingly. After that, give me a plan on how you will implement the new config setup flow from user inputs. Save the plan in @output-5_basic-cli.md.
+7. Let's use a dedicated config file for provider and model mapping. And let's implement it based on the updated plan.
+8. Beautify the texts shown when the keen cli runs.
+9. Instead of exiting the REPL, we will continue running it for the next input. For now, if user gives some input, we will simply output it back to the user. We will implement the actual AI chat functionality later.
+10. Let's beatifuy REPL input from user. It should be inside a box. The output should be inside another box with different color. Also, the prompt should be like `> `.
+11. In the REPL, users should be able to use `/` to give specific commands. For now, we only want to support `/exit` and `/model` commands. `/exit` will exit the REPL. `/model` will open a prompt to select a different provider, model, and API key. If there is already an API key set, users can skip it by pressing enter. If they want to change it, they can enter a new API key.
+12. The input is currently shown twice. In user input where user writes, and as output. We just want to keep the first one.
+13. Let's actually remove the border from he output. Let's put the input text inside a box.
+14. When users press ctrl+C or ctrl+D, we should exit the REPL. But it should be exited gracefully.
+
+
+### Review
+1. Kimi has implemented a basic CLI functionality for this project. The PRD is in @prompt-7-cli-prd.md and plan in @output-5_basic-cli.md. Review these documents. Ignore the actual code in @output-5_basic-cli.md. After reviewing these docs, review the current implementation that's in diff. Review the code thoroughly. Suggest best practices and idiomatic Go. Also spot any inefficiencies or overkill in the implementation.
+2. Let's address some review comments. First, `GetProvider` in @configs/providers/provider.go is returning a pointer to a provider. Let's change it to return a value.
+3. In @internal/config/config.go, we are right now maintaining one instance of `ProviderConfig` for each provider. We should instead use a `map[string]ProviderConfig` to store all providers. Update the code and modify the tests accordingly.
+4. Let's also update the design in @.ai-interactions/outputs/week-1/output-4_config-design.md
+5. Right now, we have a `defaultModel` function that hardcodes default model for each provider. Let's not do that. Let's not have any default configs at all since we always prompt users to set up configs when running the CLI for the first time. Update the code and tests accordingly.
+6. In REPL, we are currently hardcoding the directory `/Users/` in `RunREPL` function. This is not going to work in windows or linux. Let's use the home directory of the user instead.
+7. Ok Kimi! Good job. Let's one more time review the plan for week 1 in @.ai-interactions/o
+utputs/week-1/output-3_week-1-plan.md and confirm all the pieces are implemented. Do not edit any code now.

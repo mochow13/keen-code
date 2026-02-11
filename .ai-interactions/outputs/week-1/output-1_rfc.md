@@ -576,22 +576,14 @@ logging:
 # Start interactive REPL
 keen
 
-# One-shot mode
-keen "create a function to calculate fibonacci"
-
-# Mode-specific
-keen plan "explain this codebase"
-keen work "refactor the auth module"
-
-# With file context
-keen -f main.go -f utils.go "add error handling"
-
-# Configuration
-keen config set llm.provider openai
-keen config get llm.model
+# Start REPL with custom provider settings
+keen --provider anthropic --model claude-3-opus
 
 # Version
 keen --version
+
+# Session config
+keen --provider anthropic --provider-api-key $ANTHROPIC_API_KEY --model claude-haiku-4-5-20251001
 ```
 
 ### 8.2 Interactive REPL Commands

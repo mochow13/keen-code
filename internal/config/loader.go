@@ -1,14 +1,11 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
-
-	"gopkg.in/yaml.v3"
 )
-
-var loaderLog = slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 type Loader struct{}
 
@@ -22,17 +19,17 @@ func (l *Loader) Load() (*GlobalConfig, error) {
 	data, err := os.ReadFile(ConfigPath())
 	if err != nil {
 		if os.IsNotExist(err) {
-			loaderLog.Info("config file not found, using defaults")
+			slog.Debug("config file not found, using defaults")
 			return cfg, nil
 		}
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	loaderLog.Info("config loaded", "provider", cfg.ActiveProvider)
+	slog.Debug("config loaded", "provider", cfg.ActiveProvider)
 	return cfg, nil
 }
 
@@ -41,7 +38,7 @@ func (l *Loader) Save(cfg *GlobalConfig) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	data, err := yaml.Marshal(cfg)
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
@@ -51,7 +48,7 @@ func (l *Loader) Save(cfg *GlobalConfig) error {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
-	loaderLog.Info("config saved", "path", path)
+	slog.Debug("config saved", "path", path)
 	return nil
 }
 

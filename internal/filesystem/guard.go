@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-var guardLog = slog.New(slog.NewTextHandler(os.Stderr, nil))
-
 type Permission int
 
 const (
@@ -48,13 +46,13 @@ func defaultBlockedPaths() []string {
 
 func (g *Guard) CheckPath(path string, operation string) Permission {
 	if g.IsBlocked(path) {
-		guardLog.Info("path blocked", "path", path)
+		slog.Debug("path blocked", "path", path)
 		return PermissionDenied
 	}
 
 	resolved, err := g.ResolvePath(path)
 	if err != nil {
-		guardLog.Info("path resolution failed", "path", path, "error", err)
+		slog.Info("path resolution failed", "path", path, "error", err)
 		return PermissionDenied
 	}
 
@@ -83,7 +81,6 @@ func (g *Guard) IsBlocked(path string) bool {
 		return true
 	}
 
-	// Block all hidden directories in home (~/.*)
 	home, _ := os.UserHomeDir()
 	if home != "" && strings.HasPrefix(resolved, home+string(filepath.Separator)+".") {
 		return true
