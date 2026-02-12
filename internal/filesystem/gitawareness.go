@@ -29,7 +29,7 @@ func (g *GitAwareness) LoadGitignoreRecursive(root string) error {
 		if err != nil {
 			return nil
 		}
-		if d.Name() == ".gitignore" && !d.IsDir() {
+		if strings.HasPrefix(d.Name(), ".gitignore") && !d.IsDir() {
 			return g.LoadGitignore(path)
 		}
 		return nil

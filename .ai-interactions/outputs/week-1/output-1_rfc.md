@@ -250,7 +250,7 @@ classDiagram
     WriteFileTool --> FileGuard
 ```
 
-### 3.3 GitAwareness Component (CRITICAL - Phase 1)
+### 3.3 GitAwareness Component
 
 **Purpose:** Prevent wasting tokens and confusing the LLM by filtering out files that should be ignored according to `.gitignore` rules.
 

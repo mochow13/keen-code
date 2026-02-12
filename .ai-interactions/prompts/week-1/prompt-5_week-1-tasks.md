@@ -73,5 +73,7 @@ This file contains the prompts used to implement the tasks in week 1. It also ha
 4. Let's also update the design in @.ai-interactions/outputs/week-1/output-4_config-design.md
 5. Right now, we have a `defaultModel` function that hardcodes default model for each provider. Let's not do that. Let's not have any default configs at all since we always prompt users to set up configs when running the CLI for the first time. Update the code and tests accordingly.
 6. In REPL, we are currently hardcoding the directory `/Users/` in `RunREPL` function. This is not going to work in windows or linux. Let's use the home directory of the user instead.
-7. Ok Kimi! Good job. Let's one more time review the plan for week 1 in @.ai-interactions/o
-utputs/week-1/output-3_week-1-plan.md and confirm all the pieces are implemented. Do not edit any code now.
+7. Keen CLI is a coding agent. The design is in output-1_rfc.md. So far, we have implemented upto week 1. The week 1 plan is in output-3_week-1-plan.md. There is also a design for config in output-4_config-design.md and a design for basic CLI implementation in output-5_basic-cli.md. Go through the code so far and evaluate how far we have come. Don't write any code.
+8. Looks like we have some missing pieces. Let's fix them. First, we are checking for `.gitignore` in @internal/filesystem/gitawareness.go. But we should actually check if the name starts with `.gitignore`.
+9. Write unit tests for the code in @configs/providers/loader.go. Make sure the tests cover the critical paths. Don't overdo it.
+10. Let's write unit test for @internal/cli/repl.go.

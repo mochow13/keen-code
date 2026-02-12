@@ -13,17 +13,6 @@ import (
 	"github.com/user/keen-cli/internal/config"
 )
 
-func abbreviateHome(path string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return path
-	}
-	if strings.HasPrefix(path, home) {
-		return "~" + strings.TrimPrefix(path, home)
-	}
-	return path
-}
-
 var (
 	primaryColor   = lipgloss.Color("#7C3AED")
 	secondaryColor = lipgloss.Color("#10B981")
@@ -58,10 +47,23 @@ var (
 			Foreground(primaryColor)
 )
 
-func RunREPL(version, workingDir string, cfg *config.ResolvedConfig) error {
+func abbreviateHome(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	if strings.HasPrefix(path, home) {
+		return "~" + strings.TrimPrefix(path, home)
+	}
+	return path
+}
+
+func printHeader(version string) {
 	fmt.Println()
 	fmt.Printf("  🤖  %s  %s\n\n", titleStyle.Render("Keen v"+version), modeStyle.Render("plan mode"))
+}
 
+func printInfo(workingDir string, cfg *config.ResolvedConfig) {
 	var info strings.Builder
 	displayDir := abbreviateHome(workingDir)
 	info.WriteString(fmt.Sprintf("  %s %s\n",
@@ -73,20 +75,21 @@ func RunREPL(version, workingDir string, cfg *config.ResolvedConfig) error {
 	info.WriteString(fmt.Sprintf("  %s %s\n",
 		infoLabelStyle.Render("Model:"),
 		infoValueStyle.Render(cfg.Model)))
-
 	fmt.Println(info.String())
+}
 
+func printTips() {
 	tips := []string{
 		"Type /help  for available commands",
 		"Type /exit  to quit",
 		"Type /model to change provider or model",
 	}
 	fmt.Println(boxStyle.Render(tipStyle.Render(strings.Join(tips, "\n"))))
-
 	fmt.Println()
+}
 
+func setupSignalHandling() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -95,42 +98,66 @@ func RunREPL(version, workingDir string, cfg *config.ResolvedConfig) error {
 		cancel()
 	}()
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print(promptStyle.Render("> "))
+	return ctx
+}
 
-		scanCh := make(chan bool)
-		go func() {
-			scanCh <- scanner.Scan()
-			close(scanCh)
-		}()
+func readInput(ctx context.Context, scanner *bufio.Scanner) (string, bool) {
+	fmt.Print(promptStyle.Render("> "))
 
-		select {
-		case <-ctx.Done():
+	scanCh := make(chan bool)
+	go func() {
+		scanCh <- scanner.Scan()
+		close(scanCh)
+	}()
+
+	select {
+	case <-ctx.Done():
+		fmt.Println()
+		fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
+		return "", false
+	case scanned := <-scanCh:
+		if !scanned {
 			fmt.Println()
 			fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
+			return "", false
+		}
+	}
+
+	return strings.TrimSpace(scanner.Text()), true
+}
+
+func handleInput(input string) bool {
+	if input == "/exit" {
+		fmt.Println()
+		fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
+		return false
+	}
+	if input == "" {
+		return true
+	}
+
+	fmt.Println(outputStyle.Render("  " + input))
+	fmt.Println()
+	return true
+}
+
+func RunREPL(version, workingDir string, cfg *config.ResolvedConfig) error {
+	printHeader(version)
+	printInfo(workingDir, cfg)
+	printTips()
+
+	ctx := setupSignalHandling()
+	scanner := bufio.NewScanner(os.Stdin)
+
+	for {
+		input, ok := readInput(ctx, scanner)
+		if !ok {
 			return nil
-		case scanned := <-scanCh:
-			if !scanned {
-				fmt.Println()
-				fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
-				return nil
-			}
 		}
 
-		input := strings.TrimSpace(scanner.Text())
-
-		if input == "/exit" {
-			fmt.Println()
-			fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
+		if !handleInput(input) {
 			break
 		}
-		if input == "" {
-			continue
-		}
-
-		fmt.Println(outputStyle.Render("  " + input))
-		fmt.Println()
 	}
 
 	return scanner.Err()
