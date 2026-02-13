@@ -1,6 +1,6 @@
-# Week 1 Implementation Plan: Phase 1 - Foundation
+# Implementation Plan: Phase 1 - Foundation
 
-Based on the RFC (`output-1_rfc.md`) and PRD (`prd.md`), this document outlines the step-by-step tasks for Week 1 (Phase 1: Foundation).
+Based on the RFC (`output-1_rfc.md`) and PRD (`prd.md`), this document outlines the step-by-step tasks for Phase 1: Foundation.
 
 ---
 
@@ -526,7 +526,7 @@ require (
 
 ---
 
-## Success Criteria for Week 1
+## Success Criteria for Phase 1
 
 - [ ] `go build ./...` succeeds with no errors
 - [ ] All unit tests pass (`go test ./...`)
@@ -539,9 +539,9 @@ require (
 
 ---
 
-## Next Steps (Week 2 Preview)
+## Next Steps (Phase 2 Preview)
 
-After Week 1 foundation is complete, Week 2 will focus on:
+After Phase 1 foundation is complete, Phase 2 will focus on:
 - LLM Provider Interface (Anthropic first)
 - Tool System (read_file, list_dir)
 - Basic Orchestrator loop

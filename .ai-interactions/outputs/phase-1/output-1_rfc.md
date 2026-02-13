@@ -39,10 +39,8 @@ graph TB
     end
 
     subgraph "LLM Integration Layer"
-        PROVIDER[Provider Interface]
-        ANTHROPIC[Anthropic Client]
-        OPENAI[OpenAI Client]
-        GEMINI[Gemini Client]
+        LANGCHAIN[LangChain Go<br/>github.com/tmc/langchaingo]
+        MODELS[LLM Models]
     end
 
     subgraph "External Dependencies"
@@ -64,13 +62,11 @@ graph TB
     TOOLM --> FILE_WRITE
     TOOLM --> SHELL
     TOOLM --> GREP
-    ORCH --> PROVIDER
-    PROVIDER --> ANTHROPIC
-    PROVIDER --> OPENAI
-    PROVIDER --> GEMINI
-    ANTHROPIC --> ANTHROPIC_API
-    OPENAI --> OPENAI_API
-    GEMINI --> GEMINI_API
+    ORCH --> LANGCHAIN
+    LANGCHAIN --> MODELS
+    MODELS --> ANTHROPIC_API
+    MODELS --> OPENAI_API
+    MODELS --> GEMINI_API
     FILE_READ --> FILE_SYSTEM
     FILE_WRITE --> FILE_SYSTEM
     SHELL --> SHELL_ENV
@@ -89,7 +85,7 @@ sequenceDiagram
     participant User
     participant CLI
     participant Orchestrator
-    participant LLMProvider
+    participant LangChain
     participant ToolManager
     participant FileSystem
 
@@ -98,8 +94,8 @@ sequenceDiagram
     Orchestrator->>Orchestrator: Load system prompt + context
     
     loop Tool Calling Loop
-        Orchestrator->>LLMProvider: Send messages
-        LLMProvider-->>Orchestrator: Response (text/tools)
+        Orchestrator->>LangChain: Send messages
+        LangChain-->>Orchestrator: Response (text/tools)
         
         alt Response contains tool calls
             Orchestrator->>ToolManager: Execute tools
@@ -148,10 +144,8 @@ keen-cli/
 │   │   ├── context.go           # Context/conversation management
 │   │   └── mode.go              # Plan/Work mode handling
 │   ├── llm/
-│   │   ├── provider.go          # Provider interface
-│   │   ├── anthropic.go         # Anthropic implementation
-│   │   ├── openai.go            # OpenAI implementation
-│   │   ├── gemini.go            # Gemini implementation
+│   │   ├── client.go            # LangChain client wrapper
+│   │   ├── models.go            # Model configuration & factory
 │   │   └── message.go           # Message types
 │   ├── tools/
 │   │   ├── manager.go           # Tool execution manager
@@ -183,10 +177,10 @@ keen-cli/
 
 ```mermaid
 classDiagram
-    class LLMProvider {
+    class LLMClient {
         <<interface>>
-        +SendMessages(messages []Message, tools []Tool) Response
-        +StreamMessages(messages []Message, tools []Tool) chan StreamEvent
+        +Chat(messages []Message, tools []Tool) Response
+        +Stream(messages []Message, tools []Tool) chan StreamEvent
     }
 
     class Tool {
@@ -198,7 +192,7 @@ classDiagram
     }
 
     class Orchestrator {
-        -provider LLMProvider
+        -client LLMClient
         -tools []Tool
         -mode Mode
         -session Session
@@ -235,15 +229,13 @@ classDiagram
 
     GitAwareness --> IgnoreMatcher
 
-    LLMProvider <|.. AnthropicProvider
-    LLMProvider <|.. OpenAIProvider
-    LLMProvider <|.. GeminiProvider
+    LLMClient <|.. LangChainClient
     Tool <|.. ReadFileTool
     Tool <|.. WriteFileTool
     Tool <|.. EditFileTool
     Tool <|.. ShellTool
     Tool <|.. GrepTool
-    Orchestrator --> LLMProvider
+    Orchestrator --> LLMClient
     Orchestrator --> Tool
     Orchestrator --> Mode
     ReadFileTool --> FileGuard
@@ -296,7 +288,7 @@ The tool system uses a registry pattern for extensibility:
 
 ## 4. Implementation Steps
 
-### Phase 1: Foundation (Week 1)
+### Phase 1: Foundation
 
 ```mermaid
 flowchart TD
@@ -308,40 +300,21 @@ flowchart TD
     F --> G[Add logging framework]
 ```
 
-**Tasks:**
-1. Initialize Go module with `go mod init`
-2. Set up directory structure
-3. Implement configuration system using YAML
-4. Implement `FileGuard` for secure file access
-5. Implement `GitAwareness` component - **CRITICAL**
-   - Parse `.gitignore` files (local and global)
-   - Provide file filtering for all filesystem operations
-   - Cache ignore patterns for performance
-6. Create basic CLI structure with Cobra
-7. Add structured logging with `log/slog` or `uber-go/zap`
-
-### Phase 2: LLM Integration (Week 1-2)
+### Phase 2: LLM Integration
 
 ```mermaid
 flowchart TD
-    A[Define Provider Interface] --> B[Implement Anthropic Provider]
-    A --> C[Implement OpenAI Provider]
-    A --> D[Implement Gemini Provider]
-    B --> E[Add Streaming Support]
-    C --> E
-    D --> E
-    E --> F[Test LLM Integration]
+    A[Add LangChain Go Dependency] --> B[Create LLM Client Wrapper]
+    B --> C[Configure Anthropic Provider]
+    B --> D[Configure OpenAI Provider]
+    B --> E[Configure Gemini Provider]
+    C --> F[Add Streaming Support]
+    D --> F
+    E --> F
+    F --> G[Test LLM Integration]
 ```
 
-**Tasks:**
-1. Define `LLMProvider` interface with streaming support
-2. Implement Anthropic provider using `github.com/anthropics/anthropic-sdk-go`
-3. Implement OpenAI provider using `github.com/openai/openai-go`
-4. Implement Gemini provider using `github.com/googleapis/go-genai`
-5. Add message/conversation management
-6. Implement tool schema generation for function calling
-
-### Phase 3: Tool System (Week 2)
+### Phase 3: Tool System
 
 ```mermaid
 flowchart TD
@@ -370,7 +343,7 @@ flowchart TD
 | `write_file` | Write/overwrite files | Standard `os` package |
 | `edit_file` | Apply string replacements | Custom implementation |
 
-### Phase 4: Orchestrator & Modes (Week 3)
+### Phase 4: Orchestrator & Modes
 
 ```mermaid
 flowchart TD
@@ -382,15 +355,7 @@ flowchart TD
     E --> F[Add system prompts]
 ```
 
-**Tasks:**
-1. Build main orchestration loop
-2. Implement plan mode (suggestions only)
-3. Implement work mode (with permission flow)
-4. Add user confirmation prompts using `github.com/charmbracelet/huh`
-5. Implement conversation context management
-6. Create effective system prompts
-
-### Phase 5: Interactive UI (Week 3-4)
+### Phase 5: Interactive UI
 
 ```mermaid
 flowchart TD
@@ -402,15 +367,7 @@ flowchart TD
     E --> F[Polish UX]
 ```
 
-**Tasks:**
-1. Build REPL using `github.com/charmbracelet/bubbletea`
-2. Add syntax highlighting with `github.com/alecthomas/chroma`
-3. Implement diff display for proposed changes
-4. Add keyboard shortcuts (e.g., `/plan`, `/work`, `/exit`)
-5. Add spinner/loading indicators
-6. Implement error display and recovery
-
-### Phase 6: Testing & Polish (Week 4)
+### Phase 6: Testing & Polish
 
 ```mermaid
 flowchart TD
@@ -436,9 +393,7 @@ flowchart TD
 | User Prompts | `github.com/charmbracelet/huh` | Interactive forms and prompts |
 | Syntax Highlighting | `github.com/alecthomas/chroma` | Code display |
 | Diff Display | `github.com/sergi/go-diff/diffmatchpatch` | Diff generation |
-| LLM - Anthropic | `github.com/anthropics/anthropic-sdk-go` | Claude API |
-| LLM - OpenAI | `github.com/openai/openai-go` | GPT API |
-| LLM - Gemini | `github.com/googleapis/go-genai` | Gemini API |
+| LLM Framework | `github.com/tmc/langchaingo` | Unified LLM interface |
 | Pattern Matching | `github.com/bmatcuk/doublestar` | Glob patterns |
 | Gitignore Parsing | `github.com/go-git/go-git/v5/plumbing/format/gitignore` | Parse .gitignore rules |
 | Environment | `github.com/joho/godotenv` | .env file support |
@@ -723,7 +678,7 @@ graph LR
     subgraph "Current"
         A[CLI] --> B[Orchestrator]
         B --> C[Tools]
-        B --> D[LLM]
+        B --> D[LangChain]
     end
     
     subgraph "Future Extensions"
@@ -787,7 +742,8 @@ This architecture provides a solid foundation for a coding agent CLI with:
 
 - ✅ Clean separation of concerns (UI, Orchestration, Tools, LLM)
 - ✅ **GitAwareness component (Phase 1)** - Respects `.gitignore` to avoid wasting tokens
-- ✅ Pluggable LLM providers
+- ✅ Unified LLM integration via LangChain Go for extensibility
+- ✅ Single dependency for multiple LLM providers
 - ✅ Extensible tool system
 - ✅ Secure file system access
 - ✅ Two-mode operation (Plan/Work)

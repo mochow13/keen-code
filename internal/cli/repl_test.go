@@ -6,8 +6,42 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/config"
 )
+
+func testRegistry() *providers.Registry {
+	return &providers.Registry{
+		Providers: []providers.Provider{
+			{
+				ID:   "anthropic",
+				Name: "Anthropic",
+				Models: []providers.Model{
+					{ID: "claude-3-sonnet", Name: "Claude 3 Sonnet"},
+				},
+			},
+		},
+	}
+}
+
+func testGlobalConfig() *config.GlobalConfig {
+	cfg := config.DefaultGlobalConfig()
+	cfg.ActiveProvider = "anthropic"
+	cfg.ActiveModel = "claude-3-sonnet"
+	cfg.SetProviderConfig("anthropic", config.ProviderConfig{
+		APIKey: "test-key",
+		Models: []string{"claude-3-sonnet"},
+	})
+	return cfg
+}
+
+func testResolvedConfig() *config.ResolvedConfig {
+	return &config.ResolvedConfig{
+		Provider: "anthropic",
+		Model:    "claude-3-sonnet",
+		APIKey:   "test-key",
+	}
+}
 
 func TestAbbreviateHome(t *testing.T) {
 	home, err := os.UserHomeDir()
@@ -68,12 +102,7 @@ func TestRunREPL_ExitCommand(t *testing.T) {
 
 	done := make(chan error)
 	go func() {
-		cfg := &config.ResolvedConfig{
-			Provider: "anthropic",
-			Model:    "claude-3-sonnet",
-			APIKey:   "test-key",
-		}
-		done <- RunREPL("0.1.0", "/tmp", cfg)
+		done <- RunREPL("0.1.0", "/tmp", testResolvedConfig(), config.NewLoader(), testGlobalConfig(), testRegistry())
 	}()
 
 	w.WriteString("/exit\n")
@@ -115,12 +144,7 @@ func TestRunREPL_EchoInput(t *testing.T) {
 
 	done := make(chan error)
 	go func() {
-		cfg := &config.ResolvedConfig{
-			Provider: "anthropic",
-			Model:    "claude-3-sonnet",
-			APIKey:   "test-key",
-		}
-		done <- RunREPL("0.1.0", "/tmp", cfg)
+		done <- RunREPL("0.1.0", "/tmp", testResolvedConfig(), config.NewLoader(), testGlobalConfig(), testRegistry())
 	}()
 
 	w.WriteString("hello world\n/exit\n")
@@ -156,12 +180,7 @@ func TestRunREPL_EmptyInput(t *testing.T) {
 
 	done := make(chan error)
 	go func() {
-		cfg := &config.ResolvedConfig{
-			Provider: "anthropic",
-			Model:    "claude-3-sonnet",
-			APIKey:   "test-key",
-		}
-		done <- RunREPL("0.1.0", "/tmp", cfg)
+		done <- RunREPL("0.1.0", "/tmp", testResolvedConfig(), config.NewLoader(), testGlobalConfig(), testRegistry())
 	}()
 
 	w.WriteString("\n/exit\n")
@@ -174,4 +193,63 @@ func TestRunREPL_EmptyInput(t *testing.T) {
 
 	outW.Close()
 	io.ReadAll(outR)
+}
+
+func TestHandleInput_ExitReturnsFalse(t *testing.T) {
+	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
+
+	_, outW, _ := os.Pipe()
+	os.Stdout = outW
+
+	state := &replState{
+		cfg:       testResolvedConfig(),
+		globalCfg: testGlobalConfig(),
+		registry:  testRegistry(),
+		loader:    config.NewLoader(),
+	}
+
+	if state.handleInput("/exit") {
+		t.Error("handleInput('/exit') should return false")
+	}
+
+	outW.Close()
+}
+
+func TestHandleInput_EmptyInputReturnsTrue(t *testing.T) {
+	state := &replState{
+		cfg:       testResolvedConfig(),
+		globalCfg: testGlobalConfig(),
+		registry:  testRegistry(),
+		loader:    config.NewLoader(),
+	}
+
+	if !state.handleInput("") {
+		t.Error("handleInput('') should return true")
+	}
+}
+
+func TestHandleInput_RegularInputReturnsTrue(t *testing.T) {
+	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
+
+	outR, outW, _ := os.Pipe()
+	os.Stdout = outW
+
+	state := &replState{
+		cfg:       testResolvedConfig(),
+		globalCfg: testGlobalConfig(),
+		registry:  testRegistry(),
+		loader:    config.NewLoader(),
+	}
+
+	if !state.handleInput("hello") {
+		t.Error("handleInput('hello') should return true")
+	}
+
+	outW.Close()
+	output, _ := io.ReadAll(outR)
+	if !strings.Contains(string(output), "hello") {
+		t.Error("Output should contain echoed input")
+	}
 }

@@ -1,4 +1,4 @@
-# Keen CLI — Week 1 Progress Evaluation
+# Keen CLI — Phase 1 Progress Evaluation
 
 ## Build & Test Status
 
@@ -22,13 +22,13 @@
 | `configs/system_prompts/` | ⚠️ Directory exists, empty | Minimal |
 | `go.mod` with deps | ✅ cobra, yaml.v3, go-git, huh | Done |
 
-**Actual structure** matches the plan closely. The addition of `configs/providers/` (registry) is a welcome bonus not in the original week 1 plan but specified in the later CLI design doc.
+**Actual structure** matches the plan closely. The addition of `configs/providers/` (registry) is a welcome bonus not in the original phase 1 plan but specified in the later CLI design doc.
 
 ---
 
 ### Task 2: Config System ✅ Complete
 
-**Design doc:** [output-4_config-design.md](file:///Users/mchowdhury2/stuff/ai/keen-cli/.ai-interactions/outputs/week-1/output-4_config-design.md)
+**Design doc:** [output-4_config-design.md](file:///Users/mchowdhury2/stuff/ai/keen-cli/.ai-interactions/outputs/phase-1/output-4_config-design.md)
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
@@ -98,7 +98,7 @@
 
 ### Task 5: Basic CLI ✅ Complete
 
-**Design doc:** [output-5_basic-cli.md](file:///Users/mchowdhury2/stuff/ai/keen-cli/.ai-interactions/outputs/week-1/output-5_basic-cli.md)
+**Design doc:** [output-5_basic-cli.md](file:///Users/mchowdhury2/stuff/ai/keen-cli/.ai-interactions/outputs/phase-1/output-5_basic-cli.md)
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
@@ -114,7 +114,7 @@
 | No CLI flags (all via prompts) | ✅ | |
 
 **The REPL stub:**
-The REPL currently **echoes input** back — it has no command routing, no `/help`, `/plan`, `/work`, `/model`, `/clear`, or `/add` commands. This is expected for a week 1 stub.
+The REPL currently **echoes input** back — it has no command routing, no `/help`, `/plan`, `/work`, `/model`, `/clear`, or `/add` commands. This is expected for a phase 1 stub.
 
 **No tests for CLI/setup/providers:**
 ```
@@ -152,13 +152,13 @@ The REPL currently **echoes input** back — it has no command routing, no `/hel
 
 ## Summary
 
-**Week 1 is ~90% complete.** All six tasks have working implementations. The project builds, tests pass, and the binary runs. The remaining gaps are:
+**Phase 1 is ~90% complete.** All six tasks have working implementations. The project builds, tests pass, and the binary runs. The remaining gaps are:
 
 1. **GitAwareness interface** — not extracted (breaks RFC design)
 2. **No caching** in GitAwareness (plan specified it)
 3. **No global gitignore** support
 4. **No tests** for `internal/cli/`, `configs/providers/`, or `cmd/agent/`
 5. **`prompt.go` deletion** — mentioned in the basic CLI plan as something to remove, but it doesn't exist (already done or never created)
-6. **REPL is a stub** — only echoes input, no command routing (expected for week 1)
+6. **REPL is a stub** — only echoes input, no command routing (expected for phase 1)
 
 The code quality is clean, idiomatic Go. No comments clutter the code. Dependencies are minimal and well-chosen. The security model (FileGuard + GitAwareness integration) is solid.

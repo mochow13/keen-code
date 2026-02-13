@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/config"
 )
 
@@ -46,6 +47,21 @@ var (
 			Bold(true).
 			Foreground(primaryColor)
 )
+
+const (
+	exitCommand  = "/exit"
+	helpCommand  = "/help"
+	modelCommand = "/model"
+)
+
+type replState struct {
+	version    string
+	workingDir string
+	cfg        *config.ResolvedConfig
+	globalCfg  *config.GlobalConfig
+	loader     *config.Loader
+	registry   *providers.Registry
+}
 
 func abbreviateHome(path string) string {
 	home, err := os.UserHomeDir()
@@ -126,12 +142,28 @@ func readInput(ctx context.Context, scanner *bufio.Scanner) (string, bool) {
 	return strings.TrimSpace(scanner.Text()), true
 }
 
-func handleInput(input string) bool {
-	if input == "/exit" {
+func (s *replState) handleInput(input string) bool {
+	if input == exitCommand {
 		fmt.Println()
 		fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
 		return false
 	}
+
+	if input == modelCommand {
+		resolved, err := RunSetup(s.loader, s.globalCfg, s.registry)
+		if err != nil {
+			fmt.Println(errorStyle.Render(fmt.Sprintf("  ✗ Model selection failed: %v", err)))
+			fmt.Println()
+			return true
+		}
+		s.cfg.Provider = resolved.Provider
+		s.cfg.Model = resolved.Model
+		s.cfg.APIKey = resolved.APIKey
+		fmt.Println()
+		printInfo(s.workingDir, s.cfg)
+		return true
+	}
+
 	if input == "" {
 		return true
 	}
@@ -141,10 +173,19 @@ func handleInput(input string) bool {
 	return true
 }
 
-func RunREPL(version, workingDir string, cfg *config.ResolvedConfig) error {
+func RunREPL(version, workingDir string, cfg *config.ResolvedConfig, loader *config.Loader, globalCfg *config.GlobalConfig, registry *providers.Registry) error {
 	printHeader(version)
 	printInfo(workingDir, cfg)
 	printTips()
+
+	state := &replState{
+		version:    version,
+		workingDir: workingDir,
+		cfg:        cfg,
+		globalCfg:  globalCfg,
+		loader:     loader,
+		registry:   registry,
+	}
 
 	ctx := setupSignalHandling()
 	scanner := bufio.NewScanner(os.Stdin)
@@ -155,7 +196,7 @@ func RunREPL(version, workingDir string, cfg *config.ResolvedConfig) error {
 			return nil
 		}
 
-		if !handleInput(input) {
+		if !state.handleInput(input) {
 			break
 		}
 	}

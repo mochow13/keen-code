@@ -11,15 +11,25 @@ import (
 
 const version = "0.1.0"
 
+const (
+	logLevelEnvVar = "KEEN_LOG_LEVEL"
+
+	logLevelDebug   = "debug"
+	logLevelInfo    = "info"
+	logLevelWarn    = "warn"
+	logLevelWarning = "warning"
+	logLevelError   = "error"
+)
+
 func parseLogLevel() slog.Level {
-	switch strings.ToLower(os.Getenv("KEEN_LOG_LEVEL")) {
-	case "debug":
+	switch strings.ToLower(os.Getenv(logLevelEnvVar)) {
+	case logLevelDebug:
 		return slog.LevelDebug
-	case "info":
+	case logLevelInfo:
 		return slog.LevelInfo
-	case "warn", "warning":
+	case logLevelWarn, logLevelWarning:
 		return slog.LevelWarn
-	case "error":
+	case logLevelError:
 		return slog.LevelError
 	default:
 		return slog.LevelInfo

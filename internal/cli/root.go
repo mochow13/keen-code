@@ -53,7 +53,7 @@ func NewRootCommand(version string) *cobra.Command {
 				wd = "."
 			}
 
-			return RunREPL(version, wd, resolvedCfg)
+			return RunREPL(version, wd, resolvedCfg, loader, globalCfg, registry)
 		},
 	}
 
