@@ -46,6 +46,12 @@ var (
 	promptStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(primaryColor)
+	helpCmdStyle = lipgloss.NewStyle().
+			Foreground(secondaryColor).
+			Bold(true).
+			Width(12)
+	helpDescStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#E5E7EB"))
 )
 
 const (
@@ -142,11 +148,34 @@ func readInput(ctx context.Context, scanner *bufio.Scanner) (string, bool) {
 	return strings.TrimSpace(scanner.Text()), true
 }
 
+func printHelp() {
+	cmds := []struct{ cmd, desc string }{
+		{"/help", "Show available commands"},
+		{"/model", "Change provider or model"},
+		{"/exit", "Quit Keen"},
+	}
+
+	var lines []string
+	for _, c := range cmds {
+		lines = append(lines, helpCmdStyle.Render(c.cmd)+helpDescStyle.Render(c.desc))
+	}
+
+	header := titleStyle.Render("Available Commands")
+	content := header + "\n\n" + strings.Join(lines, "\n")
+	fmt.Println(boxStyle.Render(content))
+	fmt.Println()
+}
+
 func (s *replState) handleInput(input string) bool {
 	if input == exitCommand {
 		fmt.Println()
 		fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
 		return false
+	}
+
+	if input == helpCommand {
+		printHelp()
+		return true
 	}
 
 	if input == modelCommand {

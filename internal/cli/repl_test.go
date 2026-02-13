@@ -253,3 +253,36 @@ func TestHandleInput_RegularInputReturnsTrue(t *testing.T) {
 		t.Error("Output should contain echoed input")
 	}
 }
+
+func TestHandleInput_HelpCommand(t *testing.T) {
+	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
+
+	outR, outW, _ := os.Pipe()
+	os.Stdout = outW
+
+	state := &replState{
+		cfg:       testResolvedConfig(),
+		globalCfg: testGlobalConfig(),
+		registry:  testRegistry(),
+		loader:    config.NewLoader(),
+	}
+
+	if !state.handleInput("/help") {
+		t.Error("handleInput('/help') should return true")
+	}
+
+	outW.Close()
+	output, _ := io.ReadAll(outR)
+	outputStr := string(output)
+
+	if !strings.Contains(outputStr, "/help") {
+		t.Error("Help output should contain /help command")
+	}
+	if !strings.Contains(outputStr, "/model") {
+		t.Error("Help output should contain /model command")
+	}
+	if !strings.Contains(outputStr, "/exit") {
+		t.Error("Help output should contain /exit command")
+	}
+}

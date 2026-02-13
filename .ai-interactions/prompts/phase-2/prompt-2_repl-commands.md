@@ -1,3 +1,5 @@
+### Model Selection
+
 This is the phase 2 for the development of `keen-cli`—a CLI-based coding agent. We will kick off this phase with support for the `/model` command.
 
 Right now, only `/exit` command is implemented in the REPL. We need to implement `/model` command. We have the following requirements for this command:
@@ -9,3 +11,8 @@ Right now, only `/exit` command is implemented in the REPL. We need to implement
 5. If selected provider already has an API key, users can just press enter without providing any API key. In that case, the existing API key will be used.
 6. If no API key is provided, the prompt must show an error message and ask the user to provide an API key again, until user provides an API key.
 7. The config will only be saved if all three configs are available.
+
+### Help Command
+
+We need to implement `/help` command. For now, it will show all the available commands in the REPL. The output should be formatted nicely using lipgloss.
+
