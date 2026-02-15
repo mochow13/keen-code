@@ -62,4 +62,14 @@ var (
 			Light: "#374151",
 			Dark:  "#E5E7EB",
 		})
+	assistantStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{
+			Light: "#1F2937",
+			Dark:  "#E5E7EB",
+		})
+	errorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{
+				Light: "#DC2626",
+				Dark:  "#EF4444",
+			})
 )

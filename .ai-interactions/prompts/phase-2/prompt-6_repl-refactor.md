@@ -1,0 +1,2 @@
+1. We need to refactor the code in @internal/cli/repl.go. It's too big right now. Give me some ideas on how to refactor these. Save the plan in @.ai-interactions/outputs/phase-2/output-6_repl-refactor.md.
+2. 

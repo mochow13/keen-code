@@ -60,11 +60,24 @@ func NewGenkitClient(cfg *ClientConfig) (*GenkitClient, error) {
 	}, nil
 }
 
+func toGenkitRole(role Role) ai.Role {
+	switch role {
+	case RoleUser:
+		return ai.RoleUser
+	case RoleAssistant:
+		return ai.RoleModel
+	case RoleSystem:
+		return ai.RoleSystem
+	default:
+		return ai.Role(role)
+	}
+}
+
 func (c *GenkitClient) StreamChat(ctx context.Context, messages []Message) (<-chan StreamEvent, error) {
 	aiMessages := make([]*ai.Message, len(messages))
 	for i, m := range messages {
 		aiMessages[i] = &ai.Message{
-			Role: ai.Role(m.Role),
+			Role: toGenkitRole(m.Role),
 			Content: []*ai.Part{
 				ai.NewTextPart(m.Content),
 			},

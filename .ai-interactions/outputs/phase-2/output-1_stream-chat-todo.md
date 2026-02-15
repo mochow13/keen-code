@@ -31,31 +31,27 @@
 - [x] **Test:** Write unit tests for factory with different provider configurations
 
 ## 6. Update REPL for Multi-line Input
-- [ ] Modify `readInput` to support multi-line input mode
-- [ ] Implement `ctrl+enter` to insert new line in message
-- [ ] Implement `enter` to send message to LLM
-- [ ] Add visual indicator when in multi-line input mode
-- [ ] **Test:** Write unit tests for multi-line input parsing
+- [x] Replace bufio.Scanner with bubbletea textarea
+- [x] Implement Ctrl+J to insert new line in message
+- [x] Implement Enter to send message to LLM
+- [x] Update tips to show keybindings
 
 ## 7. Integrate LLM Client with REPL
 - [ ] Add `llmClient` field to `replState` struct
 - [ ] Initialize LLM client in `RunREPL` with current config
 - [ ] Update `handleInput` to send non-command input to LLM
 - [ ] Create method to handle LLM streaming response
-- [ ] **Test:** Write unit tests for REPL state management and input handling
 
 ## 8. Implement Streaming Response Display
 - [ ] Create styled output area for LLM responses using lipgloss
 - [ ] Stream response chunks to the output in real-time
 - [ ] Add visual indicator while streaming (e.g., spinner or "...")
 - [ ] Handle final formatting of complete response
-- [ ] **Test:** Write unit tests for streaming output formatting
 
 ## 9. Handle LLM Client Updates
 - [ ] Create `updateLLMClient` method on `replState`
 - [ ] Call `updateLLMClient` when `/model` command changes config
 - [ ] Ensure old client connections are properly closed
-- [ ] **Test:** Write unit tests for client update and cleanup logic
 
 ## 10. Error Handling
 - [ ] Handle API key errors with clear user message

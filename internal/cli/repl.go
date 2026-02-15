@@ -1,14 +1,19 @@
 package cli
 
 import (
+	"context"
+	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/config"
+	"github.com/user/keen-cli/internal/llm"
 )
 
 const (
@@ -17,6 +22,15 @@ const (
 	modelCommand = "/model"
 )
 
+var loadingTexts = []string{
+	"Cooking...",
+	"Building...",
+	"Brewing...",
+	"Figuring out...",
+	"Getting answers...",
+	"Composing...",
+}
+
 type replState struct {
 	version    string
 	workingDir string
@@ -24,14 +38,23 @@ type replState struct {
 	globalCfg  *config.GlobalConfig
 	loader     *config.Loader
 	registry   *providers.Registry
+	llmClient  llm.LLMClient
+	messages   []llm.Message
 }
 
 type replModel struct {
-	textarea       textarea.Model
-	state          *replState
-	outputLines    []string
-	modelSelection *modelSelectionState
-	quitting       bool
+	textarea           textarea.Model
+	state              *replState
+	outputLines        []string
+	modelSelection     *modelSelectionState
+	quitting           bool
+	isStreaming        bool
+	currentResponse    string
+	eventCh            <-chan llm.StreamEvent
+	width              int
+	spinner            spinner.Model
+	showSpinner        bool
+	currentLoadingText string
 }
 
 func abbreviateHome(path string) string {
@@ -59,12 +82,17 @@ func initialModel(state *replState, needsSetup bool) replModel {
 	ta.KeyMap.InsertNewline.SetKeys("ctrl+j")
 	ta.KeyMap.InsertNewline.SetEnabled(true)
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(primaryColor)
+
 	initialOutput := buildInitialScreen(state)
 
 	model := replModel{
 		textarea:    ta,
 		state:       state,
 		outputLines: initialOutput,
+		spinner:     s,
 	}
 
 	if needsSetup {
@@ -130,12 +158,13 @@ func (m replModel) Init() tea.Cmd {
 
 func (m replModel) formatInputForDisplay(input string) string {
 	inputLines := strings.Split(input, "\n")
+	wrapStyle := m.contentStyle()
 	var formattedInput strings.Builder
 	formattedInput.WriteString(promptStyle.Render("> "))
-	formattedInput.WriteString(inputLines[0])
+	formattedInput.WriteString(wrapStyle.Render(inputLines[0]))
 	for i := 1; i < len(inputLines); i++ {
 		formattedInput.WriteString("\n  ")
-		formattedInput.WriteString(inputLines[i])
+		formattedInput.WriteString(wrapStyle.Render(inputLines[i]))
 	}
 	return formattedInput.String()
 }
@@ -149,14 +178,21 @@ func (m *replModel) adjustTextareaHeight() {
 	m.textarea.SetHeight(lineCount)
 }
 
+func (m replModel) contentStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Width(m.width - 4)
+}
+
 func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 	input := m.textarea.Value()
 	if input == "" {
 		return m, nil
 	}
 
+	if m.isStreaming {
+		return m, nil
+	}
+
 	m.outputLines = append(m.outputLines, m.formatInputForDisplay(input))
-	m.outputLines = append(m.outputLines, outputStyle.Render("  "+strings.ReplaceAll(input, "\n", "\n  ")))
 	m.outputLines = append(m.outputLines, "")
 
 	if input == exitCommand {
@@ -177,9 +213,38 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 		return m.startModelSelection(), nil
 	}
 
+	if m.state.llmClient == nil {
+		m.outputLines = append(m.outputLines, m.contentStyle().Render(errorStyle.Render("  Error: LLM client not initialized. Use /model to configure.")))
+		m.outputLines = append(m.outputLines, "")
+		m.textarea.Reset()
+		m.textarea.SetHeight(1)
+		return m, nil
+	}
+
+	m.state.messages = append(m.state.messages, llm.Message{
+		Role:    llm.RoleUser,
+		Content: input,
+	})
+
+	ctx := context.Background()
+	eventCh, err := m.state.llmClient.StreamChat(ctx, m.state.messages)
+	if err != nil {
+		m.outputLines = append(m.outputLines, errorStyle.Render("  Error: "+err.Error()))
+		m.outputLines = append(m.outputLines, "")
+		m.textarea.Reset()
+		m.textarea.SetHeight(1)
+		return m, nil
+	}
+
+	m.isStreaming = true
+	m.currentResponse = ""
+	m.eventCh = eventCh
+	m.showSpinner = true
+	m.currentLoadingText = loadingTexts[rand.Intn(len(loadingTexts))]
 	m.textarea.Reset()
 	m.textarea.SetHeight(1)
-	return m, nil
+
+	return m, tea.Batch(m.spinner.Tick, waitForStreamEvent(eventCh))
 }
 
 func (m replModel) handleCtrlJ() (replModel, tea.Cmd) {
@@ -200,8 +265,47 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		if m.showSpinner {
+			var spinnerCmd tea.Cmd
+			m.spinner, spinnerCmd = m.spinner.Update(msg)
+			return m, spinnerCmd
+		}
+
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
 		m.textarea.SetWidth(msg.Width - 3)
+		return m, nil
+
+	case llmChunkMsg:
+		m.currentResponse += string(msg)
+		m.showSpinner = false
+		return m, waitForStreamEvent(m.eventCh)
+
+	case llmDoneMsg:
+		m.isStreaming = false
+		m.showSpinner = false
+		m.state.messages = append(m.state.messages, llm.Message{
+			Role:    llm.RoleAssistant,
+			Content: m.currentResponse,
+		})
+		responseLines := strings.Split(m.currentResponse, "\n")
+		for _, line := range responseLines {
+			m.outputLines = append(m.outputLines, "  "+m.contentStyle().Render(assistantStyle.Render(line)))
+		}
+		m.currentResponse = ""
+		m.eventCh = nil
+		m.outputLines = append(m.outputLines, "")
+		return m, nil
+
+	case llmErrorMsg:
+		m.isStreaming = false
+		m.showSpinner = false
+		m.currentResponse = ""
+		m.eventCh = nil
+		errMsg := msg.err.Error()
+		m.outputLines = append(m.outputLines, m.contentStyle().Render(errorStyle.Render("  Error: "+errMsg)))
+		m.outputLines = append(m.outputLines, "")
 		return m, nil
 
 	case tea.KeyMsg:
@@ -238,8 +342,20 @@ func (m replModel) View() string {
 
 	if len(m.outputLines) > 0 {
 		view.WriteString(strings.Join(m.outputLines, "\n"))
-		view.WriteString("\n")
 	}
+
+	if m.showSpinner {
+		view.WriteString("\n  " + m.spinner.View() + " " + m.currentLoadingText)
+	}
+
+	if m.isStreaming && m.currentResponse != "" {
+		responseLines := strings.Split(m.currentResponse, "\n")
+		for _, line := range responseLines {
+			view.WriteString("\n  " + m.contentStyle().Render(assistantStyle.Render(line)))
+		}
+	}
+
+	view.WriteString("\n")
 
 	textareaView := m.textarea.View()
 	lines := strings.Split(textareaView, "\n")
@@ -272,6 +388,41 @@ func getHelpText() string {
 	return strings.Join(lines, "\n")
 }
 
+type llmChunkMsg string
+type llmDoneMsg struct{}
+type llmErrorMsg struct {
+	err error
+}
+
+func waitForStreamEvent(eventCh <-chan llm.StreamEvent) tea.Cmd {
+	return func() tea.Msg {
+		event, ok := <-eventCh
+		if !ok {
+			return llmDoneMsg{}
+		}
+
+		switch event.Type {
+		case llm.StreamEventTypeChunk:
+			return llmChunkMsg(event.Content)
+		case llm.StreamEventTypeDone:
+			return llmDoneMsg{}
+		case llm.StreamEventTypeError:
+			return llmErrorMsg{err: event.Error}
+		default:
+			return llmDoneMsg{}
+		}
+	}
+}
+
+func (m *replModel) updateLLMClient() error {
+	client, err := llm.NewClient(m.state.cfg)
+	if err != nil {
+		return err
+	}
+	m.state.llmClient = client
+	return nil
+}
+
 func RunREPL(version, workingDir string, cfg *config.ResolvedConfig, loader *config.Loader, globalCfg *config.GlobalConfig, registry *providers.Registry, needsSetup bool) error {
 	state := &replState{
 		version:    version,
@@ -280,6 +431,15 @@ func RunREPL(version, workingDir string, cfg *config.ResolvedConfig, loader *con
 		globalCfg:  globalCfg,
 		loader:     loader,
 		registry:   registry,
+		messages:   []llm.Message{},
+	}
+
+	if cfg.APIKey != "" && cfg.Model != "" {
+		client, err := llm.NewClient(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to initialize LLM client: %w", err)
+		}
+		state.llmClient = client
 	}
 
 	p := tea.NewProgram(initialModel(state, needsSetup), tea.WithAltScreen())

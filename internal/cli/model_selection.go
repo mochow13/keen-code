@@ -93,8 +93,8 @@ func (m replModel) handleModelSelectionUpdate(msg tea.KeyMsg) (replModel, tea.Cm
 				m.modelSelection.apiKeyInput = m.modelSelection.apiKeyInput[:len(m.modelSelection.apiKeyInput)-1]
 			}
 		default:
-			if len(msg.String()) == 1 {
-				m.modelSelection.apiKeyInput += msg.String()
+			if len(msg.Runes) > 0 {
+				m.modelSelection.apiKeyInput += string(msg.Runes)
 			}
 		}
 	}
@@ -214,6 +214,13 @@ func (m replModel) completeModelSelection() (replModel, tea.Cmd) {
 	m.state.cfg.Provider = m.modelSelection.selectedProvider
 	m.state.cfg.Model = m.modelSelection.selectedModel
 	m.state.cfg.APIKey = apiKey
+
+	if err := m.updateLLMClient(); err != nil {
+		m.outputLines = append(m.outputLines, errorStyle.Render(fmt.Sprintf("  ✗ Failed to initialize LLM client: %v", err)))
+		m.outputLines = append(m.outputLines, "")
+		m.modelSelection = nil
+		return m, nil
+	}
 
 	successMsg := fmt.Sprintf("✓ Updated to %s / %s",
 		m.modelSelection.selectedProvider,
