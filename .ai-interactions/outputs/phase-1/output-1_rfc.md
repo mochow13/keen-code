@@ -39,7 +39,7 @@ graph TB
     end
 
     subgraph "LLM Integration Layer"
-        LANGCHAIN[LangChain Go<br/>github.com/tmc/langchaingo]
+        GENKIT[Genkit for Go<br/>github.com/firebase/genkit/go]
         MODELS[LLM Models]
     end
 
@@ -62,8 +62,8 @@ graph TB
     TOOLM --> FILE_WRITE
     TOOLM --> SHELL
     TOOLM --> GREP
-    ORCH --> LANGCHAIN
-    LANGCHAIN --> MODELS
+    ORCH --> GENKIT
+    GENKIT --> MODELS
     MODELS --> ANTHROPIC_API
     MODELS --> OPENAI_API
     MODELS --> GEMINI_API
@@ -85,7 +85,7 @@ sequenceDiagram
     participant User
     participant CLI
     participant Orchestrator
-    participant LangChain
+    participant Genkit
     participant ToolManager
     participant FileSystem
 
@@ -94,8 +94,8 @@ sequenceDiagram
     Orchestrator->>Orchestrator: Load system prompt + context
     
     loop Tool Calling Loop
-        Orchestrator->>LangChain: Send messages
-        LangChain-->>Orchestrator: Response (text/tools)
+        Orchestrator->>Genkit: Send messages
+        Genkit-->>Orchestrator: Response (text/tools)
         
         alt Response contains tool calls
             Orchestrator->>ToolManager: Execute tools
@@ -144,7 +144,7 @@ keen-cli/
 │   │   ├── context.go           # Context/conversation management
 │   │   └── mode.go              # Plan/Work mode handling
 │   ├── llm/
-│   │   ├── client.go            # LangChain client wrapper
+│   │   ├── client.go            # Genkit client wrapper
 │   │   ├── models.go            # Model configuration & factory
 │   │   └── message.go           # Message types
 │   ├── tools/
@@ -229,7 +229,7 @@ classDiagram
 
     GitAwareness --> IgnoreMatcher
 
-    LLMClient <|.. LangChainClient
+    LLMClient <|.. GenkitClient
     Tool <|.. ReadFileTool
     Tool <|.. WriteFileTool
     Tool <|.. EditFileTool
@@ -304,7 +304,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[Add LangChain Go Dependency] --> B[Create LLM Client Wrapper]
+    A[Add Genkit for Go Dependency] --> B[Create LLM Client Wrapper]
     B --> C[Configure Anthropic Provider]
     B --> D[Configure OpenAI Provider]
     B --> E[Configure Gemini Provider]
@@ -393,7 +393,7 @@ flowchart TD
 | User Prompts | `github.com/charmbracelet/huh` | Interactive forms and prompts |
 | Syntax Highlighting | `github.com/alecthomas/chroma` | Code display |
 | Diff Display | `github.com/sergi/go-diff/diffmatchpatch` | Diff generation |
-| LLM Framework | `github.com/tmc/langchaingo` | Unified LLM interface |
+| LLM Framework | `github.com/firebase/genkit/go` | Unified LLM interface |
 | Pattern Matching | `github.com/bmatcuk/doublestar` | Glob patterns |
 | Gitignore Parsing | `github.com/go-git/go-git/v5/plumbing/format/gitignore` | Parse .gitignore rules |
 | Environment | `github.com/joho/godotenv` | .env file support |
@@ -678,7 +678,7 @@ graph LR
     subgraph "Current"
         A[CLI] --> B[Orchestrator]
         B --> C[Tools]
-        B --> D[LangChain]
+        B --> D[Genkit]
     end
     
     subgraph "Future Extensions"
@@ -742,7 +742,7 @@ This architecture provides a solid foundation for a coding agent CLI with:
 
 - ✅ Clean separation of concerns (UI, Orchestration, Tools, LLM)
 - ✅ **GitAwareness component (Phase 1)** - Respects `.gitignore` to avoid wasting tokens
-- ✅ Unified LLM integration via LangChain Go for extensibility
+- ✅ Unified LLM integration via Genkit for Go for extensibility
 - ✅ Single dependency for multiple LLM providers
 - ✅ Extensible tool system
 - ✅ Secure file system access
