@@ -26,12 +26,11 @@ func NewRootCommand(version string) *cobra.Command {
 			}
 
 			var resolvedCfg *config.ResolvedConfig
+			needsSetup := false
 
 			if globalCfg.ActiveProvider == "" {
-				resolvedCfg, err = RunSetup(loader, globalCfg, registry)
-				if err != nil {
-					return fmt.Errorf("setup failed: %w", err)
-				}
+				needsSetup = true
+				resolvedCfg = &config.ResolvedConfig{}
 			} else {
 				_, ok := registry.GetProvider(globalCfg.ActiveProvider)
 				if !ok {
@@ -53,7 +52,7 @@ func NewRootCommand(version string) *cobra.Command {
 				wd = "."
 			}
 
-			return RunREPL(version, wd, resolvedCfg, loader, globalCfg, registry)
+			return RunREPL(version, wd, resolvedCfg, loader, globalCfg, registry, needsSetup)
 		},
 	}
 

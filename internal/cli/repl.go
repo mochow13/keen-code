@@ -1,57 +1,14 @@
 package cli
 
 import (
-	"bufio"
-	"context"
-	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
+	"github.com/charmbracelet/bubbles/textarea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/config"
-)
-
-var (
-	primaryColor   = lipgloss.Color("#7C3AED")
-	secondaryColor = lipgloss.Color("#10B981")
-	mutedColor     = lipgloss.Color("#6B7280")
-	accentColor    = lipgloss.Color("#F59E0B")
-	titleStyle     = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(primaryColor)
-	infoLabelStyle = lipgloss.NewStyle().
-			Foreground(mutedColor).
-			Width(18)
-	infoValueStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#E5E7EB"))
-	highlightStyle = lipgloss.NewStyle().
-			Foreground(secondaryColor).
-			Bold(true)
-	modeStyle = lipgloss.NewStyle().
-			Foreground(accentColor).
-			Bold(true)
-	tipStyle = lipgloss.NewStyle().
-			Foreground(mutedColor).
-			Italic(true)
-	boxStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(mutedColor).
-			Padding(1, 2).
-			MarginTop(1)
-	outputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#E5E7EB"))
-	promptStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(primaryColor)
-	helpCmdStyle = lipgloss.NewStyle().
-			Foreground(secondaryColor).
-			Bold(true).
-			Width(12)
-	helpDescStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#E5E7EB"))
 )
 
 const (
@@ -69,6 +26,14 @@ type replState struct {
 	registry   *providers.Registry
 }
 
+type replModel struct {
+	textarea       textarea.Model
+	state          *replState
+	outputLines    []string
+	modelSelection *modelSelectionState
+	quitting       bool
+}
+
 func abbreviateHome(path string) string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -80,95 +45,217 @@ func abbreviateHome(path string) string {
 	return path
 }
 
-func printHeader(version string) {
+func initialModel(state *replState, needsSetup bool) replModel {
+	ta := textarea.New()
+	ta.Placeholder = "Type your message..."
+	ta.Focus()
+	ta.Prompt = ""
+	ta.CharLimit = 0
+	ta.SetWidth(120)
+	ta.SetHeight(1)
+	ta.MaxHeight = 10
+	ta.ShowLineNumbers = false
+
+	ta.KeyMap.InsertNewline.SetKeys("ctrl+j")
+	ta.KeyMap.InsertNewline.SetEnabled(true)
+
+	initialOutput := buildInitialScreen(state)
+
+	model := replModel{
+		textarea:    ta,
+		state:       state,
+		outputLines: initialOutput,
+	}
+
+	if needsSetup {
+		welcomeStyle := lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
+		model.outputLines = append(model.outputLines, "")
+		model.outputLines = append(model.outputLines, welcomeStyle.Render("👋 Welcome to Keen!"))
+		model.outputLines = append(model.outputLines, "")
+		model.outputLines = append(model.outputLines, "")
+		model = model.startModelSelection()
+	}
+
+	return model
+}
+
+func buildInitialScreen(state *replState) []string {
+	var lines []string
+
 	asciiArt := []string{
-		" █████   ████ ██████████ ██████████ ██████   █████",
-		"░░███   ███░ ░░███░░░░░█░░███░░░░░█░░██████ ░░███",
-		" ░███  ███    ░███  █ ░  ░███  █ ░  ░███░███ ░███",
-		" ░███████     ░██████    ░██████    ░███░░███░███",
-		" ░███░░███    ░███░░█    ░███░░█    ░███ ░░██████",
-		" ░███ ░░███   ░███ ░   █ ░███ ░   █ ░███  ░░█████",
-		" █████ ░░████ ██████████ ██████████ █████  ░░█████",
-		"░░░░░   ░░░░ ░░░░░░░░░░ ░░░░░░░░░░ ░░░░░    ░░░░░",
+		"██╗  ██╗███████╗███████╗███╗   ██╗",
+		"██║ ██╔╝██╔════╝██╔════╝████╗  ██║",
+		"█████╔╝ █████╗  █████╗  ██╔██╗ ██║",
+		"██╔═██╗ ██╔══╝  ██╔══╝  ██║╚██╗██║",
+		"██║  ██╗███████╗███████╗██║ ╚████║",
+		"╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═══╝",
 	}
 
 	colors := []string{
 		"#00F2FE", "#05E5FE", "#10D3FE", "#1ABFFE", "#25ACFE", "#4FACFE", "#6696FE", "#7C3AED",
 	}
 
-	fmt.Println()
+	lines = append(lines, "")
 	for i, line := range asciiArt {
 		color := colors[i%len(colors)]
-		fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(line))
+		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(line))
 	}
 
-	fmt.Printf("\n  %s  %s\n\n", titleStyle.Render("Keen v"+version), modeStyle.Render("plan mode"))
-}
+	lines = append(lines, "")
+	lines = append(lines, "  "+titleStyle.Render("Keen v"+state.version)+"  "+modeStyle.Render("plan mode"))
+	lines = append(lines, "")
 
-func printInfo(workingDir string, cfg *config.ResolvedConfig) {
-	var info strings.Builder
-	displayDir := abbreviateHome(workingDir)
-	info.WriteString(fmt.Sprintf("  %s %s\n",
-		infoLabelStyle.Render("Directory:"),
-		infoValueStyle.Render(displayDir)))
-	info.WriteString(fmt.Sprintf("  %s %s\n",
-		infoLabelStyle.Render("Provider:"),
-		highlightStyle.Render(cfg.Provider)))
-	info.WriteString(fmt.Sprintf("  %s %s\n",
-		infoLabelStyle.Render("Model:"),
-		infoValueStyle.Render(cfg.Model)))
-	fmt.Println(info.String())
-}
+	displayDir := abbreviateHome(state.workingDir)
+	lines = append(lines, "  "+infoLabelStyle.Render("Directory:")+" "+infoValueStyle.Render(displayDir))
+	lines = append(lines, "  "+infoLabelStyle.Render("Provider:")+" "+highlightStyle.Render(state.cfg.Provider))
+	lines = append(lines, "  "+infoLabelStyle.Render("Model:")+" "+infoValueStyle.Render(state.cfg.Model))
+	lines = append(lines, "")
 
-func printTips() {
 	tips := []string{
 		"Type /help  for available commands",
 		"Type /exit  to quit",
 		"Type /model to change provider or model",
+		"Press Enter to send, Ctrl+J for new line",
 	}
-	fmt.Println(boxStyle.Render(tipStyle.Render(strings.Join(tips, "\n"))))
-	fmt.Println()
+	tipsBox := boxStyle.Render(tipStyle.Render(strings.Join(tips, "\n")))
+	lines = append(lines, tipsBox)
+	lines = append(lines, "")
+
+	return lines
 }
 
-func setupSignalHandling() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		cancel()
-	}()
-
-	return ctx
+func (m replModel) Init() tea.Cmd {
+	return textarea.Blink
 }
 
-func readInput(ctx context.Context, scanner *bufio.Scanner) (string, bool) {
-	fmt.Print(promptStyle.Render("> "))
+func (m replModel) formatInputForDisplay(input string) string {
+	inputLines := strings.Split(input, "\n")
+	var formattedInput strings.Builder
+	formattedInput.WriteString(promptStyle.Render("> "))
+	formattedInput.WriteString(inputLines[0])
+	for i := 1; i < len(inputLines); i++ {
+		formattedInput.WriteString("\n  ")
+		formattedInput.WriteString(inputLines[i])
+	}
+	return formattedInput.String()
+}
 
-	scanCh := make(chan bool)
-	go func() {
-		scanCh <- scanner.Scan()
-		close(scanCh)
-	}()
+func (m *replModel) adjustTextareaHeight() {
+	currentValue := m.textarea.Value()
+	lineCount := strings.Count(currentValue, "\n") + 1
+	if lineCount > 10 {
+		lineCount = 10
+	}
+	m.textarea.SetHeight(lineCount)
+}
 
-	select {
-	case <-ctx.Done():
-		fmt.Println()
-		fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
-		return "", false
-	case scanned := <-scanCh:
-		if !scanned {
-			fmt.Println()
-			fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
-			return "", false
+func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
+	input := m.textarea.Value()
+	if input == "" {
+		return m, nil
+	}
+
+	m.outputLines = append(m.outputLines, m.formatInputForDisplay(input))
+	m.outputLines = append(m.outputLines, outputStyle.Render("  "+strings.ReplaceAll(input, "\n", "\n  ")))
+	m.outputLines = append(m.outputLines, "")
+
+	if input == exitCommand {
+		m.quitting = true
+		return m, tea.Quit
+	}
+
+	if input == helpCommand {
+		m.outputLines = append(m.outputLines, getHelpText())
+		m.outputLines = append(m.outputLines, "")
+		m.textarea.Reset()
+		return m, nil
+	}
+
+	if input == modelCommand {
+		m.textarea.Reset()
+		m.textarea.SetHeight(1)
+		return m.startModelSelection(), nil
+	}
+
+	m.textarea.Reset()
+	m.textarea.SetHeight(1)
+	return m, nil
+}
+
+func (m replModel) handleCtrlJ() (replModel, tea.Cmd) {
+	currentValue := m.textarea.Value()
+	newValue := currentValue + "\n"
+	m.textarea.SetValue(newValue)
+
+	lineCount := strings.Count(newValue, "\n") + 1
+	if lineCount > 10 {
+		lineCount = 10
+	}
+	m.textarea.SetHeight(lineCount)
+	m.textarea.CursorEnd()
+	return m, nil
+}
+
+func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.textarea.SetWidth(msg.Width - 3)
+		return m, nil
+
+	case tea.KeyMsg:
+		if m.modelSelection != nil {
+			return m.handleModelSelectionUpdate(msg)
+		}
+
+		switch msg.String() {
+		case "enter":
+			return m.handleEnterKey()
+		case "ctrl+j":
+			return m.handleCtrlJ()
+		case "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
 		}
 	}
 
-	return strings.TrimSpace(scanner.Text()), true
+	m.textarea, cmd = m.textarea.Update(msg)
+	m.adjustTextareaHeight()
+	return m, cmd
 }
 
-func printHelp() {
+func (m replModel) View() string {
+	if m.quitting {
+		return lipgloss.NewStyle().Foreground(mutedColor).Render("\n  Goodbye!\n")
+	}
+
+	if m.modelSelection != nil {
+		return m.renderModelSelection()
+	}
+
+	var view strings.Builder
+
+	if len(m.outputLines) > 0 {
+		view.WriteString(strings.Join(m.outputLines, "\n"))
+		view.WriteString("\n")
+	}
+
+	textareaView := m.textarea.View()
+	lines := strings.Split(textareaView, "\n")
+
+	view.WriteString(promptStyle.Render("> "))
+	view.WriteString(inputLineStyle.Render(lines[0]))
+
+	for i := 1; i < len(lines); i++ {
+		view.WriteString("\n")
+		view.WriteString(inputLineStyle.Render("  " + lines[i]))
+	}
+
+	return view.String()
+}
+
+func getHelpText() string {
 	cmds := []struct{ cmd, desc string }{
 		{"/help", "Show available commands"},
 		{"/model", "Change provider or model"},
@@ -176,57 +263,16 @@ func printHelp() {
 	}
 
 	var lines []string
+	lines = append(lines, titleStyle.Render("Available Commands"))
+	lines = append(lines, "")
 	for _, c := range cmds {
-		lines = append(lines, helpCmdStyle.Render(c.cmd)+helpDescStyle.Render(c.desc))
+		lines = append(lines, "  "+helpCmdStyle.Render(c.cmd)+" "+helpDescStyle.Render(c.desc))
 	}
 
-	header := titleStyle.Render("Available Commands")
-	content := header + "\n\n" + strings.Join(lines, "\n")
-	fmt.Println(boxStyle.Render(content))
-	fmt.Println()
+	return strings.Join(lines, "\n")
 }
 
-func (s *replState) handleInput(input string) bool {
-	if input == exitCommand {
-		fmt.Println()
-		fmt.Println(lipgloss.NewStyle().Foreground(mutedColor).Render("  Goodbye!"))
-		return false
-	}
-
-	if input == helpCommand {
-		printHelp()
-		return true
-	}
-
-	if input == modelCommand {
-		resolved, err := RunSetup(s.loader, s.globalCfg, s.registry)
-		if err != nil {
-			fmt.Println(errorStyle.Render(fmt.Sprintf("  ✗ Model selection failed: %v", err)))
-			fmt.Println()
-			return true
-		}
-		s.cfg.Provider = resolved.Provider
-		s.cfg.Model = resolved.Model
-		s.cfg.APIKey = resolved.APIKey
-		fmt.Println()
-		printInfo(s.workingDir, s.cfg)
-		return true
-	}
-
-	if input == "" {
-		return true
-	}
-
-	fmt.Println(outputStyle.Render("  " + input))
-	fmt.Println()
-	return true
-}
-
-func RunREPL(version, workingDir string, cfg *config.ResolvedConfig, loader *config.Loader, globalCfg *config.GlobalConfig, registry *providers.Registry) error {
-	printHeader(version)
-	printInfo(workingDir, cfg)
-	printTips()
-
+func RunREPL(version, workingDir string, cfg *config.ResolvedConfig, loader *config.Loader, globalCfg *config.GlobalConfig, registry *providers.Registry, needsSetup bool) error {
 	state := &replState{
 		version:    version,
 		workingDir: workingDir,
@@ -236,19 +282,10 @@ func RunREPL(version, workingDir string, cfg *config.ResolvedConfig, loader *con
 		registry:   registry,
 	}
 
-	ctx := setupSignalHandling()
-	scanner := bufio.NewScanner(os.Stdin)
-
-	for {
-		input, ok := readInput(ctx, scanner)
-		if !ok {
-			return nil
-		}
-
-		if !state.handleInput(input) {
-			break
-		}
+	p := tea.NewProgram(initialModel(state, needsSetup), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		return err
 	}
 
-	return scanner.Err()
+	return nil
 }
