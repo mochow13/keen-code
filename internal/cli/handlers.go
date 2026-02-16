@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	keyEnter  = "enter"
-	keyCtrlJ  = "ctrl+j"
-	keyCtrlC  = "ctrl+c"
+	keyEnter = "enter"
+	keyCtrlJ = "ctrl+j"
+	keyCtrlC = "ctrl+c"
 )
 
 func (m replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {

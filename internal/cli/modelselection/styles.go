@@ -12,24 +12,24 @@ var (
 		Dark:  "#9CA3AF",
 	}
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(primaryColor)
+			Bold(true).
+			Foreground(primaryColor)
 	selectionStyle = lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true)
+			Foreground(primaryColor).
+			Bold(true)
 	normalStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{
+			Foreground(lipgloss.AdaptiveColor{
 			Light: "#374151",
 			Dark:  "#9CA3AF",
 		})
 	hintStyle = lipgloss.NewStyle().
-		Foreground(mutedColor).
-		Italic(true)
+			Foreground(mutedColor).
+			Italic(true)
 	promptStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(primaryColor)
+			Bold(true).
+			Foreground(primaryColor)
 	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{
+			Foreground(lipgloss.AdaptiveColor{
 			Light: "#DC2626",
 			Dark:  "#EF4444",
 		})

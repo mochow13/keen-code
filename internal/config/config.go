@@ -143,5 +143,3 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
-
-
