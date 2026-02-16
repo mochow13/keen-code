@@ -52,5 +52,3 @@ func (s *AppState) UpdateClient(client llm.LLMClient) {
 func (s *AppState) GetClient() llm.LLMClient {
 	return s.llmClient
 }
-
-

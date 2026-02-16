@@ -82,7 +82,7 @@ func TestHandleLLMError(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		output: NewOutputBuilder(80),
+		output:        NewOutputBuilder(80),
 	}
 
 	testErr := errors.New("stream failed")
@@ -246,7 +246,7 @@ func TestHandleLLMError_ResetsHandler(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		output: NewOutputBuilder(80),
+		output:        NewOutputBuilder(80),
 	}
 
 	newM, _ := m.handleLLMError(errors.New("fail"))
