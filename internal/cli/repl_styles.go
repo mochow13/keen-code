@@ -44,11 +44,6 @@ var (
 			BorderForeground(mutedColor).
 			Padding(1, 2).
 			MarginTop(1)
-	outputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{
-			Light: "#1F2937",
-			Dark:  "#E5E7EB",
-		})
 	promptStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(primaryColor)
@@ -69,7 +64,7 @@ var (
 		})
 	errorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.AdaptiveColor{
-				Light: "#DC2626",
-				Dark:  "#EF4444",
-			})
+			Light: "#DC2626",
+			Dark:  "#EF4444",
+		})
 )

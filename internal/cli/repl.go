@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/user/keen-cli/configs/providers"
+	"github.com/user/keen-cli/internal/cli/modelselection"
 	"github.com/user/keen-cli/internal/config"
 	"github.com/user/keen-cli/internal/llm"
 )
@@ -43,18 +44,16 @@ type replState struct {
 }
 
 type replModel struct {
-	textarea           textarea.Model
-	state              *replState
-	outputLines        []string
-	modelSelection     *modelSelectionState
-	quitting           bool
-	isStreaming        bool
-	currentResponse    string
-	eventCh            <-chan llm.StreamEvent
-	width              int
-	spinner            spinner.Model
-	showSpinner        bool
-	currentLoadingText string
+	textarea       textarea.Model
+	state          *replState
+	outputLines    []string
+	modelSelection *modelselection.Model
+	quitting       bool
+	streamHandler  *StreamHandler
+	width          int
+	spinner        spinner.Model
+	showSpinner    bool
+	loadingText    string
 }
 
 func abbreviateHome(path string) string {
@@ -89,10 +88,11 @@ func initialModel(state *replState, needsSetup bool) replModel {
 	initialOutput := buildInitialScreen(state)
 
 	model := replModel{
-		textarea:    ta,
-		state:       state,
-		outputLines: initialOutput,
-		spinner:     s,
+		textarea:      ta,
+		state:         state,
+		outputLines:   initialOutput,
+		spinner:       s,
+		streamHandler: NewStreamHandler(),
 	}
 
 	if needsSetup {
@@ -178,6 +178,20 @@ func (m *replModel) adjustTextareaHeight() {
 	m.textarea.SetHeight(lineCount)
 }
 
+func (m replModel) startModelSelection() replModel {
+	onComplete := func(provider, model, apiKey string) error {
+		return m.updateLLMClient()
+	}
+	m.modelSelection = modelselection.New(
+		m.state.registry,
+		m.state.globalCfg,
+		m.state.loader,
+		m.state.cfg,
+		onComplete,
+	)
+	return m
+}
+
 func (m replModel) contentStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Width(m.width - 4)
 }
@@ -188,7 +202,7 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.isStreaming {
+	if m.streamHandler.IsActive() {
 		return m, nil
 	}
 
@@ -236,15 +250,13 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 		return m, nil
 	}
 
-	m.isStreaming = true
-	m.currentResponse = ""
-	m.eventCh = eventCh
 	m.showSpinner = true
-	m.currentLoadingText = loadingTexts[rand.Intn(len(loadingTexts))]
+	m.loadingText = loadingTexts[rand.Intn(len(loadingTexts))]
+	m.streamHandler.Start(eventCh, m.loadingText)
 	m.textarea.Reset()
 	m.textarea.SetHeight(1)
 
-	return m, tea.Batch(m.spinner.Tick, waitForStreamEvent(eventCh))
+	return m, tea.Batch(m.spinner.Tick, m.streamHandler.WaitForEvent())
 }
 
 func (m replModel) handleCtrlJ() (replModel, tea.Cmd) {
@@ -264,6 +276,10 @@ func (m replModel) handleCtrlJ() (replModel, tea.Cmd) {
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
+	if m.modelSelection != nil {
+		return m.handleKeyMsg(msg)
+	}
+
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
 		if m.showSpinner {
@@ -278,50 +294,16 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case llmChunkMsg:
-		m.currentResponse += string(msg)
-		m.showSpinner = false
-		return m, waitForStreamEvent(m.eventCh)
+		return m.handleLLMChunk(string(msg))
 
 	case llmDoneMsg:
-		m.isStreaming = false
-		m.showSpinner = false
-		m.state.messages = append(m.state.messages, llm.Message{
-			Role:    llm.RoleAssistant,
-			Content: m.currentResponse,
-		})
-		responseLines := strings.Split(m.currentResponse, "\n")
-		for _, line := range responseLines {
-			m.outputLines = append(m.outputLines, "  "+m.contentStyle().Render(assistantStyle.Render(line)))
-		}
-		m.currentResponse = ""
-		m.eventCh = nil
-		m.outputLines = append(m.outputLines, "")
-		return m, nil
+		return m.handleLLMDone()
 
 	case llmErrorMsg:
-		m.isStreaming = false
-		m.showSpinner = false
-		m.currentResponse = ""
-		m.eventCh = nil
-		errMsg := msg.err.Error()
-		m.outputLines = append(m.outputLines, m.contentStyle().Render(errorStyle.Render("  Error: "+errMsg)))
-		m.outputLines = append(m.outputLines, "")
-		return m, nil
+		return m.handleLLMError(msg.err)
 
 	case tea.KeyMsg:
-		if m.modelSelection != nil {
-			return m.handleModelSelectionUpdate(msg)
-		}
-
-		switch msg.String() {
-		case "enter":
-			return m.handleEnterKey()
-		case "ctrl+j":
-			return m.handleCtrlJ()
-		case "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
-		}
+		return m.handleKeyMsg(msg)
 	}
 
 	m.textarea, cmd = m.textarea.Update(msg)
@@ -335,7 +317,7 @@ func (m replModel) View() string {
 	}
 
 	if m.modelSelection != nil {
-		return m.renderModelSelection()
+		return m.modelSelection.View()
 	}
 
 	var view strings.Builder
@@ -344,15 +326,8 @@ func (m replModel) View() string {
 		view.WriteString(strings.Join(m.outputLines, "\n"))
 	}
 
-	if m.showSpinner {
-		view.WriteString("\n  " + m.spinner.View() + " " + m.currentLoadingText)
-	}
-
-	if m.isStreaming && m.currentResponse != "" {
-		responseLines := strings.Split(m.currentResponse, "\n")
-		for _, line := range responseLines {
-			view.WriteString("\n  " + m.contentStyle().Render(assistantStyle.Render(line)))
-		}
+	if m.streamHandler.IsActive() {
+		view.WriteString(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()))
 	}
 
 	view.WriteString("\n")
@@ -386,32 +361,6 @@ func getHelpText() string {
 	}
 
 	return strings.Join(lines, "\n")
-}
-
-type llmChunkMsg string
-type llmDoneMsg struct{}
-type llmErrorMsg struct {
-	err error
-}
-
-func waitForStreamEvent(eventCh <-chan llm.StreamEvent) tea.Cmd {
-	return func() tea.Msg {
-		event, ok := <-eventCh
-		if !ok {
-			return llmDoneMsg{}
-		}
-
-		switch event.Type {
-		case llm.StreamEventTypeChunk:
-			return llmChunkMsg(event.Content)
-		case llm.StreamEventTypeDone:
-			return llmDoneMsg{}
-		case llm.StreamEventTypeError:
-			return llmErrorMsg{err: event.Error}
-		default:
-			return llmDoneMsg{}
-		}
-	}
 }
 
 func (m *replModel) updateLLMClient() error {
