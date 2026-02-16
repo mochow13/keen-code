@@ -6,3 +6,5 @@
 6. Let's implement the next step: `Move Model Selection to internal/cli/modelselection/`.
 7. Based on the refactoring we did so far, let's do some code review:
     - Refactor the `View()` function in @internal/cli/modelselection/model.go. It's big right now.
+8. Time to do the refactor for outputs as outlined in @.ai-interactions/outputs/phase-2/output-2_repl-refactor.md.
+9. We now have two states: `AppState` and `replState`. And they also have overlap in between them. This is not ideal. Let's refactor them.

@@ -21,22 +21,18 @@ func (m replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 func (m replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.showSpinner = false
 	responseLines, fullResponse := m.streamHandler.HandleDone()
-	m.state.messages = append(m.state.messages, llm.Message{
-		Role:    llm.RoleAssistant,
-		Content: fullResponse,
-	})
+	m.appState.AddMessage(llm.RoleAssistant, fullResponse)
 	for _, line := range responseLines {
-		m.outputLines = append(m.outputLines, m.contentStyle().Render(assistantStyle.Render(line)))
+		m.output.AddLine("  " + m.contentStyle().Render(assistantStyle.Render(line)))
 	}
-	m.outputLines = append(m.outputLines, "")
+	m.output.AddEmptyLine()
 	return m, nil
 }
 
 func (m replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.showSpinner = false
 	errMsg := m.streamHandler.HandleError(err)
-	m.outputLines = append(m.outputLines, m.contentStyle().Render(errorStyle.Render("  Error: "+errMsg)))
-	m.outputLines = append(m.outputLines, "")
+	m.output.AddError(errMsg, errorStyle)
 	return m, nil
 }
 
@@ -47,16 +43,16 @@ func (m replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 
 		if modelselection.IsComplete(msg) {
 			successMsg := "✓ Updated to " + m.modelSelection.SelectedProvider + " / " + m.modelSelection.SelectedModel
-			m.outputLines = append(m.outputLines, highlightStyle.Render("  "+successMsg))
-			m.outputLines = append(m.outputLines, "")
+			m.output.AddStyledLine("  "+successMsg, highlightStyle)
+			m.output.AddEmptyLine()
 			m.modelSelection = nil
 			return m, nil
 		}
 
 		if modelselection.IsCancel(msg) {
 			cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
-			m.outputLines = append(m.outputLines, cancelStyle.Render("  Model selection cancelled"))
-			m.outputLines = append(m.outputLines, "")
+			m.output.AddStyledLine("  Model selection cancelled", cancelStyle)
+			m.output.AddEmptyLine()
 			m.modelSelection = nil
 			return m, nil
 		}

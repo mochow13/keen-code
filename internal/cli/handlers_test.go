@@ -44,10 +44,8 @@ func TestHandleLLMDone(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		state: &replState{
-			messages: []llm.Message{},
-		},
-		outputLines: []string{},
+		appState:      NewAppState(nil),
+		output:        NewOutputBuilder(80),
 	}
 
 	newM, cmd := m.handleLLMDone()
@@ -56,18 +54,18 @@ func TestHandleLLMDone(t *testing.T) {
 		t.Error("expected showSpinner to be false after done")
 	}
 
-	if len(m.state.messages) != 1 {
-		t.Errorf("expected 1 message in history, got %d", len(m.state.messages))
+	if len(m.appState.GetMessages()) != 1 {
+		t.Errorf("expected 1 message in history, got %d", len(m.appState.GetMessages()))
 	}
-	if m.state.messages[0].Role != llm.RoleAssistant {
-		t.Errorf("expected assistant role, got %s", m.state.messages[0].Role)
+	if m.appState.GetMessages()[0].Role != llm.RoleAssistant {
+		t.Errorf("expected assistant role, got %s", m.appState.GetMessages()[0].Role)
 	}
-	if m.state.messages[0].Content != "response line 1\nresponse line 2" {
-		t.Errorf("unexpected message content: %s", m.state.messages[0].Content)
+	if m.appState.GetMessages()[0].Content != "response line 1\nresponse line 2" {
+		t.Errorf("unexpected message content: %s", m.appState.GetMessages()[0].Content)
 	}
 
-	if len(newM.outputLines) != 3 {
-		t.Errorf("expected 3 output lines (2 content + 1 empty), got %d", len(newM.outputLines))
+	if len(newM.output.GetLines()) != 3 {
+		t.Errorf("expected 3 output lines (2 content + 1 empty), got %d", len(newM.output.GetLines()))
 	}
 
 	if cmd != nil {
@@ -84,7 +82,7 @@ func TestHandleLLMError(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		outputLines:   []string{},
+		output: NewOutputBuilder(80),
 	}
 
 	testErr := errors.New("stream failed")
@@ -94,12 +92,12 @@ func TestHandleLLMError(t *testing.T) {
 		t.Error("expected showSpinner to be false after error")
 	}
 
-	if len(newM.outputLines) != 2 {
-		t.Errorf("expected 2 output lines (1 error + 1 empty), got %d", len(newM.outputLines))
+	if len(newM.output.GetLines()) != 2 {
+		t.Errorf("expected 2 output lines (1 error + 1 empty), got %d", len(newM.output.GetLines()))
 	}
 
-	if !strings.Contains(newM.outputLines[0], "stream failed") {
-		t.Errorf("expected error message in output, got: %s", newM.outputLines[0])
+	if !strings.Contains(newM.output.GetLines()[0], "stream failed") {
+		t.Errorf("expected error message in output, got: %s", newM.output.GetLines()[0])
 	}
 
 	if cmd != nil {
@@ -114,15 +112,13 @@ func TestHandleKeyMsg_Enter(t *testing.T) {
 		textarea:      ta,
 		width:         80,
 		streamHandler: NewStreamHandler(),
-		state: &replState{
-			messages: []llm.Message{},
-		},
-		outputLines: []string{},
+		ctx:           &replContext{},
+		output:        NewOutputBuilder(80),
 	}
 
 	newM, cmd := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyEnter})
 
-	if !strings.Contains(strings.Join(newM.outputLines, ""), "Available Commands") {
+	if !strings.Contains(newM.output.Join(), "Available Commands") {
 		t.Error("expected help text in output after enter with /help")
 	}
 	if cmd != nil {
@@ -225,20 +221,18 @@ func TestHandleLLMDone_EmptyResponse(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		state: &replState{
-			messages: []llm.Message{},
-		},
-		outputLines: []string{},
+		appState:      NewAppState(nil),
+		output:        NewOutputBuilder(80),
 	}
 
 	newM, _ := m.handleLLMDone()
 
-	if len(m.state.messages) != 1 {
-		t.Errorf("expected 1 message, got %d", len(m.state.messages))
+	if len(m.appState.GetMessages()) != 1 {
+		t.Errorf("expected 1 message, got %d", len(m.appState.GetMessages()))
 	}
 
-	if len(newM.outputLines) != 2 {
-		t.Errorf("expected 2 lines (1 empty response + 1 empty), got %d", len(newM.outputLines))
+	if len(newM.output.GetLines()) != 2 {
+		t.Errorf("expected 2 lines (1 empty response + 1 empty), got %d", len(newM.output.GetLines()))
 	}
 }
 
@@ -252,7 +246,7 @@ func TestHandleLLMError_ResetsHandler(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		outputLines:   []string{},
+		output: NewOutputBuilder(80),
 	}
 
 	newM, _ := m.handleLLMError(errors.New("fail"))

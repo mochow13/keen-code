@@ -18,9 +18,15 @@ import (
 )
 
 const (
+	/* Commands */
 	exitCommand  = "/exit"
 	helpCommand  = "/help"
 	modelCommand = "/model"
+
+	/* UI */
+	defaultWidth  = 120
+	maxHeight     = 20
+	initialHeight = 1
 )
 
 var loadingTexts = []string{
@@ -30,23 +36,28 @@ var loadingTexts = []string{
 	"Figuring out...",
 	"Getting answers...",
 	"Composing...",
+	"Finding out...",
+	"Answering...",
+	"Hmmm...",
+	"Let me check...",
+	"Let me see...",
+	"Let me find out...",
 }
 
-type replState struct {
+type replContext struct {
 	version    string
 	workingDir string
 	cfg        *config.ResolvedConfig
 	globalCfg  *config.GlobalConfig
 	loader     *config.Loader
 	registry   *providers.Registry
-	llmClient  llm.LLMClient
-	messages   []llm.Message
 }
 
 type replModel struct {
 	textarea       textarea.Model
-	state          *replState
-	outputLines    []string
+	ctx            *replContext
+	appState       *AppState
+	output         *OutputBuilder
 	modelSelection *modelselection.Model
 	quitting       bool
 	streamHandler  *StreamHandler
@@ -67,15 +78,15 @@ func abbreviateHome(path string) string {
 	return path
 }
 
-func initialModel(state *replState, needsSetup bool) replModel {
+func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) replModel {
 	ta := textarea.New()
 	ta.Placeholder = "Type your message..."
 	ta.Focus()
 	ta.Prompt = ""
 	ta.CharLimit = 0
-	ta.SetWidth(120)
-	ta.SetHeight(1)
-	ta.MaxHeight = 10
+	ta.SetWidth(defaultWidth)
+	ta.SetHeight(initialHeight)
+	ta.MaxHeight = maxHeight
 	ta.ShowLineNumbers = false
 
 	ta.KeyMap.InsertNewline.SetKeys("ctrl+j")
@@ -85,29 +96,33 @@ func initialModel(state *replState, needsSetup bool) replModel {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(primaryColor)
 
-	initialOutput := buildInitialScreen(state)
+	initialOutput := buildInitialScreen(ctx)
+
+	appState := NewAppState(llmClient)
 
 	model := replModel{
 		textarea:      ta,
-		state:         state,
-		outputLines:   initialOutput,
+		ctx:           ctx,
+		appState:      appState,
+		output:        NewOutputBuilder(defaultWidth),
 		spinner:       s,
 		streamHandler: NewStreamHandler(),
 	}
+	model.output.SetLines(initialOutput)
 
 	if needsSetup {
 		welcomeStyle := lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
-		model.outputLines = append(model.outputLines, "")
-		model.outputLines = append(model.outputLines, welcomeStyle.Render("👋 Welcome to Keen!"))
-		model.outputLines = append(model.outputLines, "")
-		model.outputLines = append(model.outputLines, "")
+		model.output.AddEmptyLine()
+		model.output.AddStyledLine(welcomeStyle.Render("👋 Welcome to Keen!"), lipgloss.NewStyle())
+		model.output.AddEmptyLine()
+		model.output.AddEmptyLine()
 		model = model.startModelSelection()
 	}
 
 	return model
 }
 
-func buildInitialScreen(state *replState) []string {
+func buildInitialScreen(ctx *replContext) []string {
 	var lines []string
 
 	asciiArt := []string{
@@ -130,13 +145,13 @@ func buildInitialScreen(state *replState) []string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, "  "+titleStyle.Render("Keen v"+state.version)+"  "+modeStyle.Render("plan mode"))
+	lines = append(lines, "  "+titleStyle.Render("Keen v"+ctx.version)+"  "+modeStyle.Render("plan mode"))
 	lines = append(lines, "")
 
-	displayDir := abbreviateHome(state.workingDir)
+	displayDir := abbreviateHome(ctx.workingDir)
 	lines = append(lines, "  "+infoLabelStyle.Render("Directory:")+" "+infoValueStyle.Render(displayDir))
-	lines = append(lines, "  "+infoLabelStyle.Render("Provider:")+" "+highlightStyle.Render(state.cfg.Provider))
-	lines = append(lines, "  "+infoLabelStyle.Render("Model:")+" "+infoValueStyle.Render(state.cfg.Model))
+	lines = append(lines, "  "+infoLabelStyle.Render("Provider:")+" "+highlightStyle.Render(ctx.cfg.Provider))
+	lines = append(lines, "  "+infoLabelStyle.Render("Model:")+" "+infoValueStyle.Render(ctx.cfg.Model))
 	lines = append(lines, "")
 
 	tips := []string{
@@ -156,24 +171,11 @@ func (m replModel) Init() tea.Cmd {
 	return textarea.Blink
 }
 
-func (m replModel) formatInputForDisplay(input string) string {
-	inputLines := strings.Split(input, "\n")
-	wrapStyle := m.contentStyle()
-	var formattedInput strings.Builder
-	formattedInput.WriteString(promptStyle.Render("> "))
-	formattedInput.WriteString(wrapStyle.Render(inputLines[0]))
-	for i := 1; i < len(inputLines); i++ {
-		formattedInput.WriteString("\n  ")
-		formattedInput.WriteString(wrapStyle.Render(inputLines[i]))
-	}
-	return formattedInput.String()
-}
-
 func (m *replModel) adjustTextareaHeight() {
 	currentValue := m.textarea.Value()
 	lineCount := strings.Count(currentValue, "\n") + 1
-	if lineCount > 10 {
-		lineCount = 10
+	if lineCount > maxHeight {
+		lineCount = maxHeight
 	}
 	m.textarea.SetHeight(lineCount)
 }
@@ -183,10 +185,10 @@ func (m replModel) startModelSelection() replModel {
 		return m.updateLLMClient()
 	}
 	m.modelSelection = modelselection.New(
-		m.state.registry,
-		m.state.globalCfg,
-		m.state.loader,
-		m.state.cfg,
+		m.ctx.registry,
+		m.ctx.globalCfg,
+		m.ctx.loader,
+		m.ctx.cfg,
 		onComplete,
 	)
 	return m
@@ -206,8 +208,7 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 		return m, nil
 	}
 
-	m.outputLines = append(m.outputLines, m.formatInputForDisplay(input))
-	m.outputLines = append(m.outputLines, "")
+	m.output.AddUserInput(input, promptStyle)
 
 	if input == exitCommand {
 		m.quitting = true
@@ -215,8 +216,8 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 	}
 
 	if input == helpCommand {
-		m.outputLines = append(m.outputLines, getHelpText())
-		m.outputLines = append(m.outputLines, "")
+		m.output.AddLine(getHelpText())
+		m.output.AddEmptyLine()
 		m.textarea.Reset()
 		return m, nil
 	}
@@ -227,24 +228,19 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 		return m.startModelSelection(), nil
 	}
 
-	if m.state.llmClient == nil {
-		m.outputLines = append(m.outputLines, m.contentStyle().Render(errorStyle.Render("  Error: LLM client not initialized. Use /model to configure.")))
-		m.outputLines = append(m.outputLines, "")
+	if !m.appState.IsClientReady(m.ctx.cfg) {
+		m.output.AddError("LLM client not initialized. Use /model to configure.", errorStyle)
 		m.textarea.Reset()
 		m.textarea.SetHeight(1)
 		return m, nil
 	}
 
-	m.state.messages = append(m.state.messages, llm.Message{
-		Role:    llm.RoleUser,
-		Content: input,
-	})
+	m.appState.AddMessage(llm.RoleUser, input)
 
 	ctx := context.Background()
-	eventCh, err := m.state.llmClient.StreamChat(ctx, m.state.messages)
+	eventCh, err := m.appState.StreamChat(ctx, m.ctx.cfg)
 	if err != nil {
-		m.outputLines = append(m.outputLines, errorStyle.Render("  Error: "+err.Error()))
-		m.outputLines = append(m.outputLines, "")
+		m.output.AddError(err.Error(), errorStyle)
 		m.textarea.Reset()
 		m.textarea.SetHeight(1)
 		return m, nil
@@ -322,8 +318,8 @@ func (m replModel) View() string {
 
 	var view strings.Builder
 
-	if len(m.outputLines) > 0 {
-		view.WriteString(strings.Join(m.outputLines, "\n"))
+	if !m.output.IsEmpty() {
+		view.WriteString(m.output.Join())
 	}
 
 	if m.streamHandler.IsActive() {
@@ -364,34 +360,42 @@ func getHelpText() string {
 }
 
 func (m *replModel) updateLLMClient() error {
-	client, err := llm.NewClient(m.state.cfg)
+	client, err := llm.NewClient(m.ctx.cfg)
 	if err != nil {
 		return err
 	}
-	m.state.llmClient = client
+	m.appState.UpdateClient(client)
 	return nil
 }
 
-func RunREPL(version, workingDir string, cfg *config.ResolvedConfig, loader *config.Loader, globalCfg *config.GlobalConfig, registry *providers.Registry, needsSetup bool) error {
-	state := &replState{
+func RunREPL(
+	version string,
+	workingDir string,
+	cfg *config.ResolvedConfig,
+	loader *config.Loader,
+	globalCfg *config.GlobalConfig,
+	registry *providers.Registry,
+	needsSetup bool,
+) error {
+	ctx := &replContext{
 		version:    version,
 		workingDir: workingDir,
 		cfg:        cfg,
 		globalCfg:  globalCfg,
 		loader:     loader,
 		registry:   registry,
-		messages:   []llm.Message{},
 	}
 
+	var llmClient llm.LLMClient
 	if cfg.APIKey != "" && cfg.Model != "" {
 		client, err := llm.NewClient(cfg)
 		if err != nil {
 			return fmt.Errorf("failed to initialize LLM client: %w", err)
 		}
-		state.llmClient = client
+		llmClient = client
 	}
 
-	p := tea.NewProgram(initialModel(state, needsSetup), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(ctx, llmClient, needsSetup), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		return err
 	}
