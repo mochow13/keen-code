@@ -23,8 +23,9 @@ const (
 
 func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 	m.showSpinner = false
+	m.updateViewportContent()
 	if !m.userScrolled {
-		m.scrollToBottom()
+		m.viewport.GotoBottom()
 	}
 	return *m, m.streamHandler.HandleChunk(chunk)
 }
@@ -37,8 +38,9 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 		m.output.AddLine(line)
 	}
 	m.output.AddEmptyLine()
+	m.updateViewportContent()
 	if !m.userScrolled {
-		m.scrollToBottom()
+		m.viewport.GotoBottom()
 	}
 	return *m, nil
 }
@@ -47,6 +49,8 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.showSpinner = false
 	errMsg := m.streamHandler.HandleError(err)
 	m.output.AddError(errMsg, errorStyle)
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
 	return *m, nil
 }
 
@@ -60,6 +64,8 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 			m.output.AddStyledLine("  "+successMsg, highlightStyle)
 			m.output.AddEmptyLine()
 			m.modelSelection = nil
+			m.updateViewportContent()
+			m.viewport.GotoBottom()
 			return *m, nil
 		}
 
@@ -68,6 +74,8 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 			m.output.AddStyledLine("  Model selection cancelled", cancelStyle)
 			m.output.AddEmptyLine()
 			m.modelSelection = nil
+			m.updateViewportContent()
+			m.viewport.GotoBottom()
 			return *m, nil
 		}
 
@@ -89,27 +97,25 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return *m, tea.Quit
 	case keyUp, keyShiftUp:
 		if m.isAtTopOfInput() {
-			m.scrollUp(1)
+			m.viewport.ScrollUp(1)
 			return *m, nil
 		}
 	case keyDown, keyShiftDown:
 		if m.isAtBottomOfInput() {
-			m.scrollDown(1)
+			m.viewport.ScrollDown(1)
 			return *m, nil
 		}
 	case keyPageUp:
-		availableHeight := m.height - m.inputAreaHeight() - 1
-		m.scrollUp(availableHeight / 2)
+		m.viewport.HalfPageUp()
 		return *m, nil
 	case keyPageDown:
-		availableHeight := m.height - m.inputAreaHeight() - 1
-		m.scrollDown(availableHeight / 2)
+		m.viewport.HalfPageDown()
 		return *m, nil
 	case keyHome:
-		m.scrollOffset = 0
+		m.viewport.GotoTop()
 		return *m, nil
 	case keyEnd:
-		m.scrollToBottom()
+		m.viewport.GotoBottom()
 		return *m, nil
 	}
 

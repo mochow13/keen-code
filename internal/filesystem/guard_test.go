@@ -40,7 +40,6 @@ func TestGuard_CheckPath_OutsideWorkingDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	g := NewGuard(tmpDir, nil)
 
-	// Access to parent directory should be PermissionPending (ask user), not denied
 	got := g.CheckPath("../other-project/main.go", "read")
 	if got != PermissionPending {
 		t.Errorf("CheckPath(../other-project/main.go, read) = %v, want PermissionPending", got)
@@ -83,7 +82,6 @@ func TestGuard_CheckPath_ParentDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	g := NewGuard(tmpDir, nil)
 
-	// Access to parent directory should be PermissionPending (ask user), not denied
 	got := g.CheckPath("../other-project/main.go", "read")
 	if got != PermissionPending {
 		t.Errorf("CheckPath(../other-project/main.go, read) = %v, want PermissionPending", got)

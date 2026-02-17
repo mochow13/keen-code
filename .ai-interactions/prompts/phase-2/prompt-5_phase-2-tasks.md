@@ -37,6 +37,9 @@
 27. Let's implement the changes in `streaming.View()` and `repl.View()` methods. Also plan for a way so that we don't duplicate markdown rendering logic in these two places.
 28. I cannot type on the text area for some time and then this text appear: `11;rgb:1010/1212/1616\`. And then I can type. But code doesn't render as expected in markdown. Let's fix it.
 29. It seems we cannot scroll up or down in keen-code UI right now. So if a text output is long, I can no longer scroll up to see the actual input or previous history. What's the issue specifically?
-30. Review the relevant code in @repl.go and @handlers.go for scrolling in the CLI. Currently it has several issues:
-    - When content is rendering in chunk, the input text area flickers at the bottom
-    - After content rendering is finished, a portion of the last few lines are overlapping with the input text area and cannot be scrolled down.
+30. Review the relevant code in @repl.go and @handlers.go for scrolling in the CLI.
+31. When content is rendering in chunk, the input text area flickers at the bottom. What's the issue? How would you fix it?
+32. After content rendering is finished, a portion of the last few lines are overlapping with the input text area and cannot be scrolled down. Explain the reason for this issue.
+33. Would the content correctly render as markdown inside viewport?
+34. There are some deprecated code usages. For example, `msg.Type`, `tea.MouseWheelUp/Down`. Let's fix them and use the supported APIs.
+35. We cannot copy paste in the text area. How to fix it?

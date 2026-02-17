@@ -33,7 +33,6 @@ func TestGitAwareness_IsIgnored(t *testing.T) {
 				t.Fatalf("failed to load gitignore: %v", err)
 			}
 
-			// Use full path for matching
 			fullPath := filepath.Join(tmpDir, tt.path)
 			got := ga.IsIgnored(fullPath)
 			if got != tt.ignored {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/user/keen-cli/configs/providers"
@@ -55,6 +56,7 @@ type replContext struct {
 
 type replModel struct {
 	textarea       textarea.Model
+	viewport       viewport.Model
 	ctx            *replContext
 	appState       *AppState
 	output         *OutputBuilder
@@ -67,7 +69,6 @@ type replModel struct {
 	spinner        spinner.Model
 	showSpinner    bool
 	loadingText    string
-	scrollOffset   int
 	userScrolled   bool
 }
 
@@ -108,8 +109,12 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		mdRenderer = nil
 	}
 
+	vp := viewport.New(defaultWidth, 24)
+	vp.SetContent(strings.Join(initialOutput, "\n"))
+
 	model := replModel{
 		textarea:      ta,
+		viewport:      vp,
 		ctx:           ctx,
 		appState:      appState,
 		output:        NewOutputBuilder(defaultWidth),
@@ -117,7 +122,6 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		streamHandler: NewStreamHandler(mdRenderer),
 		mdRenderer:    mdRenderer,
 	}
-	model.output.SetLines(initialOutput)
 
 	if needsSetup {
 		welcomeStyle := lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
@@ -135,12 +139,12 @@ func buildInitialScreen(ctx *replContext) []string {
 	var lines []string
 
 	asciiArt := []string{
-		"██╗  ██╗███████╗███████╗███╗   ██╗",
-		"██║ ██╔╝██╔════╝██╔════╝████╗  ██║",
-		"█████╔╝ █████╗  █████╗  ██╔██╗ ██║",
-		"██╔═██╗ ██╔══╝  ██╔══╝  ██║╚██╗██║",
-		"██║  ██╗███████╗███████╗██║ ╚████║",
-		"╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═══╝",
+		"██╗  ██╗███████╗███████╗███╗   ██╗     ██████╗ ██████╗ ██████╗ ███████╗",
+		"██║ ██╔╝██╔════╝██╔════╝████╗  ██║    ██╔════╝██╔═══██╗██╔══██╗██╔════╝",
+		"█████╔╝ █████╗  █████╗  ██╔██╗ ██║    ██║     ██║   ██║██║  ██║█████╗  ",
+		"██╔═██╗ ██╔══╝  ██╔══╝  ██║╚██╗██║    ██║     ██║   ██║██║  ██║██╔══╝  ",
+		"██║  ██╗███████╗███████╗██║ ╚████║    ╚██████╗╚██████╔╝██████╔╝███████╗",
+		"╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═══╝     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝",
 	}
 
 	colors := []string{
@@ -211,10 +215,6 @@ func (m *replModel) startModelSelection() replModel {
 	return *m
 }
 
-func (m replModel) contentStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Width(m.width - 4)
-}
-
 func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	input := m.textarea.Value()
 	if input == "" {
@@ -236,7 +236,8 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 		m.output.AddLine(getHelpText())
 		m.output.AddEmptyLine()
 		m.textarea.Reset()
-		m.scrollToBottom()
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
 		return *m, nil
 	}
 
@@ -270,32 +271,28 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	m.textarea.Reset()
 	m.textarea.SetHeight(1)
 	m.userScrolled = false
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
 
 	return *m, tea.Batch(m.spinner.Tick, m.streamHandler.WaitForEvent())
 }
 
-func (m *replModel) scrollToBottom() {
-	m.scrollOffset = m.maxScrollOffset()
-	m.userScrolled = false
-}
-
-func (m *replModel) scrollUp(lines int) {
-	m.scrollOffset -= lines
-	if m.scrollOffset < 0 {
-		m.scrollOffset = 0
+func (m *replModel) updateViewportContent() {
+	if m.viewport.Width == 0 {
+		return
 	}
-	m.userScrolled = true
-}
 
-func (m *replModel) scrollDown(lines int) {
-	maxOffset := m.maxScrollOffset()
-	m.scrollOffset += lines
-	if m.scrollOffset > maxOffset {
-		m.scrollOffset = maxOffset
-		m.userScrolled = false
-	} else {
-		m.userScrolled = true
+	var content strings.Builder
+
+	if m.output != nil && !m.output.IsEmpty() {
+		content.WriteString(m.output.Join())
 	}
+
+	if m.streamHandler != nil && m.streamHandler.IsActive() {
+		content.WriteString(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()))
+	}
+
+	m.viewport.SetContent(content.String())
 }
 
 func (m *replModel) handleCtrlJ() (replModel, tea.Cmd) {
@@ -334,7 +331,8 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mdRenderer != nil {
 			m.mdRenderer.UpdateWidth(msg.Width)
 		}
-		m.clampScrollOffset()
+		m.viewport.Width = msg.Width
+		m.viewport.Height = msg.Height - m.textarea.Height() - 2
 		return m, nil
 
 	case llmChunkMsg:
@@ -350,56 +348,18 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKeyMsg(msg)
 
 	case tea.MouseMsg:
-		if msg.Type == tea.MouseWheelUp {
-			m.scrollUp(3)
-			return m, nil
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			m.viewport.ScrollUp(3)
+		case tea.MouseButtonWheelDown:
+			m.viewport.ScrollDown(3)
 		}
-		if msg.Type == tea.MouseWheelDown {
-			m.scrollDown(3)
-			return m, nil
-		}
+		return m, nil
 	}
 
 	m.textarea, cmd = m.textarea.Update(msg)
 	m.adjustTextareaHeight()
 	return m, cmd
-}
-
-func (m *replModel) clampScrollOffset() {
-	maxOffset := m.maxScrollOffset()
-	if m.scrollOffset > maxOffset {
-		m.scrollOffset = maxOffset
-	}
-	if m.scrollOffset < 0 {
-		m.scrollOffset = 0
-	}
-}
-
-func (m replModel) maxScrollOffset() int {
-	if m.height == 0 {
-		return 0
-	}
-	availableHeight := m.height - m.inputAreaHeight()
-	if availableHeight <= 0 {
-		return 0
-	}
-	totalLines := m.totalContentLines()
-	if totalLines <= availableHeight {
-		return 0
-	}
-	return totalLines - availableHeight
-}
-
-func (m replModel) totalContentLines() int {
-	lines := len(m.output.GetLines())
-	if m.streamHandler.IsActive() {
-		lines += strings.Count(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()), "\n") + 1
-	}
-	return lines
-}
-
-func (m replModel) inputAreaHeight() int {
-	return m.textarea.Height() + 2
 }
 
 func (m replModel) View() string {
@@ -411,46 +371,9 @@ func (m replModel) View() string {
 		return m.modelSelection.View()
 	}
 
-	var content strings.Builder
-
-	if !m.output.IsEmpty() {
-		content.WriteString(m.output.Join())
-	}
-
-	if m.streamHandler.IsActive() {
-		content.WriteString(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()))
-	}
-
-	contentLines := strings.Split(content.String(), "\n")
-	availableHeight := m.height - m.inputAreaHeight()
-
-	startIdx := 0
-	if len(contentLines) > availableHeight {
-		startIdx = m.scrollOffset
-	}
-	endIdx := startIdx + availableHeight
-	if endIdx > len(contentLines) {
-		endIdx = len(contentLines)
-	}
-
 	var view strings.Builder
-	linesWritten := 0
 
-	for i := startIdx; i < endIdx && linesWritten < availableHeight; i++ {
-		if linesWritten > 0 {
-			view.WriteString("\n")
-		}
-		if i < len(contentLines) {
-			view.WriteString(contentLines[i])
-		}
-		linesWritten++
-	}
-
-	for linesWritten < availableHeight {
-		view.WriteString("\n")
-		linesWritten++
-	}
-
+	view.WriteString(m.viewport.View())
 	view.WriteString("\n")
 
 	textareaView := m.textarea.View()
