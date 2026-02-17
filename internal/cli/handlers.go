@@ -8,35 +8,49 @@ import (
 )
 
 const (
-	keyEnter = "enter"
-	keyCtrlJ = "ctrl+j"
-	keyCtrlC = "ctrl+c"
+	keyEnter     = "enter"
+	keyCtrlJ     = "ctrl+j"
+	keyCtrlC     = "ctrl+c"
+	keyUp        = "up"
+	keyDown      = "down"
+	keyPageUp    = "pgup"
+	keyPageDown  = "pgdown"
+	keyHome      = "home"
+	keyEnd       = "end"
+	keyShiftUp   = "shift+up"
+	keyShiftDown = "shift+down"
 )
 
-func (m replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
+func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 	m.showSpinner = false
-	return m, m.streamHandler.HandleChunk(chunk)
+	if !m.userScrolled {
+		m.scrollToBottom()
+	}
+	return *m, m.streamHandler.HandleChunk(chunk)
 }
 
-func (m replModel) handleLLMDone() (replModel, tea.Cmd) {
+func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.showSpinner = false
 	responseLines, fullResponse := m.streamHandler.HandleDone()
 	m.appState.AddMessage(llm.RoleAssistant, fullResponse)
 	for _, line := range responseLines {
-		m.output.AddLine("  " + m.contentStyle().Render(assistantStyle.Render(line)))
+		m.output.AddLine(line)
 	}
 	m.output.AddEmptyLine()
-	return m, nil
+	if !m.userScrolled {
+		m.scrollToBottom()
+	}
+	return *m, nil
 }
 
-func (m replModel) handleLLMError(err error) (replModel, tea.Cmd) {
+func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.showSpinner = false
 	errMsg := m.streamHandler.HandleError(err)
 	m.output.AddError(errMsg, errorStyle)
-	return m, nil
+	return *m, nil
 }
 
-func (m replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
+func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	if m.modelSelection != nil {
 		newModel, cmd := m.modelSelection.Update(msg)
 		m.modelSelection = newModel.(*modelselection.Model)
@@ -46,7 +60,7 @@ func (m replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 			m.output.AddStyledLine("  "+successMsg, highlightStyle)
 			m.output.AddEmptyLine()
 			m.modelSelection = nil
-			return m, nil
+			return *m, nil
 		}
 
 		if modelselection.IsCancel(msg) {
@@ -54,15 +68,15 @@ func (m replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 			m.output.AddStyledLine("  Model selection cancelled", cancelStyle)
 			m.output.AddEmptyLine()
 			m.modelSelection = nil
-			return m, nil
+			return *m, nil
 		}
 
-		return m, cmd
+		return *m, cmd
 	}
 
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
-		return m, nil
+		return *m, nil
 	}
 
 	switch keyMsg.String() {
@@ -72,11 +86,35 @@ func (m replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return m.handleCtrlJ()
 	case keyCtrlC:
 		m.quitting = true
-		return m, tea.Quit
+		return *m, tea.Quit
+	case keyUp, keyShiftUp:
+		if m.isAtTopOfInput() {
+			m.scrollUp(1)
+			return *m, nil
+		}
+	case keyDown, keyShiftDown:
+		if m.isAtBottomOfInput() {
+			m.scrollDown(1)
+			return *m, nil
+		}
+	case keyPageUp:
+		availableHeight := m.height - m.inputAreaHeight() - 1
+		m.scrollUp(availableHeight / 2)
+		return *m, nil
+	case keyPageDown:
+		availableHeight := m.height - m.inputAreaHeight() - 1
+		m.scrollDown(availableHeight / 2)
+		return *m, nil
+	case keyHome:
+		m.scrollOffset = 0
+		return *m, nil
+	case keyEnd:
+		m.scrollToBottom()
+		return *m, nil
 	}
 
 	var cmd tea.Cmd
 	m.textarea, cmd = m.textarea.Update(keyMsg)
 	m.adjustTextareaHeight()
-	return m, cmd
+	return *m, cmd
 }

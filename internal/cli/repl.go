@@ -61,10 +61,14 @@ type replModel struct {
 	modelSelection *modelselection.Model
 	quitting       bool
 	streamHandler  *StreamHandler
+	mdRenderer     *MarkdownRenderer
 	width          int
+	height         int
 	spinner        spinner.Model
 	showSpinner    bool
 	loadingText    string
+	scrollOffset   int
+	userScrolled   bool
 }
 
 func abbreviateHome(path string) string {
@@ -93,12 +97,16 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	ta.KeyMap.InsertNewline.SetEnabled(true)
 
 	s := spinner.New()
-	s.Spinner = spinner.Dot
+	s.Spinner = spinner.Pulse
 	s.Style = lipgloss.NewStyle().Foreground(primaryColor)
 
 	initialOutput := buildInitialScreen(ctx)
-
 	appState := NewAppState(llmClient)
+	mdRenderer, err := NewMarkdownRenderer(defaultWidth)
+
+	if err != nil {
+		mdRenderer = nil
+	}
 
 	model := replModel{
 		textarea:      ta,
@@ -106,7 +114,8 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		appState:      appState,
 		output:        NewOutputBuilder(defaultWidth),
 		spinner:       s,
-		streamHandler: NewStreamHandler(),
+		streamHandler: NewStreamHandler(mdRenderer),
+		mdRenderer:    mdRenderer,
 	}
 	model.output.SetLines(initialOutput)
 
@@ -180,7 +189,15 @@ func (m *replModel) adjustTextareaHeight() {
 	m.textarea.SetHeight(lineCount)
 }
 
-func (m replModel) startModelSelection() replModel {
+func (m replModel) isAtTopOfInput() bool {
+	return m.textarea.Line() == 0
+}
+
+func (m replModel) isAtBottomOfInput() bool {
+	return m.textarea.Line() >= m.textarea.LineCount()-1
+}
+
+func (m *replModel) startModelSelection() replModel {
 	onComplete := func(provider, model, apiKey string) error {
 		return m.updateLLMClient()
 	}
@@ -191,35 +208,36 @@ func (m replModel) startModelSelection() replModel {
 		m.ctx.cfg,
 		onComplete,
 	)
-	return m
+	return *m
 }
 
 func (m replModel) contentStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Width(m.width - 4)
 }
 
-func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
+func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	input := m.textarea.Value()
 	if input == "" {
-		return m, nil
+		return *m, nil
 	}
 
 	if m.streamHandler.IsActive() {
-		return m, nil
+		return *m, nil
 	}
 
 	m.output.AddUserInput(input, promptStyle)
 
 	if input == exitCommand {
 		m.quitting = true
-		return m, tea.Quit
+		return *m, tea.Quit
 	}
 
 	if input == helpCommand {
 		m.output.AddLine(getHelpText())
 		m.output.AddEmptyLine()
 		m.textarea.Reset()
-		return m, nil
+		m.scrollToBottom()
+		return *m, nil
 	}
 
 	if input == modelCommand {
@@ -232,7 +250,7 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 		m.output.AddError("LLM client not initialized. Use /model to configure.", errorStyle)
 		m.textarea.Reset()
 		m.textarea.SetHeight(1)
-		return m, nil
+		return *m, nil
 	}
 
 	m.appState.AddMessage(llm.RoleUser, input)
@@ -243,7 +261,7 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 		m.output.AddError(err.Error(), errorStyle)
 		m.textarea.Reset()
 		m.textarea.SetHeight(1)
-		return m, nil
+		return *m, nil
 	}
 
 	m.showSpinner = true
@@ -251,11 +269,36 @@ func (m replModel) handleEnterKey() (replModel, tea.Cmd) {
 	m.streamHandler.Start(eventCh, m.loadingText)
 	m.textarea.Reset()
 	m.textarea.SetHeight(1)
+	m.userScrolled = false
 
-	return m, tea.Batch(m.spinner.Tick, m.streamHandler.WaitForEvent())
+	return *m, tea.Batch(m.spinner.Tick, m.streamHandler.WaitForEvent())
 }
 
-func (m replModel) handleCtrlJ() (replModel, tea.Cmd) {
+func (m *replModel) scrollToBottom() {
+	m.scrollOffset = m.maxScrollOffset()
+	m.userScrolled = false
+}
+
+func (m *replModel) scrollUp(lines int) {
+	m.scrollOffset -= lines
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+	m.userScrolled = true
+}
+
+func (m *replModel) scrollDown(lines int) {
+	maxOffset := m.maxScrollOffset()
+	m.scrollOffset += lines
+	if m.scrollOffset > maxOffset {
+		m.scrollOffset = maxOffset
+		m.userScrolled = false
+	} else {
+		m.userScrolled = true
+	}
+}
+
+func (m *replModel) handleCtrlJ() (replModel, tea.Cmd) {
 	currentValue := m.textarea.Value()
 	newValue := currentValue + "\n"
 	m.textarea.SetValue(newValue)
@@ -266,7 +309,7 @@ func (m replModel) handleCtrlJ() (replModel, tea.Cmd) {
 	}
 	m.textarea.SetHeight(lineCount)
 	m.textarea.CursorEnd()
-	return m, nil
+	return *m, nil
 }
 
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -286,7 +329,12 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.height = msg.Height
 		m.textarea.SetWidth(msg.Width - 3)
+		if m.mdRenderer != nil {
+			m.mdRenderer.UpdateWidth(msg.Width)
+		}
+		m.clampScrollOffset()
 		return m, nil
 
 	case llmChunkMsg:
@@ -300,11 +348,58 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
+
+	case tea.MouseMsg:
+		if msg.Type == tea.MouseWheelUp {
+			m.scrollUp(3)
+			return m, nil
+		}
+		if msg.Type == tea.MouseWheelDown {
+			m.scrollDown(3)
+			return m, nil
+		}
 	}
 
 	m.textarea, cmd = m.textarea.Update(msg)
 	m.adjustTextareaHeight()
 	return m, cmd
+}
+
+func (m *replModel) clampScrollOffset() {
+	maxOffset := m.maxScrollOffset()
+	if m.scrollOffset > maxOffset {
+		m.scrollOffset = maxOffset
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+}
+
+func (m replModel) maxScrollOffset() int {
+	if m.height == 0 {
+		return 0
+	}
+	availableHeight := m.height - m.inputAreaHeight()
+	if availableHeight <= 0 {
+		return 0
+	}
+	totalLines := m.totalContentLines()
+	if totalLines <= availableHeight {
+		return 0
+	}
+	return totalLines - availableHeight
+}
+
+func (m replModel) totalContentLines() int {
+	lines := len(m.output.GetLines())
+	if m.streamHandler.IsActive() {
+		lines += strings.Count(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()), "\n") + 1
+	}
+	return lines
+}
+
+func (m replModel) inputAreaHeight() int {
+	return m.textarea.Height() + 2
 }
 
 func (m replModel) View() string {
@@ -316,14 +411,44 @@ func (m replModel) View() string {
 		return m.modelSelection.View()
 	}
 
-	var view strings.Builder
+	var content strings.Builder
 
 	if !m.output.IsEmpty() {
-		view.WriteString(m.output.Join())
+		content.WriteString(m.output.Join())
 	}
 
 	if m.streamHandler.IsActive() {
-		view.WriteString(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()))
+		content.WriteString(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()))
+	}
+
+	contentLines := strings.Split(content.String(), "\n")
+	availableHeight := m.height - m.inputAreaHeight()
+
+	startIdx := 0
+	if len(contentLines) > availableHeight {
+		startIdx = m.scrollOffset
+	}
+	endIdx := startIdx + availableHeight
+	if endIdx > len(contentLines) {
+		endIdx = len(contentLines)
+	}
+
+	var view strings.Builder
+	linesWritten := 0
+
+	for i := startIdx; i < endIdx && linesWritten < availableHeight; i++ {
+		if linesWritten > 0 {
+			view.WriteString("\n")
+		}
+		if i < len(contentLines) {
+			view.WriteString(contentLines[i])
+		}
+		linesWritten++
+	}
+
+	for linesWritten < availableHeight {
+		view.WriteString("\n")
+		linesWritten++
 	}
 
 	view.WriteString("\n")
@@ -395,7 +520,7 @@ func RunREPL(
 		llmClient = client
 	}
 
-	p := tea.NewProgram(initialModel(ctx, llmClient, needsSetup), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(ctx, llmClient, needsSetup), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		return err
 	}
