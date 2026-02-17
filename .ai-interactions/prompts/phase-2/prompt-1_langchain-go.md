@@ -1,3 +1,5 @@
+## Langchain-go integration
+
 This is Keen CLI, a CLI-based coding agent. Check the design in @.ai-interactions/prompts/phase-1/output-1_rfc.md and understand more about the project.
 
 In the initial design, we proposed to use official SDKs for LLM providers. But we have decided to move away from the idea. Instead, to ensure extensibility and ease of use, we will use langchain-go. Let's update the RFC based on this decision. Also make sure the diagrams are updated to reflect this decision.

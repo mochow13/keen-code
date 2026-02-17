@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/firebase/genkit/go/plugins/anthropic"
 	"github.com/firebase/genkit/go/plugins/compat_oai"
 	"github.com/firebase/genkit/go/plugins/googlegenai"
+	"github.com/user/keen-cli/internal/config"
 )
 
 type streamFunc func(ctx context.Context, g *genkit.Genkit, opts ...ai.GenerateOption) iter.Seq2[*ai.ModelStreamValue, error]
@@ -27,25 +29,27 @@ func NewGenkitClient(cfg *ClientConfig) (*GenkitClient, error) {
 	var g *genkit.Genkit
 	var modelName string
 
+	slog.Debug("Initializing genkit", "provider", cfg.Provider, "model", cfg.Model)
+
 	switch cfg.Provider {
-	case ProviderAnthropic:
+	case config.ProviderAnthropic:
 		g = genkit.Init(ctx, genkit.WithPlugins(&anthropic.Anthropic{
 			APIKey: cfg.APIKey,
 		}))
 		modelName = "anthropic/" + cfg.Model
-	case ProviderOpenAI:
+	case config.ProviderOpenAI:
 		g = genkit.Init(ctx, genkit.WithPlugins(&compat_oai.OpenAICompatible{
 			APIKey:   cfg.APIKey,
 			Provider: "openai",
 		}))
 		modelName = "openai/" + cfg.Model
-	case ProviderGemini:
+	case config.ProviderGoogleAI:
 		g = genkit.Init(ctx, genkit.WithPlugins(&googlegenai.GoogleAI{
 			APIKey: cfg.APIKey,
 		}))
 		modelName = "googleai/" + cfg.Model
 	default:
-		return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
+		return nil, fmt.Errorf("unsupported provider in config: %s", cfg.Provider)
 	}
 
 	if g == nil {

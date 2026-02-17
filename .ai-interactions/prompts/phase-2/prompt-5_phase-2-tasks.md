@@ -1,3 +1,5 @@
+## LLM Integration and `StreamChat`
+
 1. Instead of writing tests at the end in @.ai-interactions/outputs/phase-2/output-3_stream-chat-todo.md, let's put todo item for writing unit tests after each section where applicable.
 2. Remove documentation part from the todo list. We will add documentation later.
 3. Let's implement first 4 todo items from @.ai-interactions/outputs/phase-2/output-3_stream-chat-todo.md.
@@ -28,3 +30,13 @@
 20. You are now not wrapping, you are truncating the text.
 21. For the first message, I am correctly getting LLM response but for the second onwards, it's not working. There is always the error: `Error: Error 400, Message: Please use a valid role: user, model., Status: INVALID_ARGUMENT, Details: []`. What's the problem? Let's fix it.
 22. Until the first message comes to the repl output, we should show a loading spin. How would you do it? First explain your approach and then implement it.
+23. We want to support markdown rendering in the repl output. How to solve this? Share possible approaches.
+24. What are the exact changes will be if we use `glamour`?
+25. Do we have to separately detect markdown formats? Why not render the whole output as markdown?
+26. We are updating three places for markdown rendering. Can this be improved?
+27. Let's implement the changes in `streaming.View()` and `repl.View()` methods. Also plan for a way so that we don't duplicate markdown rendering logic in these two places.
+28. I cannot type on the text area for some time and then this text appear: `11;rgb:1010/1212/1616\`. And then I can type. But code doesn't render as expected in markdown. Let's fix it.
+29. It seems we cannot scroll up or down in keen-code UI right now. So if a text output is long, I can no longer scroll up to see the actual input or previous history. What's the issue specifically?
+30. Review the relevant code in @repl.go and @handlers.go for scrolling in the CLI. Currently it has several issues:
+    - When content is rendering in chunk, the input text area flickers at the bottom
+    - After content rendering is finished, a portion of the last few lines are overlapping with the input text area and cannot be scrolled down.

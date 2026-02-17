@@ -12,7 +12,7 @@ import (
 )
 
 func TestHandleLLMChunk(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
 	m := replModel{
@@ -35,7 +35,7 @@ func TestHandleLLMChunk(t *testing.T) {
 }
 
 func TestHandleLLMDone(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("response line 1\nresponse line 2")
@@ -74,7 +74,7 @@ func TestHandleLLMDone(t *testing.T) {
 }
 
 func TestHandleLLMError(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -111,7 +111,7 @@ func TestHandleKeyMsg_Enter(t *testing.T) {
 	m := replModel{
 		textarea:      ta,
 		width:         80,
-		streamHandler: NewStreamHandler(),
+		streamHandler: NewStreamHandler(nil),
 		ctx:           &replContext{},
 		output:        NewOutputBuilder(80),
 	}
@@ -190,7 +190,7 @@ func TestHandleKeyMsg_UnknownKey(t *testing.T) {
 }
 
 func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
 	m := replModel{
@@ -213,7 +213,7 @@ func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
 }
 
 func TestHandleLLMDone_EmptyResponse(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -237,7 +237,7 @@ func TestHandleLLMDone_EmptyResponse(t *testing.T) {
 }
 
 func TestHandleLLMError_ResetsHandler(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("partial content")

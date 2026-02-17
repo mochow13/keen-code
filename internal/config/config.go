@@ -11,7 +11,7 @@ import (
 const (
 	ProviderAnthropic = "anthropic"
 	ProviderOpenAI    = "openai"
-	ProviderGemini    = "gemini"
+	ProviderGoogleAI  = "googleai"
 )
 
 type GlobalConfig struct {

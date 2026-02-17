@@ -9,7 +9,7 @@ func TestGlobalConfig_GetProviderConfig(t *testing.T) {
 		Providers: map[string]ProviderConfig{
 			ProviderAnthropic: {Models: []string{"claude-3-sonnet"}, APIKey: "sk-ant-test"},
 			ProviderOpenAI:    {Models: []string{"gpt-4o"}, APIKey: "sk-test"},
-			ProviderGemini:    {Models: []string{"gemini-1.5-pro"}, APIKey: "test-key"},
+			ProviderGoogleAI:  {Models: []string{"gemini-1.5-pro"}, APIKey: "test-key"},
 		},
 	}
 

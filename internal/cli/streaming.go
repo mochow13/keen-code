@@ -13,10 +13,13 @@ type StreamHandler struct {
 	currentResponse string
 	eventCh         <-chan llm.StreamEvent
 	loadingText     string
+	mdRenderer      *MarkdownRenderer
 }
 
-func NewStreamHandler() *StreamHandler {
-	return &StreamHandler{}
+func NewStreamHandler(mdRenderer *MarkdownRenderer) *StreamHandler {
+	return &StreamHandler{
+		mdRenderer: mdRenderer,
+	}
 }
 
 func (sh *StreamHandler) Start(eventCh <-chan llm.StreamEvent, loadingText string) {
@@ -53,6 +56,17 @@ func (sh *StreamHandler) HandleDone() ([]string, string) {
 	sh.currentResponse = ""
 	sh.eventCh = nil
 	sh.loadingText = ""
+
+	if sh.mdRenderer != nil {
+		rendered := sh.mdRenderer.Render(response)
+		lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
+		formattedLines := make([]string, len(lines))
+		for i, line := range lines {
+			formattedLines[i] = "  " + line
+		}
+		return formattedLines, response
+	}
+
 	return formatResponseLines(response), response
 }
 
@@ -96,10 +110,18 @@ func (sh *StreamHandler) View(width int, showSpinner bool, spinnerView string) s
 	}
 
 	if sh.isActive && sh.currentResponse != "" {
-		responseLines := strings.Split(sh.currentResponse, "\n")
-		wrapStyle := lipgloss.NewStyle().Width(width - 4)
-		for _, line := range responseLines {
-			view.WriteString("\n  " + wrapStyle.Render(assistantStyle.Render(line)))
+		if sh.mdRenderer != nil {
+			rendered := sh.mdRenderer.Render(sh.currentResponse)
+			lines := strings.Split(strings.TrimRight(rendered, "\n"), "\n")
+			for _, line := range lines {
+				view.WriteString("\n  " + line)
+			}
+		} else {
+			responseLines := strings.Split(sh.currentResponse, "\n")
+			wrapStyle := lipgloss.NewStyle().Width(width - 4)
+			for _, line := range responseLines {
+				view.WriteString("\n  " + wrapStyle.Render(assistantStyle.Render(line)))
+			}
 		}
 	}
 

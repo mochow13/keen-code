@@ -8,12 +8,6 @@ import (
 
 type Provider string
 
-const (
-	ProviderAnthropic Provider = "anthropic"
-	ProviderOpenAI    Provider = "openai"
-	ProviderGemini    Provider = "gemini"
-)
-
 type ClientConfig struct {
 	Provider Provider
 	APIKey   string
@@ -28,8 +22,8 @@ func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
 		return nil, fmt.Errorf("model is required")
 	}
 
-	switch Provider(cfg.Provider) {
-	case ProviderAnthropic, ProviderOpenAI, ProviderGemini:
+	switch cfg.Provider {
+	case config.ProviderAnthropic, config.ProviderOpenAI, config.ProviderGoogleAI:
 		return NewGenkitClient(&ClientConfig{
 			Provider: Provider(cfg.Provider),
 			APIKey:   cfg.APIKey,

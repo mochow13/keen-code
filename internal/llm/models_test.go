@@ -79,7 +79,7 @@ func TestNewClient_Anthropic(t *testing.T) {
 		t.Error("expected *GenkitClient type")
 	}
 
-	if genkitClient.provider != ProviderAnthropic {
+	if genkitClient.provider != Provider(config.ProviderAnthropic) {
 		t.Errorf("expected provider anthropic, got %s", genkitClient.provider)
 	}
 
@@ -109,7 +109,7 @@ func TestNewClient_OpenAI(t *testing.T) {
 		t.Error("expected *GenkitClient type")
 	}
 
-	if genkitClient.provider != ProviderOpenAI {
+	if genkitClient.provider != Provider(config.ProviderOpenAI) {
 		t.Errorf("expected provider openai, got %s", genkitClient.provider)
 	}
 
@@ -120,7 +120,7 @@ func TestNewClient_OpenAI(t *testing.T) {
 
 func TestNewClient_Gemini(t *testing.T) {
 	cfg := &config.ResolvedConfig{
-		Provider: "gemini",
+		Provider: "googleai",
 		Model:    "gemini-pro",
 		APIKey:   "test-api-key",
 	}
@@ -139,8 +139,8 @@ func TestNewClient_Gemini(t *testing.T) {
 		t.Error("expected *GenkitClient type")
 	}
 
-	if genkitClient.provider != ProviderGemini {
-		t.Errorf("expected provider gemini, got %s", genkitClient.provider)
+	if genkitClient.provider != Provider(config.ProviderGoogleAI) {
+		t.Errorf("expected provider googleai, got %s", genkitClient.provider)
 	}
 
 	if genkitClient.model != "googleai/gemini-pro" {
@@ -153,9 +153,9 @@ func TestProviderConstants(t *testing.T) {
 		provider Provider
 		expected string
 	}{
-		{ProviderAnthropic, "anthropic"},
-		{ProviderOpenAI, "openai"},
-		{ProviderGemini, "gemini"},
+		{Provider(config.ProviderAnthropic), "anthropic"},
+		{Provider(config.ProviderOpenAI), "openai"},
+		{Provider(config.ProviderGoogleAI), "googleai"},
 	}
 
 	for _, tt := range tests {

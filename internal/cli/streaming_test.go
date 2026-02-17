@@ -10,7 +10,7 @@ import (
 )
 
 func TestStreamHandler_HandleChunk(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
 	cmd := sh.HandleChunk("Hello")
@@ -32,7 +32,7 @@ func TestStreamHandler_HandleChunk(t *testing.T) {
 }
 
 func TestStreamHandler_HandleDone(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("Line 1\nLine 2")
@@ -59,7 +59,7 @@ func TestStreamHandler_HandleDone(t *testing.T) {
 }
 
 func TestStreamHandler_HandleError(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("some content")
@@ -80,7 +80,7 @@ func TestStreamHandler_HandleError(t *testing.T) {
 }
 
 func TestStreamHandler_View_WithSpinner(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Brewing...")
 
 	view := sh.View(80, true, "⠋")
@@ -94,7 +94,7 @@ func TestStreamHandler_View_WithSpinner(t *testing.T) {
 }
 
 func TestStreamHandler_View_WithContent(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 	sh.HandleChunk("Hello World")
 
@@ -106,7 +106,7 @@ func TestStreamHandler_View_WithContent(t *testing.T) {
 }
 
 func TestStreamHandler_View_NoSpinnerNoContent(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
 	view := sh.View(80, false, "⠋")
@@ -124,7 +124,7 @@ func TestWaitForNextEvent_Chunk(t *testing.T) {
 	}
 	close(eventCh)
 
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(eventCh, "Loading...")
 
 	cmd := sh.WaitForEvent()
@@ -149,7 +149,7 @@ func TestWaitForNextEvent_Done(t *testing.T) {
 	}
 	close(eventCh)
 
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(eventCh, "Loading...")
 
 	cmd := sh.WaitForEvent()
@@ -170,7 +170,7 @@ func TestWaitForNextEvent_Error(t *testing.T) {
 	}
 	close(eventCh)
 
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(eventCh, "Loading...")
 
 	cmd := sh.WaitForEvent()
@@ -189,7 +189,7 @@ func TestWaitForNextEvent_ChannelClosed(t *testing.T) {
 	eventCh := make(chan llm.StreamEvent)
 	close(eventCh)
 
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(eventCh, "Loading...")
 
 	cmd := sh.WaitForEvent()
@@ -224,7 +224,7 @@ func TestFormatResponseLines_Empty(t *testing.T) {
 }
 
 func TestStreamHandler_Start(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 
 	sh.Start(eventCh, "Cooking...")
@@ -241,7 +241,7 @@ func TestStreamHandler_Start(t *testing.T) {
 }
 
 func TestStreamHandler_Start_ResetsPreviousState(t *testing.T) {
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 
 	sh.Start(eventCh, "First")
@@ -262,7 +262,7 @@ func TestStreamHandler_WaitForEvent_ReturnsDoneOnClosedChannel(t *testing.T) {
 	eventCh := make(chan llm.StreamEvent)
 	close(eventCh)
 
-	sh := NewStreamHandler()
+	sh := NewStreamHandler(nil)
 	sh.Start(eventCh, "Loading...")
 
 	cmd := sh.WaitForEvent()

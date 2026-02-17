@@ -1,8 +1,11 @@
-# Keen - a coding agent CLI | System Architecture RFC
+# Keen Code - a coding agent CLI | System Architecture RFC
+
+_This RFC was the initial proposed architecture of Keen Code. The finished product may differ from this document._
 
 ## 1. Overview
 
-This document outlines the system architecture for Keen, a terminal-based coding agent CLI written in Go. The tool provides AI-assisted code editing capabilities with two primary modes: **plan** (suggestions only) and **work** (with permission-based edits).
+
+This document outlines the system architecture for Keen Code, a terminal-based coding agent CLI written in Go. The tool provides AI-assisted code editing capabilities with two primary modes: **plan** (suggestions only) and **work** (with permission-based edits).
 
 ---
 
@@ -334,14 +337,14 @@ flowchart TD
 
 **Tools to implement:**
 
-| Tool | Description | Libraries |
-|------|-------------|-----------|
-| `read_file` | Read file contents | Standard `os` package |
-| `list_dir` | List directory contents | Standard `os` package |
-| `grep_search` | Search file contents | `github.com/bmatcuk/doublestar` + std lib |
-| `shell` | Execute shell commands | `os/exec` with timeout/sandboxing |
-| `write_file` | Write/overwrite files | Standard `os` package |
-| `edit_file` | Apply string replacements | Custom implementation |
+| Tool          | Description               | Libraries                                 |
+| ------------- | ------------------------- | ----------------------------------------- |
+| `read_file`   | Read file contents        | Standard `os` package                     |
+| `list_dir`    | List directory contents   | Standard `os` package                     |
+| `grep_search` | Search file contents      | `github.com/bmatcuk/doublestar` + std lib |
+| `shell`       | Execute shell commands    | `os/exec` with timeout/sandboxing         |
+| `write_file`  | Write/overwrite files     | Standard `os` package                     |
+| `edit_file`   | Apply string replacements | Custom implementation                     |
 
 ### Phase 4: Orchestrator & Modes
 
@@ -384,19 +387,19 @@ flowchart TD
 
 ### 5.1 Required Libraries
 
-| Category | Library | Purpose |
-|----------|---------|---------|
-| CLI Framework | `github.com/spf13/cobra` | Command-line interface |
-| Config Management | `gopkg.in/yaml.v3` | Configuration loading |
-| TUI Framework | `github.com/charmbracelet/bubbletea` | Interactive REPL |
-| TUI Components | `github.com/charmbracelet/lipgloss` | Styled terminal output |
-| User Prompts | `github.com/charmbracelet/huh` | Interactive forms and prompts |
-| Syntax Highlighting | `github.com/alecthomas/chroma` | Code display |
-| Diff Display | `github.com/sergi/go-diff/diffmatchpatch` | Diff generation |
-| LLM Framework | `github.com/firebase/genkit/go` | Unified LLM interface |
-| Pattern Matching | `github.com/bmatcuk/doublestar` | Glob patterns |
-| Gitignore Parsing | `github.com/go-git/go-git/v5/plumbing/format/gitignore` | Parse .gitignore rules |
-| Environment | `github.com/joho/godotenv` | .env file support |
+| Category            | Library                                                 | Purpose                       |
+| ------------------- | ------------------------------------------------------- | ----------------------------- |
+| CLI Framework       | `github.com/spf13/cobra`                                | Command-line interface        |
+| Config Management   | `gopkg.in/yaml.v3`                                      | Configuration loading         |
+| TUI Framework       | `github.com/charmbracelet/bubbletea`                    | Interactive REPL              |
+| TUI Components      | `github.com/charmbracelet/lipgloss`                     | Styled terminal output        |
+| User Prompts        | `github.com/charmbracelet/huh`                          | Interactive forms and prompts |
+| Syntax Highlighting | `github.com/alecthomas/chroma`                          | Code display                  |
+| Diff Display        | `github.com/sergi/go-diff/diffmatchpatch`               | Diff generation               |
+| LLM Framework       | `github.com/firebase/genkit/go`                         | Unified LLM interface         |
+| Pattern Matching    | `github.com/bmatcuk/doublestar`                         | Glob patterns                 |
+| Gitignore Parsing   | `github.com/go-git/go-git/v5/plumbing/format/gitignore` | Parse .gitignore rules        |
+| Environment         | `github.com/joho/godotenv`                              | .env file support             |
 
 ### 5.2 Go Standard Library Usage
 
@@ -543,16 +546,16 @@ keen --provider anthropic --provider-api-key $ANTHROPIC_API_KEY --model claude-h
 
 ### 8.2 Interactive REPL Commands
 
-| Command | Description |
-|---------|-------------|
-| `/plan` | Switch to plan mode |
-| `/work` | Switch to work mode |
-| `/add <file>` | Add file to context |
-| `/drop <file>` | Remove file from context |
-| `/clear` | Clear conversation |
-| `/models` | List available models |
-| `/config` | Show current config |
-| `/exit` or `Ctrl+D` | Exit REPL |
+| Command             | Description              |
+| ------------------- | ------------------------ |
+| `/plan`             | Switch to plan mode      |
+| `/work`             | Switch to work mode      |
+| `/add <file>`       | Add file to context      |
+| `/drop <file>`      | Remove file from context |
+| `/clear`            | Clear conversation       |
+| `/models`           | List available models    |
+| `/config`           | Show current config      |
+| `/exit` or `Ctrl+D` | Exit REPL                |
 
 ### 8.3 REPL Interaction Flow
 
@@ -614,12 +617,12 @@ Consider using memoization for better performance with large inputs.
 
 ### 9.1 Error Categories
 
-| Category | Examples | Handling |
-|----------|----------|----------|
-| User Input | Invalid commands, bad paths | Clear error message, suggest fixes |
-| LLM Errors | Rate limits, API errors | Retry with backoff, graceful degradation |
-| Tool Errors | File not found, permission denied | Return to LLM for correction |
-| System Errors | Disk full, network errors | Save state, exit cleanly |
+| Category      | Examples                          | Handling                                 |
+| ------------- | --------------------------------- | ---------------------------------------- |
+| User Input    | Invalid commands, bad paths       | Clear error message, suggest fixes       |
+| LLM Errors    | Rate limits, API errors           | Retry with backoff, graceful degradation |
+| Tool Errors   | File not found, permission denied | Return to LLM for correction             |
+| System Errors | Disk full, network errors         | Save state, exit cleanly                 |
 
 ### 9.2 Retry Logic
 
@@ -652,11 +655,11 @@ flowchart TD
 
 ### 10.2 Testing Approach
 
-| Layer | Tools | Focus |
-|-------|-------|-------|
-| Unit | `testing`, `testify` | Individual tools, parsers, utilities |
-| Integration | `httptest` | LLM providers with mock servers |
-| E2E | `exec`, golden files | Full CLI commands |
+| Layer       | Tools                | Focus                                |
+| ----------- | -------------------- | ------------------------------------ |
+| Unit        | `testing`, `testify` | Individual tools, parsers, utilities |
+| Integration | `httptest`           | LLM providers with mock servers      |
+| E2E         | `exec`, golden files | Full CLI commands                    |
 
 ---
 

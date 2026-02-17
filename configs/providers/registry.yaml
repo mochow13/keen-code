@@ -18,9 +18,9 @@ providers:
         name: GPT-4 Turbo
       - id: gpt-3.5-turbo
         name: GPT-3.5 Turbo
-
-  - id: gemini
-    name: Google Gemini
+  
+  - id: googleai
+    name: Google AI
     models:
       - id: gemini-3-pro-preview
         name: Gemini 3 Pro

@@ -27,7 +27,9 @@ func (s *AppState) AddMessage(role llm.Role, content string) {
 }
 
 func (s *AppState) GetMessages() []llm.Message {
-	return s.messages
+	result := make([]llm.Message, len(s.messages))
+	copy(result, s.messages)
+	return result
 }
 
 func (s *AppState) ClearMessages() {

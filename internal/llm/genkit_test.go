@@ -8,12 +8,13 @@ import (
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
+	"github.com/user/keen-cli/internal/config"
 )
 
 func TestGenkitClient_StreamChat_Success(t *testing.T) {
 	client := &GenkitClient{
 		g:        &genkit.Genkit{},
-		provider: ProviderAnthropic,
+		provider: Provider(config.ProviderAnthropic),
 		model:    "anthropic/claude-3-haiku",
 	}
 
@@ -78,7 +79,7 @@ func TestGenkitClient_StreamChat_Success(t *testing.T) {
 func TestGenkitClient_StreamChat_Error(t *testing.T) {
 	client := &GenkitClient{
 		g:        &genkit.Genkit{},
-		provider: ProviderAnthropic,
+		provider: Provider(config.ProviderAnthropic),
 		model:    "anthropic/claude-3-haiku",
 	}
 
@@ -120,7 +121,7 @@ func TestGenkitClient_StreamChat_Error(t *testing.T) {
 func TestGenkitClient_StreamChat_EmptyMessages(t *testing.T) {
 	client := &GenkitClient{
 		g:        &genkit.Genkit{},
-		provider: ProviderAnthropic,
+		provider: Provider(config.ProviderAnthropic),
 		model:    "anthropic/claude-3-haiku",
 	}
 
@@ -150,7 +151,7 @@ func TestGenkitClient_StreamChat_EmptyMessages(t *testing.T) {
 func TestGenkitClient_StreamChat_ContextCancellation(t *testing.T) {
 	client := &GenkitClient{
 		g:        &genkit.Genkit{},
-		provider: ProviderGemini,
+		provider: Provider(config.ProviderGoogleAI),
 		model:    "googleai/gemini-pro",
 	}
 
@@ -182,7 +183,7 @@ func TestGenkitClient_StreamChat_ContextCancellation(t *testing.T) {
 func TestGenkitClient_StreamChat_MultipleMessages(t *testing.T) {
 	client := &GenkitClient{
 		g:        &genkit.Genkit{},
-		provider: ProviderOpenAI,
+		provider: Provider(config.ProviderOpenAI),
 		model:    "openai/gpt-4",
 	}
 
@@ -218,7 +219,7 @@ func TestGenkitClient_StreamChat_MultipleMessages(t *testing.T) {
 func TestGenkitClient_StreamChat_EmptyChunkContent(t *testing.T) {
 	client := &GenkitClient{
 		g:        &genkit.Genkit{},
-		provider: ProviderAnthropic,
+		provider: Provider(config.ProviderAnthropic),
 		model:    "anthropic/claude-3-haiku",
 	}
 
