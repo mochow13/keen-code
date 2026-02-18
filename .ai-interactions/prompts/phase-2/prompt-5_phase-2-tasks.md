@@ -43,3 +43,4 @@
 33. Would the content correctly render as markdown inside viewport?
 34. There are some deprecated code usages. For example, `msg.Type`, `tea.MouseWheelUp/Down`. Let's fix them and use the supported APIs.
 35. We cannot copy paste in the text area. How to fix it?
+36. We want to reorganise the cli package. There is only `modelselection` right now. How would you approach reorganising it?

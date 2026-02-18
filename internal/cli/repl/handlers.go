@@ -1,4 +1,4 @@
-package cli
+package repl
 
 import (
 	tea "github.com/charmbracelet/bubbletea"

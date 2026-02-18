@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/user/keen-cli/internal/cli"
+	clicmd "github.com/user/keen-cli/internal/cli/cmd"
 )
 
 const version = "0.1.0"
@@ -41,7 +41,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, opts))
 	slog.SetDefault(logger)
 
-	rootCmd := cli.NewRootCommand(version)
+	rootCmd := clicmd.NewRootCommand(version)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

@@ -1,4 +1,4 @@
-package cli
+package repl
 
 import (
 	"github.com/charmbracelet/glamour"

@@ -1,4 +1,4 @@
-package cli
+package cmd
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/user/keen-cli/configs/providers"
+	"github.com/user/keen-cli/internal/cli/repl"
 	"github.com/user/keen-cli/internal/config"
 )
 
@@ -52,7 +53,7 @@ func NewRootCommand(version string) *cobra.Command {
 				wd = "."
 			}
 
-			return RunREPL(version, wd, resolvedCfg, loader, globalCfg, registry, needsSetup)
+			return repl.RunREPL(version, wd, resolvedCfg, loader, globalCfg, registry, needsSetup)
 		},
 	}
 
