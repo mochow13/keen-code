@@ -1,9 +1,11 @@
 package repl
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/user/keen-cli/internal/llm"
 )
 
 type OutputBuilder struct {
@@ -72,4 +74,35 @@ func (ob *OutputBuilder) Join() string {
 
 func (ob *OutputBuilder) IsEmpty() bool {
 	return len(ob.lines) == 0
+}
+
+func (ob *OutputBuilder) AddToolStart(toolCall *llm.ToolCall) {
+	ob.lines = append(ob.lines, formatToolStart(toolCall))
+}
+
+func (ob *OutputBuilder) AddToolEnd(toolCall *llm.ToolCall) {
+	ob.lines = append(ob.lines, formatToolEnd(toolCall))
+}
+
+func formatToolStart(toolCall *llm.ToolCall) string {
+	inputJSON := jsonMarshalCompact(toolCall.Input)
+	return "  " + toolStartStyle.Render(fmt.Sprintf("🔧 %s(%s)...", toolCall.Name, inputJSON))
+}
+
+func formatToolEnd(toolCall *llm.ToolCall) string {
+	if toolCall.Error != "" {
+		return "  " + toolErrorStyle.Render(fmt.Sprintf("✗ %s failed: %s", toolCall.Name, toolCall.Error))
+	}
+	return "  " + toolSuccessStyle.Render(fmt.Sprintf("✓ %s (%s)", toolCall.Name, toolCall.Duration))
+}
+
+func jsonMarshalCompact(v map[string]any) string {
+	if v == nil {
+		return ""
+	}
+	var parts []string
+	for k, val := range v {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, val))
+	}
+	return strings.Join(parts, ", ")
 }

@@ -7,15 +7,16 @@ import (
 
 	"github.com/user/keen-cli/internal/config"
 	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-cli/internal/tools"
 )
 
 type mockLLMClient struct {
-	streamChatFunc func(ctx context.Context, messages []llm.Message) (<-chan llm.StreamEvent, error)
+	streamChatFunc func(ctx context.Context, messages []llm.Message, toolRegistry *tools.Registry) (<-chan llm.StreamEvent, error)
 }
 
-func (m *mockLLMClient) StreamChat(ctx context.Context, messages []llm.Message) (<-chan llm.StreamEvent, error) {
+func (m *mockLLMClient) StreamChat(ctx context.Context, messages []llm.Message, toolRegistry *tools.Registry) (<-chan llm.StreamEvent, error) {
 	if m.streamChatFunc != nil {
-		return m.streamChatFunc(ctx, messages)
+		return m.streamChatFunc(ctx, messages, toolRegistry)
 	}
 	ch := make(chan llm.StreamEvent)
 	close(ch)
@@ -133,7 +134,7 @@ func TestAppState_StreamChat_WithClient(t *testing.T) {
 	}
 
 	client := &mockLLMClient{
-		streamChatFunc: func(ctx context.Context, messages []llm.Message) (<-chan llm.StreamEvent, error) {
+		streamChatFunc: func(ctx context.Context, messages []llm.Message, toolRegistry *tools.Registry) (<-chan llm.StreamEvent, error) {
 			ch := make(chan llm.StreamEvent)
 			go func() {
 				defer close(ch)
@@ -181,7 +182,7 @@ func TestAppState_StreamChat_NilClient(t *testing.T) {
 func TestAppState_StreamChat_ClientError(t *testing.T) {
 	expectedErr := errors.New("stream error")
 	client := &mockLLMClient{
-		streamChatFunc: func(ctx context.Context, messages []llm.Message) (<-chan llm.StreamEvent, error) {
+		streamChatFunc: func(ctx context.Context, messages []llm.Message, toolRegistry *tools.Registry) (<-chan llm.StreamEvent, error) {
 			return nil, expectedErr
 		},
 	}

@@ -5,17 +5,20 @@ import (
 
 	"github.com/user/keen-cli/internal/config"
 	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-cli/internal/tools"
 )
 
 type AppState struct {
-	messages  []llm.Message
-	llmClient llm.LLMClient
+	messages     []llm.Message
+	llmClient    llm.LLMClient
+	toolRegistry *tools.Registry
 }
 
 func NewAppState(client llm.LLMClient) *AppState {
 	return &AppState{
-		messages:  []llm.Message{},
-		llmClient: client,
+		messages:     []llm.Message{},
+		llmClient:    client,
+		toolRegistry: tools.NewRegistry(),
 	}
 }
 
@@ -40,7 +43,7 @@ func (s *AppState) StreamChat(ctx context.Context, cfg *config.ResolvedConfig) (
 	if s.llmClient == nil {
 		return nil, nil
 	}
-	return s.llmClient.StreamChat(ctx, s.messages)
+	return s.llmClient.StreamChat(ctx, s.messages, s.toolRegistry)
 }
 
 func (s *AppState) IsClientReady(cfg *config.ResolvedConfig) bool {
@@ -53,4 +56,12 @@ func (s *AppState) UpdateClient(client llm.LLMClient) {
 
 func (s *AppState) GetClient() llm.LLMClient {
 	return s.llmClient
+}
+
+func (s *AppState) GetToolRegistry() *tools.Registry {
+	return s.toolRegistry
+}
+
+func (s *AppState) RegisterTool(tool tools.Tool) error {
+	return s.toolRegistry.Register(tool)
 }

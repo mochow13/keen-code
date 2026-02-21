@@ -271,3 +271,101 @@ func TestHandleKeyMsg_SpecialCharacters(t *testing.T) {
 
 	_ = newM
 }
+
+func TestHandleToolStart(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+
+	m := replModel{
+		streamHandler: sh,
+		showSpinner:   true,
+		width:         80,
+		output:        NewOutputBuilder(80),
+	}
+
+	toolCall := &llm.ToolCall{
+		Name:  "test_tool",
+		Input: map[string]any{"arg1": "value1"},
+	}
+
+	newM, cmd := m.handleToolStart(toolCall)
+
+	if newM.showSpinner {
+		t.Error("expected showSpinner to be false after tool start")
+	}
+
+	if len(newM.output.GetLines()) != 1 {
+		t.Errorf("expected 1 output line for tool start, got %d", len(newM.output.GetLines()))
+	}
+
+	if cmd == nil {
+		t.Error("expected non-nil cmd from handleToolStart")
+	}
+
+	if len(sh.toolCalls) != 1 {
+		t.Errorf("expected 1 tool call in handler, got %d", len(sh.toolCalls))
+	}
+}
+
+func TestHandleToolEnd(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+
+	m := replModel{
+		streamHandler: sh,
+		width:         80,
+		output:        NewOutputBuilder(80),
+	}
+
+	toolCall := &llm.ToolCall{
+		Name:     "test_tool",
+		Input:    map[string]any{"arg1": "value1"},
+		Output:   "tool result",
+		Duration: 1500000000,
+	}
+
+	newM, cmd := m.handleToolEnd(toolCall)
+
+	if len(newM.output.GetLines()) != 1 {
+		t.Errorf("expected 1 output line for tool end, got %d", len(newM.output.GetLines()))
+	}
+
+	if cmd == nil {
+		t.Error("expected non-nil cmd from handleToolEnd")
+	}
+}
+
+func TestHandleToolEnd_WithError(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+
+	m := replModel{
+		streamHandler: sh,
+		width:         80,
+		output:        NewOutputBuilder(80),
+	}
+
+	toolCall := &llm.ToolCall{
+		Name:  "test_tool",
+		Input: map[string]any{"arg1": "value1"},
+		Error: "connection failed",
+	}
+
+	newM, cmd := m.handleToolEnd(toolCall)
+
+	if len(newM.output.GetLines()) != 1 {
+		t.Errorf("expected 1 output line for tool end, got %d", len(newM.output.GetLines()))
+	}
+
+	if cmd == nil {
+		t.Error("expected non-nil cmd from handleToolEnd")
+	}
+
+	outputStr := newM.output.GetLines()[0]
+	if !strings.Contains(outputStr, "failed") && !strings.Contains(outputStr, "connection") {
+		t.Errorf("expected error info in output, got: %s", outputStr)
+	}
+}

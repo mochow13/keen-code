@@ -67,4 +67,11 @@ var (
 			Light: "#DC2626",
 			Dark:  "#EF4444",
 		})
+	toolStartStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFA500")).
+			Italic(true)
+	toolSuccessStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#00AA00"))
+	toolErrorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF0000"))
 )

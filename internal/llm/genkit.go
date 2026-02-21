@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"time"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
@@ -12,7 +13,10 @@ import (
 	"github.com/firebase/genkit/go/plugins/compat_oai"
 	"github.com/firebase/genkit/go/plugins/googlegenai"
 	"github.com/user/keen-cli/internal/config"
+	"github.com/user/keen-cli/internal/tools"
 )
+
+const maxToolTurns = 5
 
 type streamFunc func(ctx context.Context, g *genkit.Genkit, opts ...ai.GenerateOption) iter.Seq2[*ai.ModelStreamValue, error]
 
@@ -77,7 +81,7 @@ func toGenkitRole(role Role) ai.Role {
 	}
 }
 
-func (c *GenkitClient) StreamChat(ctx context.Context, messages []Message) (<-chan StreamEvent, error) {
+func toGenkitMessages(messages []Message) []*ai.Message {
 	aiMessages := make([]*ai.Message, len(messages))
 	for i, m := range messages {
 		aiMessages[i] = &ai.Message{
@@ -87,44 +91,160 @@ func (c *GenkitClient) StreamChat(ctx context.Context, messages []Message) (<-ch
 			},
 		}
 	}
+	return aiMessages
+}
 
+func (c *GenkitClient) StreamChat(
+	ctx context.Context,
+	messages []Message,
+	toolRegistry *tools.Registry,
+) (<-chan StreamEvent, error) {
 	eventCh := make(chan StreamEvent)
 
 	go func() {
 		defer close(eventCh)
 
-		stream := c.streamImpl(ctx, c.g,
-			ai.WithModelName(c.model),
-			ai.WithMessages(aiMessages...),
-		)
+		aiMessages := toGenkitMessages(messages)
 
-		for result, err := range stream {
-			if err != nil {
-				eventCh <- StreamEvent{
-					Type:  StreamEventTypeError,
-					Error: err,
-				}
-				return
+		var genkitTools []ai.ToolRef
+		if toolRegistry != nil && toolRegistry.Count() > 0 {
+			genkitTools = ToGenkitTools(toolRegistry)
+		}
+
+		for range maxToolTurns {
+			opts := []ai.GenerateOption{
+				ai.WithModelName(c.model),
+				ai.WithMessages(aiMessages...),
 			}
 
-			if result.Done {
-				eventCh <- StreamEvent{
-					Type: StreamEventTypeDone,
-				}
-				return
+			if len(genkitTools) > 0 {
+				opts = append(opts, ai.WithTools(genkitTools...))
+				opts = append(opts, ai.WithReturnToolRequests(true))
 			}
 
-			if result.Chunk != nil && len(result.Chunk.Content) > 0 {
-				text := result.Chunk.Text()
-				if text != "" {
+			stream := c.streamImpl(ctx, c.g, opts...)
+			var modelResponse *ai.ModelResponse
+
+			for result, err := range stream {
+				if err != nil {
 					eventCh <- StreamEvent{
-						Type:    StreamEventTypeChunk,
-						Content: text,
+						Type:  StreamEventTypeError,
+						Error: err,
+					}
+					return
+				}
+
+				if result.Done {
+					modelResponse = result.Response
+					break
+				}
+
+				if result.Chunk != nil && len(result.Chunk.Content) > 0 {
+					text := result.Chunk.Text()
+					if text != "" {
+						eventCh <- StreamEvent{
+							Type:    StreamEventTypeChunk,
+							Content: text,
+						}
 					}
 				}
 			}
+
+			if modelResponse == nil || modelResponse.Message == nil {
+				eventCh <- StreamEvent{Type: StreamEventTypeDone}
+				return
+			}
+
+			toolRequests := modelResponse.ToolRequests()
+			if len(toolRequests) == 0 {
+				eventCh <- StreamEvent{Type: StreamEventTypeDone}
+				return
+			}
+
+			aiMessages = append(aiMessages, modelResponse.Message)
+
+			toolResponseParts := c.executeTools(ctx, toolRequests, toolRegistry, eventCh)
+			if len(toolResponseParts) > 0 {
+				toolMsg := &ai.Message{
+					Role:    ai.RoleTool,
+					Content: toolResponseParts,
+				}
+				aiMessages = append(aiMessages, toolMsg)
+			}
 		}
+
+		eventCh <- StreamEvent{Type: StreamEventTypeDone}
 	}()
 
 	return eventCh, nil
+}
+
+func (c *GenkitClient) executeTools(
+	ctx context.Context,
+	toolRequests []*ai.ToolRequest,
+	registry *tools.Registry,
+	eventCh chan<- StreamEvent,
+) []*ai.Part {
+	var toolResponseParts []*ai.Part
+
+	for _, req := range toolRequests {
+		start := time.Now()
+
+		input, _ := req.Input.(map[string]any)
+		eventCh <- StreamEvent{
+			Type: StreamEventTypeToolStart,
+			ToolCall: &ToolCall{
+				Name:  req.Name,
+				Input: input,
+			},
+		}
+
+		var output any
+		var execErr error
+
+		if registry == nil {
+			execErr = fmt.Errorf("tool registry not available")
+		} else if tool, exists := registry.Get(req.Name); !exists {
+			execErr = fmt.Errorf("tool %q not found", req.Name)
+		} else {
+			output, execErr = tool.Execute(ctx, req.Input)
+		}
+
+		duration := time.Since(start)
+
+		toolCall := &ToolCall{
+			Name:     req.Name,
+			Input:    input,
+			Output:   output,
+			Duration: duration,
+		}
+
+		if execErr != nil {
+			toolCall.Error = execErr.Error()
+			eventCh <- StreamEvent{
+				Type:     StreamEventTypeToolEnd,
+				ToolCall: toolCall,
+			}
+			toolResponseParts = append(toolResponseParts, ai.NewToolResponsePart(&ai.ToolResponse{
+				Name:   req.Name,
+				Ref:    req.Ref,
+				Output: map[string]any{"error": execErr.Error()},
+			}))
+		} else {
+			eventCh <- StreamEvent{
+				Type:     StreamEventTypeToolEnd,
+				ToolCall: toolCall,
+			}
+			if output == nil {
+				output = map[string]any{}
+			}
+			toolResponseParts = append(toolResponseParts, ai.NewToolResponsePart(&ai.ToolResponse{
+				Name:   req.Name,
+				Ref:    req.Ref,
+				Output: output,
+			}))
+		}
+	}
+
+	return toolResponseParts
 }

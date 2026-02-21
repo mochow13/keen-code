@@ -54,6 +54,25 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	return *m, nil
 }
 
+func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
+	m.showSpinner = false
+	m.output.AddToolStart(toolCall)
+	m.updateViewportContent()
+	if !m.userScrolled {
+		m.viewport.GotoBottom()
+	}
+	return *m, m.streamHandler.HandleToolStart(toolCall)
+}
+
+func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
+	m.output.AddToolEnd(toolCall)
+	m.updateViewportContent()
+	if !m.userScrolled {
+		m.viewport.GotoBottom()
+	}
+	return *m, m.streamHandler.HandleToolEnd(toolCall)
+}
+
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	if m.modelSelection != nil {
 		newModel, cmd := m.modelSelection.Update(msg)

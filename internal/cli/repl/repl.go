@@ -16,6 +16,7 @@ import (
 	"github.com/user/keen-cli/internal/cli/modelselection"
 	"github.com/user/keen-cli/internal/config"
 	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-cli/internal/tools"
 )
 
 const (
@@ -103,6 +104,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 
 	initialOutput := buildInitialScreen(ctx)
 	appState := NewAppState(llmClient)
+	appState.RegisterTool(tools.NewDummyTool())
 	mdRenderer, err := NewMarkdownRenderer(defaultWidth)
 
 	if err != nil {
@@ -343,6 +345,12 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case llmErrorMsg:
 		return m.handleLLMError(msg.err)
+
+	case llmToolStartMsg:
+		return m.handleToolStart(msg.toolCall)
+
+	case llmToolEndMsg:
+		return m.handleToolEnd(msg.toolCall)
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)

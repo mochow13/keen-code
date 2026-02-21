@@ -9,6 +9,7 @@ import (
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/user/keen-cli/internal/config"
+	"github.com/user/keen-cli/internal/tools"
 )
 
 func TestGenkitClient_StreamChat_Success(t *testing.T) {
@@ -39,7 +40,7 @@ func TestGenkitClient_StreamChat_Success(t *testing.T) {
 		{Role: RoleUser, Content: "Hi"},
 	}
 
-	eventCh, err := client.StreamChat(context.Background(), messages)
+	eventCh, err := client.StreamChat(context.Background(), messages, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -94,7 +95,7 @@ func TestGenkitClient_StreamChat_Error(t *testing.T) {
 		{Role: RoleUser, Content: "Hi"},
 	}
 
-	eventCh, err := client.StreamChat(context.Background(), messages)
+	eventCh, err := client.StreamChat(context.Background(), messages, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -131,7 +132,7 @@ func TestGenkitClient_StreamChat_EmptyMessages(t *testing.T) {
 		}
 	}
 
-	eventCh, err := client.StreamChat(context.Background(), []Message{})
+	eventCh, err := client.StreamChat(context.Background(), []Message{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -166,7 +167,7 @@ func TestGenkitClient_StreamChat_ContextCancellation(t *testing.T) {
 	cancel()
 
 	messages := []Message{{Role: RoleUser, Content: "Hello"}}
-	eventCh, _ := client.StreamChat(ctx, messages)
+	eventCh, _ := client.StreamChat(ctx, messages, nil)
 
 	var errorReceived bool
 	for event := range eventCh {
@@ -199,7 +200,7 @@ func TestGenkitClient_StreamChat_MultipleMessages(t *testing.T) {
 		{Role: RoleUser, Content: "How are you?"},
 	}
 
-	eventCh, err := client.StreamChat(context.Background(), messages)
+	eventCh, err := client.StreamChat(context.Background(), messages, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -237,7 +238,7 @@ func TestGenkitClient_StreamChat_EmptyChunkContent(t *testing.T) {
 	}
 
 	messages := []Message{{Role: RoleUser, Content: "Hello"}}
-	eventCh, _ := client.StreamChat(context.Background(), messages)
+	eventCh, _ := client.StreamChat(context.Background(), messages, nil)
 
 	var chunkCount int
 	var doneReceived bool
@@ -258,4 +259,248 @@ func TestGenkitClient_StreamChat_EmptyChunkContent(t *testing.T) {
 	if !doneReceived {
 		t.Error("expected done event")
 	}
+}
+
+func TestGenkitClient_StreamChat_ToolInvocation(t *testing.T) {
+	client := &GenkitClient{
+		g:        &genkit.Genkit{},
+		provider: Provider(config.ProviderAnthropic),
+		model:    "anthropic/claude-3-haiku",
+	}
+
+	callCount := 0
+	client.streamImpl = func(ctx context.Context, g *genkit.Genkit, opts ...ai.GenerateOption) iter.Seq2[*ai.ModelStreamValue, error] {
+		return func(yield func(*ai.ModelStreamValue, error) bool) {
+			callCount++
+			if callCount == 1 {
+				// First call: LLM requests a tool
+				yield(&ai.ModelStreamValue{
+					Chunk: &ai.ModelResponseChunk{
+						Content: []*ai.Part{ai.NewTextPart("I'll use the tool")},
+					},
+				}, nil)
+				yield(&ai.ModelStreamValue{
+					Done: true,
+					Response: &ai.ModelResponse{
+						Message: &ai.Message{
+							Role: ai.RoleModel,
+							Content: []*ai.Part{
+								ai.NewToolRequestPart(&ai.ToolRequest{
+									Name:  "dummy_echo",
+									Input: map[string]any{"message": "hello"},
+									Ref:   "ref-123",
+								}),
+							},
+						},
+					},
+				}, nil)
+			} else {
+				// Second call: LLM responds with final answer
+				yield(&ai.ModelStreamValue{
+					Chunk: &ai.ModelResponseChunk{
+						Content: []*ai.Part{ai.NewTextPart("Tool result: Echo: hello")},
+					},
+				}, nil)
+				yield(&ai.ModelStreamValue{Done: true}, nil)
+			}
+		}
+	}
+
+	registry := tools.NewRegistry()
+	if err := registry.Register(tools.NewDummyTool()); err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	messages := []Message{
+		{Role: RoleUser, Content: "Call the echo tool"},
+	}
+
+	eventCh, err := client.StreamChat(context.Background(), messages, registry)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var chunks []string
+	var toolStartReceived bool
+	var toolEndReceived bool
+	var doneReceived bool
+
+	for event := range eventCh {
+		switch event.Type {
+		case StreamEventTypeChunk:
+			chunks = append(chunks, event.Content)
+		case StreamEventTypeToolStart:
+			toolStartReceived = true
+			if event.ToolCall == nil {
+				t.Error("expected ToolCall in tool_start event")
+			} else if event.ToolCall.Name != "dummy_echo" {
+				t.Errorf("expected tool name 'dummy_echo', got %q", event.ToolCall.Name)
+			}
+		case StreamEventTypeToolEnd:
+			toolEndReceived = true
+			if event.ToolCall == nil {
+				t.Error("expected ToolCall in tool_end event")
+			} else if event.ToolCall.Name != "dummy_echo" {
+				t.Errorf("expected tool name 'dummy_echo', got %q", event.ToolCall.Name)
+			}
+			if event.ToolCall.Output == nil {
+				t.Error("expected tool output in tool_end event")
+			}
+		case StreamEventTypeDone:
+			doneReceived = true
+		case StreamEventTypeError:
+			t.Fatalf("unexpected error event: %v", event.Error)
+		}
+	}
+
+	if !toolStartReceived {
+		t.Error("expected tool_start event")
+	}
+	if !toolEndReceived {
+		t.Error("expected tool_end event")
+	}
+	if !doneReceived {
+		t.Error("expected done event")
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 calls to GenerateStream (1 for tool request, 1 for final response), got %d", callCount)
+	}
+	if len(chunks) != 2 {
+		t.Errorf("expected 2 text chunks, got %d", len(chunks))
+	}
+}
+
+func TestGenkitClient_executeTools_Success(t *testing.T) {
+	client := &GenkitClient{}
+
+	registry := tools.NewRegistry()
+	if err := registry.Register(tools.NewDummyTool()); err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	toolRequests := []*ai.ToolRequest{
+		{
+			Name:  "dummy_echo",
+			Input: map[string]any{"message": "hello"},
+			Ref:   "ref-success",
+		},
+	}
+
+	eventCh := make(chan StreamEvent, 4)
+	parts := client.executeTools(context.Background(), toolRequests, registry, eventCh)
+
+	if len(parts) != 1 {
+		t.Fatalf("expected 1 tool response part, got %d", len(parts))
+	}
+
+	startEvent := <-eventCh
+	if startEvent.Type != StreamEventTypeToolStart {
+		t.Fatalf("expected first event %q, got %q", StreamEventTypeToolStart, startEvent.Type)
+	}
+	if startEvent.ToolCall == nil || startEvent.ToolCall.Name != "dummy_echo" {
+		t.Fatalf("unexpected tool_start event payload: %+v", startEvent.ToolCall)
+	}
+
+	endEvent := <-eventCh
+	if endEvent.Type != StreamEventTypeToolEnd {
+		t.Fatalf("expected second event %q, got %q", StreamEventTypeToolEnd, endEvent.Type)
+	}
+	if endEvent.ToolCall == nil {
+		t.Fatal("expected tool_end ToolCall")
+	}
+	if endEvent.ToolCall.Error != "" {
+		t.Fatalf("expected empty tool error, got %q", endEvent.ToolCall.Error)
+	}
+
+	if parts[0].ToolResponse == nil {
+		t.Fatal("expected ToolResponse in part")
+	}
+	if parts[0].ToolResponse.Name != "dummy_echo" {
+		t.Fatalf("expected tool response name dummy_echo, got %q", parts[0].ToolResponse.Name)
+	}
+	if parts[0].ToolResponse.Ref != "ref-success" {
+		t.Fatalf("expected tool response ref ref-success, got %q", parts[0].ToolResponse.Ref)
+	}
+
+	outputMap, ok := parts[0].ToolResponse.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %T", parts[0].ToolResponse.Output)
+	}
+	if outputMap["echo"] != "Echo: hello" {
+		t.Fatalf("expected echo output, got %v", outputMap["echo"])
+	}
+}
+
+func TestGenkitClient_executeTools_Error(t *testing.T) {
+	client := &GenkitClient{}
+
+	registry := tools.NewRegistry()
+	if err := registry.Register(&failingTool{}); err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	toolRequests := []*ai.ToolRequest{
+		{
+			Name:  "failing_tool",
+			Input: map[string]any{"message": "hello"},
+			Ref:   "ref-error",
+		},
+	}
+
+	eventCh := make(chan StreamEvent, 4)
+	parts := client.executeTools(context.Background(), toolRequests, registry, eventCh)
+
+	if len(parts) != 1 {
+		t.Fatalf("expected 1 tool response part, got %d", len(parts))
+	}
+
+	startEvent := <-eventCh
+	if startEvent.Type != StreamEventTypeToolStart {
+		t.Fatalf("expected first event %q, got %q", StreamEventTypeToolStart, startEvent.Type)
+	}
+
+	endEvent := <-eventCh
+	if endEvent.Type != StreamEventTypeToolEnd {
+		t.Fatalf("expected second event %q, got %q", StreamEventTypeToolEnd, endEvent.Type)
+	}
+	if endEvent.ToolCall == nil {
+		t.Fatal("expected tool_end ToolCall")
+	}
+	if endEvent.ToolCall.Error != "tool failed" {
+		t.Fatalf("expected tool error 'tool failed', got %q", endEvent.ToolCall.Error)
+	}
+
+	if parts[0].ToolResponse == nil {
+		t.Fatal("expected ToolResponse in part")
+	}
+	if parts[0].ToolResponse.Name != "failing_tool" {
+		t.Fatalf("expected tool response name failing_tool, got %q", parts[0].ToolResponse.Name)
+	}
+	if parts[0].ToolResponse.Ref != "ref-error" {
+		t.Fatalf("expected tool response ref ref-error, got %q", parts[0].ToolResponse.Ref)
+	}
+
+	outputMap, ok := parts[0].ToolResponse.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %T", parts[0].ToolResponse.Output)
+	}
+	if outputMap["error"] != "tool failed" {
+		t.Fatalf("expected error output 'tool failed', got %v", outputMap["error"])
+	}
+}
+
+type failingTool struct{}
+
+func (t *failingTool) Name() string { return "failing_tool" }
+
+func (t *failingTool) Description() string { return "always fails" }
+
+func (t *failingTool) InputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+	}
+}
+
+func (t *failingTool) Execute(ctx context.Context, input any) (any, error) {
+	return nil, errors.New("tool failed")
 }
