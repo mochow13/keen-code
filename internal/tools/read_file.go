@@ -34,7 +34,7 @@ func (t *ReadFileTool) Name() string {
 }
 
 func (t *ReadFileTool) Description() string {
-	return "Read a UTF-8 text file (including source code files like .go, .js, .py, .md, .txt, .json, .xml, etc.) after filesystem policy + user permission checks."
+	return "Read a UTF-8 text file after filesystem policy + user permission checks."
 }
 
 func (t *ReadFileTool) InputSchema() map[string]any {

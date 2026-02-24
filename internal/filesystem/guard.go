@@ -72,12 +72,12 @@ func (g *Guard) CheckPath(path string, operation string) Permission {
 }
 
 func (g *Guard) IsBlocked(path string) bool {
-	if g.gitignore != nil && g.gitignore.IsIgnored(path) {
+	resolved, err := g.ResolvePath(path)
+	if err != nil {
 		return true
 	}
 
-	resolved, err := g.ResolvePath(path)
-	if err != nil {
+	if g.gitignore != nil && (g.gitignore.IsIgnored(path) || g.gitignore.IsIgnored(resolved)) {
 		return true
 	}
 

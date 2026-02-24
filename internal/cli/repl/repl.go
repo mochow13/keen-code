@@ -113,7 +113,9 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	appState.RegisterTool(tools.NewDummyTool())
 
 	permissionRequester := NewREPLPermissionRequester()
-	guard := filesystem.NewGuard(ctx.workingDir, nil)
+	gitAwareness := filesystem.NewGitAwareness()
+	_ = gitAwareness.LoadGitignoreRecursive(ctx.workingDir)
+	guard := filesystem.NewGuard(ctx.workingDir, gitAwareness)
 	readFileTool := tools.NewReadFileTool(guard, permissionRequester)
 	appState.RegisterTool(readFileTool)
 
