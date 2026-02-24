@@ -8,7 +8,7 @@ This design adds a permission-gated `ReadFile` tool that can read text files saf
 |---|---|
 | Ask permission on `ReadFile` invocation | Use `Guard.CheckPath(path, "read")`: `Granted` = no prompt, `Denied` = reject, `Pending` = REPL `Allow/Deny` prompt every invocation. |
 | Permission prompt via REPL arrows + Enter | Add a lightweight selection model in REPL (same interaction style as model selection) with 2 options: `Allow`, `Deny`. |
-| Text files only | Enforce 2-stage text validation: (1) MIME sniff on initial bytes, (2) UTF-8 validity + null-byte rejection on content. |
+| Text files only | Enforce content-based text validation with UTF-8 validity + null-byte rejection. |
 | Respect `internal/filesystem/guard.go` | All reads run through `guard.ResolvePath` + `guard.CheckPath(..., "read")` before file access. |
 | 1MB max size | `os.Stat` before read; reject if `size > 1_048_576`. |
 | Error on any read failure | Return explicit errors for invalid input, denied permission, not found, inaccessible, too large, binary/non-text, and generic IO errors. |
@@ -136,15 +136,11 @@ Read a UTF-8 text file after filesystem policy + user permission checks.
 - Check via `os.Stat` before `os.ReadFile`.
 
 ## Text-only detection (chosen strategy)
-Two-step check:
-1. **MIME sniff** using `http.DetectContentType` on initial bytes.
-   - Allow `text/*`.
-   - Allow selected textual app MIME families (`application/json`, `application/xml`, `application/javascript`, YAML-like types as needed).
-2. **Content sanity**
-   - Reject if invalid UTF-8.
-   - Reject if null byte (`0x00`) exists.
+Content-based check:
+1. Reject if invalid UTF-8.
+2. Reject if null byte (`0x00`) exists.
 
-This avoids reading obvious binaries while still handling common text formats safely.
+This keeps validation simple while still filtering obvious non-text/binary content.
 
 ---
 
@@ -157,7 +153,7 @@ Standardized error categories/messages:
 4. `file too large`: file size exceeds 1MB.
 5. `not found`: file does not exist.
 6. `not accessible`: permission/OS access error.
-7. `not a text file`: MIME/content checks fail.
+7. `not a text file`: UTF-8/null-byte checks fail.
 8. `read failed`: fallback IO/read errors.
 
 Error text should include path context when safe and useful.
@@ -205,12 +201,11 @@ Planned behavior later:
 11. Add file existence/stat checks.
 12. Enforce 1MB limit before read.
 13. Read file bytes.
-14. Apply MIME sniff check on initial bytes.
-15. Apply UTF-8 validity + null-byte checks.
-16. Return success payload `{path, content, bytes_read}`.
-17. Return structured, actionable errors for all failure branches.
-18. Register `ReadFileTool` in REPL initialization alongside existing tools.
-19. Add unit tests for `ReadFileTool` critical paths:
+14. Apply UTF-8 validity + null-byte checks.
+15. Return success payload `{path, content, bytes_read}`.
+16. Return structured, actionable errors for all failure branches.
+17. Register `ReadFileTool` in REPL initialization alongside existing tools.
+18. Add unit tests for `ReadFileTool` critical paths:
     - granted read in working dir,
     - pending read + user allow,
     - pending read + user deny,
@@ -219,9 +214,9 @@ Planned behavior later:
     - inaccessible file,
     - >1MB file,
     - binary/non-text file.
-20. Add focused REPL/flow tests for permission prompt behavior and key handling.
-21. Add focused LLM execution flow tests for permission wait/resume semantics.
-22. Verify output UX still shows tool start/end and clear errors.
+19. Add focused REPL/flow tests for permission prompt behavior and key handling.
+20. Add focused LLM execution flow tests for permission wait/resume semantics.
+21. Verify output UX still shows tool start/end and clear errors.
 
 ---
 
@@ -231,5 +226,5 @@ Planned behavior later:
 - All reads respect filesystem guard boundaries.
 - Pending paths always trigger REPL Allow/Deny prompt.
 - Denied policy or denied user choice never reads file content.
-- Files >1MB and binary/non-text files are rejected with clear errors.
+- Files >1MB and binary/non-text files are rejected with clear errors (UTF-8/null-byte validation).
 - Tests cover critical success/error paths and permission interaction behavior.

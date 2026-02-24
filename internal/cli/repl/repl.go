@@ -326,29 +326,50 @@ func (m *replModel) handleCtrlJ() (replModel, tea.Cmd) {
 }
 
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	if m.permissionSelector != nil {
-		return m.handlePermissionKeyMsg(msg)
+		updatedModel, cmd := m.updatePermissionMode(msg)
+		return updatedModel, cmd
 	}
 
 	if m.modelSelection != nil {
 		return m.handleKeyMsg(msg)
 	}
 
-	select {
-	case req := <-m.permissionRequester.GetRequestChan():
-		m.permissionSelector = NewPermissionSelector(req.ToolName, req.Path, req.ResolvedPath, req.Operation)
+	updatedModel, cmd := m.updateNormalMode(msg)
+	return updatedModel, cmd
+}
+
+func (m replModel) updatePermissionMode(msg tea.Msg) (replModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg, permissionKeyEnter, permissionKeyCancel:
+		return m.handlePermissionKeyMsg(msg)
+	case spinner.TickMsg:
+		updated, cmd, handled := m.handleSpinnerTick(msg)
+		if handled {
+			return updated, cmd
+		}
 		return m, nil
 	default:
+		if updated, cmd, handled := m.handleLLMStreamMsg(msg); handled {
+			return updated, cmd
+		}
+		return m, nil
+	}
+}
+
+func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
+	if updated, cmd, handled := m.handleLLMStreamMsg(msg); handled {
+		return updated, cmd
+	}
+
+	if updated, cmd, handled := m.consumePermissionRequest(msg); handled {
+		return updated, cmd
 	}
 
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
-		if m.showSpinner {
-			var spinnerCmd tea.Cmd
-			m.spinner, spinnerCmd = m.spinner.Update(msg)
-			return m, spinnerCmd
+		if updated, cmd, handled := m.handleSpinnerTick(msg); handled {
+			return updated, cmd
 		}
 
 	case tea.WindowSizeMsg:
@@ -361,21 +382,6 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Width = msg.Width
 		m.viewport.Height = msg.Height - m.textarea.Height() - 2
 		return m, nil
-
-	case llmChunkMsg:
-		return m.handleLLMChunk(string(msg))
-
-	case llmDoneMsg:
-		return m.handleLLMDone()
-
-	case llmErrorMsg:
-		return m.handleLLMError(msg.err)
-
-	case llmToolStartMsg:
-		return m.handleToolStart(msg.toolCall)
-
-	case llmToolEndMsg:
-		return m.handleToolEnd(msg.toolCall)
 
 	case tea.KeyMsg:
 		return m.handleKeyMsg(msg)
@@ -390,9 +396,62 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	var cmd tea.Cmd
 	m.textarea, cmd = m.textarea.Update(msg)
 	m.adjustTextareaHeight()
 	return m, cmd
+}
+
+func (m replModel) consumePermissionRequest(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	switch msg.(type) {
+	case llmChunkMsg, llmDoneMsg, llmErrorMsg, llmToolStartMsg, llmToolEndMsg:
+		return m, nil, false
+	}
+
+	select {
+	case req := <-m.permissionRequester.GetRequestChan():
+		var cmd tea.Cmd
+		if tickMsg, ok := msg.(spinner.TickMsg); ok && m.showSpinner {
+			m.spinner, cmd = m.spinner.Update(tickMsg)
+		}
+		m.permissionSelector = NewPermissionSelector(req.ToolName, req.Path, req.ResolvedPath, req.Operation)
+		return m, cmd, true
+	default:
+		return m, nil, false
+	}
+}
+
+func (m replModel) handleSpinnerTick(msg spinner.TickMsg) (replModel, tea.Cmd, bool) {
+	if !m.showSpinner {
+		return m, nil, false
+	}
+
+	var cmd tea.Cmd
+	m.spinner, cmd = m.spinner.Update(msg)
+	m.updateViewportContent()
+	return m, cmd, true
+}
+
+func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case llmChunkMsg:
+		updated, cmd := m.handleLLMChunk(string(msg))
+		return updated, cmd, true
+	case llmDoneMsg:
+		updated, cmd := m.handleLLMDone()
+		return updated, cmd, true
+	case llmErrorMsg:
+		updated, cmd := m.handleLLMError(msg.err)
+		return updated, cmd, true
+	case llmToolStartMsg:
+		updated, cmd := m.handleToolStart(msg.toolCall)
+		return updated, cmd, true
+	case llmToolEndMsg:
+		updated, cmd := m.handleToolEnd(msg.toolCall)
+		return updated, cmd, true
+	default:
+		return m, nil, false
+	}
 }
 
 func (m replModel) View() string {
