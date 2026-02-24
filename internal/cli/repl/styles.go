@@ -74,4 +74,11 @@ var (
 				Foreground(lipgloss.Color("#00AA00"))
 	toolErrorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF0000"))
+	normalStyle    = lipgloss.NewStyle()
+	selectionStyle = lipgloss.NewStyle().
+			Foreground(primaryColor).
+			Bold(true)
+	hintStyle = lipgloss.NewStyle().
+			Foreground(mutedColor).
+			Italic(true)
 )

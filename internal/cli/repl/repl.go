@@ -15,6 +15,7 @@ import (
 	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/cli/modelselection"
 	"github.com/user/keen-cli/internal/config"
+	"github.com/user/keen-cli/internal/filesystem"
 	"github.com/user/keen-cli/internal/llm"
 	"github.com/user/keen-cli/internal/tools"
 )
@@ -44,6 +45,9 @@ var loadingTexts = []string{
 	"Let me check...",
 	"Let me see...",
 	"Let me find out...",
+	"Sizzling...",
+	"Whisking...",
+	"Stirring...",
 }
 
 type replContext struct {
@@ -56,21 +60,23 @@ type replContext struct {
 }
 
 type replModel struct {
-	textarea       textarea.Model
-	viewport       viewport.Model
-	ctx            *replContext
-	appState       *AppState
-	output         *OutputBuilder
-	modelSelection *modelselection.Model
-	quitting       bool
-	streamHandler  *StreamHandler
-	mdRenderer     *MarkdownRenderer
-	width          int
-	height         int
-	spinner        spinner.Model
-	showSpinner    bool
-	loadingText    string
-	userScrolled   bool
+	textarea            textarea.Model
+	viewport            viewport.Model
+	ctx                 *replContext
+	appState            *AppState
+	output              *OutputBuilder
+	modelSelection      *modelselection.Model
+	permissionSelector  *PermissionSelector
+	permissionRequester *REPLPermissionRequester
+	quitting            bool
+	streamHandler       *StreamHandler
+	mdRenderer          *MarkdownRenderer
+	width               int
+	height              int
+	spinner             spinner.Model
+	showSpinner         bool
+	loadingText         string
+	userScrolled        bool
 }
 
 func abbreviateHome(path string) string {
@@ -105,6 +111,12 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	initialOutput := buildInitialScreen(ctx)
 	appState := NewAppState(llmClient)
 	appState.RegisterTool(tools.NewDummyTool())
+
+	permissionRequester := NewREPLPermissionRequester()
+	guard := filesystem.NewGuard(ctx.workingDir, nil)
+	readFileTool := tools.NewReadFileTool(guard, permissionRequester)
+	appState.RegisterTool(readFileTool)
+
 	mdRenderer, err := NewMarkdownRenderer(defaultWidth)
 
 	if err != nil {
@@ -115,14 +127,15 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	vp.SetContent(strings.Join(initialOutput, "\n"))
 
 	model := replModel{
-		textarea:      ta,
-		viewport:      vp,
-		ctx:           ctx,
-		appState:      appState,
-		output:        NewOutputBuilder(defaultWidth),
-		spinner:       s,
-		streamHandler: NewStreamHandler(mdRenderer),
-		mdRenderer:    mdRenderer,
+		textarea:            ta,
+		viewport:            vp,
+		ctx:                 ctx,
+		appState:            appState,
+		output:              NewOutputBuilder(defaultWidth),
+		spinner:             s,
+		streamHandler:       NewStreamHandler(mdRenderer),
+		mdRenderer:          mdRenderer,
+		permissionRequester: permissionRequester,
 	}
 
 	if needsSetup {
@@ -315,8 +328,19 @@ func (m *replModel) handleCtrlJ() (replModel, tea.Cmd) {
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
+	if m.permissionSelector != nil {
+		return m.handlePermissionKeyMsg(msg)
+	}
+
 	if m.modelSelection != nil {
 		return m.handleKeyMsg(msg)
+	}
+
+	select {
+	case req := <-m.permissionRequester.GetRequestChan():
+		m.permissionSelector = NewPermissionSelector(req.ToolName, req.Path, req.ResolvedPath, req.Operation)
+		return m, nil
+	default:
 	}
 
 	switch msg := msg.(type) {
@@ -374,6 +398,10 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m replModel) View() string {
 	if m.quitting {
 		return lipgloss.NewStyle().Foreground(mutedColor).Render("\n  Goodbye!\n")
+	}
+
+	if m.permissionSelector != nil {
+		return m.permissionSelector.View()
 	}
 
 	if m.modelSelection != nil {

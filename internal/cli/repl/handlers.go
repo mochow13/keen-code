@@ -143,3 +143,40 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	m.adjustTextareaHeight()
 	return *m, cmd
 }
+
+func (m *replModel) handlePermissionKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
+	newModel, cmd := m.permissionSelector.Update(msg)
+	m.permissionSelector = newModel.(*PermissionSelector)
+
+	if IsPermissionComplete(msg) {
+		choice := m.permissionSelector.GetChoice()
+		allowed := choice == PermissionChoiceAllow
+		m.permissionRequester.SendResponse(allowed)
+
+		if allowed {
+			successMsg := "✓ Permission granted for read_file"
+			m.output.AddStyledLine("  "+successMsg, highlightStyle)
+		} else {
+			cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
+			m.output.AddStyledLine("  Permission denied for read_file", cancelStyle)
+		}
+		m.output.AddEmptyLine()
+		m.permissionSelector = nil
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, nil
+	}
+
+	if IsPermissionCancel(msg) {
+		m.permissionRequester.SendResponse(false)
+		cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
+		m.output.AddStyledLine("  Permission denied for read_file", cancelStyle)
+		m.output.AddEmptyLine()
+		m.permissionSelector = nil
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, nil
+	}
+
+	return *m, cmd
+}
