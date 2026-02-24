@@ -99,7 +99,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	ta.KeyMap.InsertNewline.SetEnabled(true)
 
 	s := spinner.New()
-	s.Spinner = spinner.Pulse
+	s.Spinner = spinner.Meter
 	s.Style = lipgloss.NewStyle().Foreground(primaryColor)
 
 	initialOutput := buildInitialScreen(ctx)
@@ -174,6 +174,7 @@ func buildInitialScreen(ctx *replContext) []string {
 		"Type /exit  to quit",
 		"Type /model to change provider or model",
 		"Press Enter to send, Ctrl+J for new line",
+		"Shift+click to select and copy text",
 	}
 	tipsBox := boxStyle.Render(tipStyle.Render(strings.Join(tips, "\n")))
 	lines = append(lines, tipsBox)
