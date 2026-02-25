@@ -14,20 +14,29 @@ type PermissionRequest struct {
 }
 
 type REPLPermissionRequester struct {
-	requestChan  chan *PermissionRequest
-	responseChan chan bool
-	mu           sync.Mutex
-	pending      *PermissionRequest
+	requestChan         chan *PermissionRequest
+	responseChan        chan bool
+	mu                  sync.Mutex
+	pending             *PermissionRequest
+	sessionAllowedTools map[string]bool
 }
 
 func NewREPLPermissionRequester() *REPLPermissionRequester {
 	return &REPLPermissionRequester{
-		requestChan:  make(chan *PermissionRequest, 1),
-		responseChan: make(chan bool, 1),
+		requestChan:         make(chan *PermissionRequest, 1),
+		responseChan:        make(chan bool, 1),
+		sessionAllowedTools: make(map[string]bool),
 	}
 }
 
 func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string) (bool, error) {
+	r.mu.Lock()
+	if r.sessionAllowedTools[toolName] {
+		r.mu.Unlock()
+		return true, nil
+	}
+	r.mu.Unlock()
+
 	req := &PermissionRequest{
 		ToolName:     toolName,
 		Path:         path,
@@ -66,9 +75,15 @@ func (r *REPLPermissionRequester) GetRequestChan() <-chan *PermissionRequest {
 	return r.requestChan
 }
 
-func (r *REPLPermissionRequester) SendResponse(allowed bool) {
+func (r *REPLPermissionRequester) SendResponse(choice PermissionChoice, toolName string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	allowed := choice == PermissionChoiceAllow || choice == PermissionChoiceAllowSession
+	if choice == PermissionChoiceAllowSession {
+		r.sessionAllowedTools[toolName] = true
+	}
+
 	if r.pending != nil {
 		select {
 		case r.pending.ResponseChan <- allowed:

@@ -14,6 +14,7 @@ type PermissionChoice int
 
 const (
 	PermissionChoiceAllow PermissionChoice = iota
+	PermissionChoiceAllowSession
 	PermissionChoiceDeny
 )
 
@@ -33,7 +34,7 @@ func NewPermissionSelector(toolName, path, resolvedPath, operation string) *Perm
 		resolvedPath: resolvedPath,
 		operation:    operation,
 		cursor:       0,
-		choices:      []string{"Allow", "Deny"},
+		choices:      []string{"Allow", "Allow for this session", "Deny"},
 	}
 }
 
@@ -92,10 +93,7 @@ func (ps *PermissionSelector) View() string {
 }
 
 func (ps *PermissionSelector) GetChoice() PermissionChoice {
-	if ps.cursor == 0 {
-		return PermissionChoiceAllow
-	}
-	return PermissionChoiceDeny
+	return PermissionChoice(ps.cursor)
 }
 
 func IsPermissionComplete(msg tea.Msg) bool {

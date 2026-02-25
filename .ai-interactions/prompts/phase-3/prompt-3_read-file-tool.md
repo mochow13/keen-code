@@ -1,4 +1,4 @@
-## `ReadFile` Tool Implementation
+## `ReadFile` Tool PRD
 
 Now that we have a working tool integration, we will implement a `ReadFile` tool. Using this tool, LLMs will be able to read text files from the file system. We have the following strict requirements:
 

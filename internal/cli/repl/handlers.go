@@ -150,15 +150,19 @@ func (m *replModel) handlePermissionKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 
 	if IsPermissionComplete(msg) {
 		choice := m.permissionSelector.GetChoice()
-		allowed := choice == PermissionChoiceAllow
-		m.permissionRequester.SendResponse(allowed)
+		toolName := m.permissionSelector.toolName
+		m.permissionRequester.SendResponse(choice, toolName)
 
-		if allowed {
-			successMsg := "✓ Permission granted for read_file"
+		switch choice {
+		case PermissionChoiceAllow:
+			successMsg := "✓ Permission granted for " + toolName
 			m.output.AddStyledLine("  "+successMsg, highlightStyle)
-		} else {
+		case PermissionChoiceAllowSession:
+			successMsg := "✓ Permission granted for " + toolName + " (this session)"
+			m.output.AddStyledLine("  "+successMsg, highlightStyle)
+		case PermissionChoiceDeny:
 			cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
-			m.output.AddStyledLine("  Permission denied for read_file", cancelStyle)
+			m.output.AddStyledLine("  Permission denied for "+toolName, cancelStyle)
 		}
 		m.output.AddEmptyLine()
 		m.permissionSelector = nil
@@ -168,9 +172,10 @@ func (m *replModel) handlePermissionKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	}
 
 	if IsPermissionCancel(msg) {
-		m.permissionRequester.SendResponse(false)
+		toolName := m.permissionSelector.toolName
+		m.permissionRequester.SendResponse(PermissionChoiceDeny, toolName)
 		cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
-		m.output.AddStyledLine("  Permission denied for read_file", cancelStyle)
+		m.output.AddStyledLine("  Permission denied for "+toolName, cancelStyle)
 		m.output.AddEmptyLine()
 		m.permissionSelector = nil
 		m.updateViewportContent()
