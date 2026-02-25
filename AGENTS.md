@@ -1,2 +1,28 @@
-- Don't add unneccessary comments here and there. Be very conservative with comments. Add comments only when it is strictly necessary.
-- While writing unit tests, focus on testing the core and critical paths. Don't test every single line of code. We are not running after 100% test coverage.
+## Keen Code
+CLI-based coding agent powered by AI using Firebase Genkit for LLM interactions.
+
+## Architecture
+- **internal/tools** - LLM tools (read_file, glob)
+- **internal/filesystem** - Guard for safe file access
+- **internal/cli/repl** - Interactive REPL UI
+- **internal/llm** - Genkit-based LLM client
+
+## Adding a Tool
+1. Create `internal/tools/{name}.go` implementing `tools.Tool` interface
+2. Inject dependencies (guard, permissionRequester) via constructor
+3. Register in `internal/cli/repl/repl.go` in `initialModel()`
+4. Add tests in `internal/tools/{name}_test.go`
+
+See `read_file.go` or `glob.go` as reference.
+
+## Permission System
+Guard checks paths before filesystem operations:
+- `PermissionGranted` - Allowed (working directory)
+- `PermissionPending` - User approval required (outside working dir)
+- `PermissionDenied` - Blocked (system paths, .gitignore files)
+
+## Important Guidelines
+- **Minimal comments** - Only when strictly necessary
+- **Test critical paths** - Not aiming for 100% coverage
+- **Inject dependencies** - Use constructors
+- **Guard checks first** - Always validate before filesystem ops

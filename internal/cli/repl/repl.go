@@ -48,6 +48,8 @@ var loadingTexts = []string{
 	"Sizzling...",
 	"Whisking...",
 	"Stirring...",
+	"Whizzing...",
+	"Beep boop...",
 }
 
 type replContext struct {
@@ -105,7 +107,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	ta.KeyMap.InsertNewline.SetEnabled(true)
 
 	s := spinner.New()
-	s.Spinner = spinner.Meter
+	s.Spinner = spinner.Pulse
 	s.Style = lipgloss.NewStyle().Foreground(primaryColor)
 
 	initialOutput := buildInitialScreen(ctx)
@@ -118,6 +120,8 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	guard := filesystem.NewGuard(ctx.workingDir, gitAwareness)
 	readFileTool := tools.NewReadFileTool(guard, permissionRequester)
 	appState.RegisterTool(readFileTool)
+	globTool := tools.NewGlobTool(guard, permissionRequester)
+	appState.RegisterTool(globTool)
 
 	mdRenderer, err := NewMarkdownRenderer(defaultWidth)
 
@@ -353,6 +357,9 @@ func (m replModel) updatePermissionMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return m, nil
 	default:
 		if updated, cmd, handled := m.handleLLMStreamMsg(msg); handled {
+			if m.showSpinner {
+				return updated, tea.Batch(cmd, m.spinner.Tick)
+			}
 			return updated, cmd
 		}
 		return m, nil
@@ -406,7 +413,7 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 
 func (m replModel) consumePermissionRequest(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	switch msg.(type) {
-	case llmChunkMsg, llmDoneMsg, llmErrorMsg, llmToolStartMsg, llmToolEndMsg:
+	case llmChunkMsg, llmDoneMsg, llmErrorMsg:
 		return m, nil, false
 	}
 
