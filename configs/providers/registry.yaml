@@ -32,4 +32,21 @@ providers:
         name: Gemini 2.5 Flash
       - id: gemini-2.5-flash-lite
         name: Gemini 2.5 Flash Lite
+  - id: moonshotai
+    name: Moonshot AI
+    models:
+      - id: kimi-k2-thinking
+        name: Kimi K2 Thinking
+      - id: kimi-k2-thinking-turbo
+        name: Kimi K2 Thinking Turbo
+      - id: kimi-k2.5
+        name: Kimi K2.5
+
+  - id: deepseek
+    name: DeepSeek
+    models:
+      - id: deepseek-chat
+        name: DeepSeek V3.2
+      - id: deepseek-reasoner
+        name: DeepSeek-V3.2 (Thinking)
 

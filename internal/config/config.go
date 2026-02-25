@@ -9,9 +9,11 @@ import (
 )
 
 const (
-	ProviderAnthropic = "anthropic"
-	ProviderOpenAI    = "openai"
-	ProviderGoogleAI  = "googleai"
+	ProviderAnthropic  = "anthropic"
+	ProviderOpenAI     = "openai"
+	ProviderGoogleAI   = "googleai"
+	ProviderMoonshotAI = "moonshotai"
+	ProviderDeepSeek   = "deepseek"
 )
 
 type GlobalConfig struct {

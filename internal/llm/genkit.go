@@ -16,7 +16,7 @@ import (
 	"github.com/user/keen-cli/internal/tools"
 )
 
-const maxToolTurns = 5
+const maxToolTurns = 20
 
 type streamFunc func(ctx context.Context, g *genkit.Genkit, opts ...ai.GenerateOption) iter.Seq2[*ai.ModelStreamValue, error]
 
@@ -52,6 +52,20 @@ func NewGenkitClient(cfg *ClientConfig) (*GenkitClient, error) {
 			APIKey: cfg.APIKey,
 		}))
 		modelName = "googleai/" + cfg.Model
+	case config.ProviderMoonshotAI:
+		g = genkit.Init(ctx, genkit.WithPlugins(&compat_oai.OpenAICompatible{
+			APIKey:   cfg.APIKey,
+			Provider: "moonshotai",
+			BaseURL:  "https://api.moonshot.ai/v1/",
+		}))
+		modelName = "moonshotai/" + cfg.Model
+	case config.ProviderDeepSeek:
+		g = genkit.Init(ctx, genkit.WithPlugins(&compat_oai.OpenAICompatible{
+			APIKey:   cfg.APIKey,
+			Provider: "deepseek",
+			BaseURL:  "https://api.deepseek.com/",
+		}))
+		modelName = "deepseek/" + cfg.Model
 	default:
 		return nil, fmt.Errorf("unsupported provider in config: %s", cfg.Provider)
 	}

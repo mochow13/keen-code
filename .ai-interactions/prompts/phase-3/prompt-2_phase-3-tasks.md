@@ -22,4 +22,12 @@
 15. We should have a session-wide allowed tools list instead of a single flag for `read_file` tool. Think about extensibility for future tools. In future, it can have multiple session-wide allowed tools.
 
 ### `glob` Tool
-16. There is an implementation done. The tool implementation is in @internal/tools/glob.go. Review the code.
+16. Based on the design in @.ai-interactions/outputs/phase-3/output-4_glob-tool.md, let's implement the tool.
+16. There is an implementation done for the `glob` tool in @internal/tools/glob.go. Review the code.
+
+### Moonshot AI
+17. Explore genkit package and figure out how we can use it to send requests to Moonshot AI using openai compatible api.
+18. The `baseUrl` you used is not correct. It should be `https://api.moonshot.ai/v1/`.
+
+### DeepSeek
+19. Now we want to support DeepSeek too. It should be doable through openai compatible API. Give me a plan on how to implement it.
