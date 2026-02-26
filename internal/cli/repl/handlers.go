@@ -1,8 +1,8 @@
 package repl
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/user/keen-cli/internal/cli/modelselection"
 	"github.com/user/keen-cli/internal/llm"
 )
@@ -81,7 +81,9 @@ func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	if m.modelSelection != nil {
 		newModel, cmd := m.modelSelection.Update(msg)
-		m.modelSelection = newModel.(*modelselection.Model)
+		if ms, ok := newModel.(*modelselection.Model); ok {
+			m.modelSelection = ms
+		}
 
 		if modelselection.IsComplete(msg) {
 			successMsg := "✓ Updated to " + m.modelSelection.SelectedProvider + " / " + m.modelSelection.SelectedModel
@@ -106,7 +108,7 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return *m, cmd
 	}
 
-	keyMsg, ok := msg.(tea.KeyMsg)
+	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return *m, nil
 	}
@@ -157,7 +159,9 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 
 func (m *replModel) handlePermissionKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	newModel, cmd := m.permissionSelector.Update(msg)
-	m.permissionSelector = newModel.(*PermissionSelector)
+	if ps, ok := newModel.(*PermissionSelector); ok {
+		m.permissionSelector = ps
+	}
 
 	if IsPermissionComplete(msg) {
 		choice := m.permissionSelector.GetChoice()

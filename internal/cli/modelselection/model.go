@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/config"
 )
@@ -55,13 +55,13 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
 	return m, nil
 }
 
-func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.Step {
 	case StepProvider:
 		switch msg.String() {
@@ -111,8 +111,8 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.APIKeyInput = m.APIKeyInput[:len(m.APIKeyInput)-1]
 			}
 		default:
-			if len(msg.Runes) > 0 {
-				m.APIKeyInput += string(msg.Runes)
+			if len(msg.Text) > 0 {
+				m.APIKeyInput += msg.Text
 			}
 		}
 	}
@@ -162,7 +162,11 @@ func (m *Model) complete() (tea.Model, tea.Cmd) {
 	return m, func() tea.Msg { return keyEnter{} }
 }
 
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
+	return tea.NewView(m.ViewString())
+}
+
+func (m *Model) ViewString() string {
 	switch m.Step {
 	case StepProvider:
 		return m.renderProviderSelection()

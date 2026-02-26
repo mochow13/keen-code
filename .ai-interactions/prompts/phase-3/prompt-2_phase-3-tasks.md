@@ -39,4 +39,6 @@
 23. Based on your findings and suggestions, create an implementation plan for the UI improvements with granular task breakdown.
 24. I think we don't need to introduce a separate `timeline` type now. Let's remove that and implement the UI improvements.
 25. Right now when we scroll up, the REPL continuously scroll at the bottom when new content is being streamed. So there is a flickering behaviour right now. When streaming content finishes, then we can scroll up without flickering. What's the issue? Propose a fix.
-26. 
+26. Explore the @repl.go and understand the user interface behaviour for keen code.
+27. Is the UI responsive now? By responsive, I mean the text wraps correctly both in input and output.
+28. Ok based on your suggestions, let's first migrate `bubbletea`, `bubbles`, and `lipgloss` to v2.

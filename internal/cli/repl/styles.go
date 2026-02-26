@@ -1,23 +1,26 @@
 package repl
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
+)
 
 var (
-	primaryColor = lipgloss.AdaptiveColor{
-		Light: "#7C3AED",
-		Dark:  "#7C3AED",
+	primaryColor = compat.AdaptiveColor{
+		Light: lipgloss.Color("#7C3AED"),
+		Dark:  lipgloss.Color("#7C3AED"),
 	}
-	secondaryColor = lipgloss.AdaptiveColor{
-		Light: "#059669",
-		Dark:  "#10B981",
+	secondaryColor = compat.AdaptiveColor{
+		Light: lipgloss.Color("#059669"),
+		Dark:  lipgloss.Color("#10B981"),
 	}
-	mutedColor = lipgloss.AdaptiveColor{
-		Light: "#6B7280",
-		Dark:  "#9CA3AF",
+	mutedColor = compat.AdaptiveColor{
+		Light: lipgloss.Color("#6B7280"),
+		Dark:  lipgloss.Color("#9CA3AF"),
 	}
-	accentColor = lipgloss.AdaptiveColor{
-		Light: "#D97706",
-		Dark:  "#F59E0B",
+	accentColor = compat.AdaptiveColor{
+		Light: lipgloss.Color("#D97706"),
+		Dark:  lipgloss.Color("#F59E0B"),
 	}
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -26,9 +29,9 @@ var (
 			Foreground(mutedColor).
 			Width(18)
 	infoValueStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{
-			Light: "#374151",
-			Dark:  "#E5E7EB",
+			Foreground(compat.AdaptiveColor{
+			Light: lipgloss.Color("#374151"),
+			Dark:  lipgloss.Color("#E5E7EB"),
 		})
 	highlightStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor).
@@ -53,19 +56,19 @@ var (
 			Width(12)
 	inputLineStyle = lipgloss.NewStyle()
 	helpDescStyle  = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{
-			Light: "#374151",
-			Dark:  "#E5E7EB",
+			Foreground(compat.AdaptiveColor{
+			Light: lipgloss.Color("#374151"),
+			Dark:  lipgloss.Color("#E5E7EB"),
 		})
 	assistantStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{
-			Light: "#1F2937",
-			Dark:  "#E5E7EB",
+			Foreground(compat.AdaptiveColor{
+			Light: lipgloss.Color("#1F2937"),
+			Dark:  lipgloss.Color("#E5E7EB"),
 		})
 	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{
-			Light: "#DC2626",
-			Dark:  "#EF4444",
+			Foreground(compat.AdaptiveColor{
+			Light: lipgloss.Color("#DC2626"),
+			Dark:  lipgloss.Color("#EF4444"),
 		})
 	toolStartStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFA500")).

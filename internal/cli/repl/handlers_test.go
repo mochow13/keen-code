@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/user/keen-cli/internal/cli/modelselection"
 	"github.com/user/keen-cli/internal/llm"
 )
@@ -116,7 +116,7 @@ func TestHandleKeyMsg_Enter(t *testing.T) {
 		output:        NewOutputBuilder(80),
 	}
 
-	newM, cmd := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyEnter})
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if !strings.Contains(newM.output.Join(), "Available Commands") {
 		t.Error("expected help text in output after enter with /help")
@@ -131,7 +131,7 @@ func TestHandleKeyMsg_CtrlC(t *testing.T) {
 		quitting: false,
 	}
 
-	newM, cmd := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyCtrlC})
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 
 	if !newM.quitting {
 		t.Error("expected quitting to be true after ctrl+c")
@@ -155,7 +155,7 @@ func TestHandleKeyMsg_CtrlJ(t *testing.T) {
 		width:    80,
 	}
 
-	newM, _ := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyCtrlJ})
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl})
 
 	if !strings.Contains(newM.textarea.Value(), "\n") {
 		t.Error("expected newline in textarea after ctrl+j")
@@ -168,7 +168,7 @@ func TestHandleKeyMsg_ModelSelectionMode(t *testing.T) {
 		modelSelection: &modelselection.Model{},
 	}
 
-	newM, _ := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'a', Text: "a"})
 
 	if newM.modelSelection == nil {
 		t.Error("expected modelSelection to remain set")
@@ -182,7 +182,7 @@ func TestHandleKeyMsg_UnknownKey(t *testing.T) {
 		width:    80,
 	}
 
-	_, cmd := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyF1})
+	_, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyF1})
 
 	if cmd == nil {
 		t.Log("cmd can be nil or non-nil depending on textarea behavior")
@@ -267,7 +267,7 @@ func TestHandleKeyMsg_SpecialCharacters(t *testing.T) {
 		modelSelection: &modelselection.Model{},
 	}
 
-	newM, _ := m.handleKeyMsg(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("é")})
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'é', Text: "é"})
 
 	_ = newM
 }

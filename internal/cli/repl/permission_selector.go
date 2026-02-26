@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type permissionKeyEnter struct{}
@@ -44,7 +44,7 @@ func (ps *PermissionSelector) Init() tea.Cmd {
 
 func (ps *PermissionSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "up", "k":
 			if ps.cursor > 0 {
@@ -64,7 +64,11 @@ func (ps *PermissionSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return ps, nil
 }
 
-func (ps *PermissionSelector) View() string {
+func (ps *PermissionSelector) View() tea.View {
+	return tea.NewView(ps.ViewString())
+}
+
+func (ps *PermissionSelector) ViewString() string {
 	var view strings.Builder
 
 	view.WriteString(titleStyle.Render(fmt.Sprintf("Allow %s?", ps.toolName)))

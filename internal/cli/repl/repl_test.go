@@ -22,9 +22,9 @@ func TestUpdate_PermissionSelector_AllowsToolStartEvent(t *testing.T) {
 	toolCall := &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "../foo.txt"}}
 	updatedModel, cmd := m.Update(llmToolStartMsg{toolCall: toolCall})
 
-	updated, ok := updatedModel.(replModel)
+	updated, ok := updatedModel.(*replModel)
 	if !ok {
-		t.Fatalf("expected replModel, got %T", updatedModel)
+		t.Fatalf("expected *replModel, got %T", updatedModel)
 	}
 
 	if updated.showSpinner {

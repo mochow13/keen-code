@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/cli/modelselection"
 	"github.com/user/keen-cli/internal/config"
@@ -129,7 +129,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		mdRenderer = nil
 	}
 
-	vp := viewport.New(defaultWidth, 24)
+	vp := viewport.New(viewport.WithWidth(defaultWidth), viewport.WithHeight(24))
 	vp.SetContent(strings.Join(initialOutput, "\n"))
 
 	model := replModel{
@@ -300,7 +300,7 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 }
 
 func (m *replModel) updateViewportContent() {
-	if m.viewport.Width == 0 {
+	if m.viewport.Width() == 0 {
 		return
 	}
 
@@ -334,20 +334,21 @@ func (m *replModel) handleCtrlJ() (replModel, tea.Cmd) {
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.permissionSelector != nil {
 		updatedModel, cmd := m.updatePermissionMode(msg)
-		return updatedModel, cmd
+		return &updatedModel, cmd
 	}
 
 	if m.modelSelection != nil {
-		return m.handleKeyMsg(msg)
+		updated, cmd := m.handleKeyMsg(msg)
+		return &updated, cmd
 	}
 
 	updatedModel, cmd := m.updateNormalMode(msg)
-	return updatedModel, cmd
+	return &updatedModel, cmd
 }
 
 func (m replModel) updatePermissionMode(msg tea.Msg) (replModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg, permissionKeyEnter, permissionKeyCancel:
+	case tea.KeyPressMsg, permissionKeyEnter, permissionKeyCancel:
 		return m.handlePermissionKeyMsg(msg)
 	case spinner.TickMsg:
 		updated, cmd, handled := m.handleSpinnerTick(msg)
@@ -388,19 +389,18 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		if m.mdRenderer != nil {
 			m.mdRenderer.UpdateWidth(msg.Width)
 		}
-		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - m.textarea.Height() - 2
+		m.viewport.SetWidth(msg.Width)
+		m.viewport.SetHeight(msg.Height - m.textarea.Height() - 2)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 
-	case tea.MouseMsg:
-		switch msg.Button {
-		case tea.MouseButtonWheelUp:
+	case tea.MouseWheelMsg:
+		if msg.Button == tea.MouseWheelUp {
 			m.viewport.ScrollUp(3)
 			m.userScrolled = !m.viewport.AtBottom()
-		case tea.MouseButtonWheelDown:
+		} else if msg.Button == tea.MouseWheelDown {
 			m.viewport.ScrollDown(3)
 			m.userScrolled = !m.viewport.AtBottom()
 		}
@@ -465,36 +465,39 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	}
 }
 
-func (m replModel) View() string {
+func (m replModel) View() tea.View {
+	var content string
+
 	if m.quitting {
-		return lipgloss.NewStyle().Foreground(mutedColor).Render("\n  Goodbye!\n")
-	}
+		content = lipgloss.NewStyle().Foreground(mutedColor).Render("\n  Goodbye!\n")
+	} else if m.permissionSelector != nil {
+		content = m.permissionSelector.ViewString()
+	} else if m.modelSelection != nil {
+		content = m.modelSelection.ViewString()
+	} else {
+		var view strings.Builder
 
-	if m.permissionSelector != nil {
-		return m.permissionSelector.View()
-	}
-
-	if m.modelSelection != nil {
-		return m.modelSelection.View()
-	}
-
-	var view strings.Builder
-
-	view.WriteString(m.viewport.View())
-	view.WriteString("\n")
-
-	textareaView := m.textarea.View()
-	lines := strings.Split(textareaView, "\n")
-
-	view.WriteString(promptStyle.Render("> "))
-	view.WriteString(inputLineStyle.Render(lines[0]))
-
-	for i := 1; i < len(lines); i++ {
+		view.WriteString(m.viewport.View())
 		view.WriteString("\n")
-		view.WriteString(inputLineStyle.Render("  " + lines[i]))
+
+		textareaView := m.textarea.View()
+		lines := strings.Split(textareaView, "\n")
+
+		view.WriteString(promptStyle.Render("> "))
+		view.WriteString(inputLineStyle.Render(lines[0]))
+
+		for i := 1; i < len(lines); i++ {
+			view.WriteString("\n")
+			view.WriteString(inputLineStyle.Render("  " + lines[i]))
+		}
+
+		content = view.String()
 	}
 
-	return view.String()
+	v := tea.NewView(content)
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
 
 func getHelpText() string {
@@ -550,7 +553,8 @@ func RunREPL(
 		llmClient = client
 	}
 
-	p := tea.NewProgram(initialModel(ctx, llmClient, needsSetup), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	m := initialModel(ctx, llmClient, needsSetup)
+	p := tea.NewProgram(&m)
 	if _, err := p.Run(); err != nil {
 		return err
 	}
