@@ -23,11 +23,12 @@ const (
 
 func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 	m.showSpinner = false
+	cmd := m.streamHandler.HandleChunk(chunk)
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
 	}
-	return *m, m.streamHandler.HandleChunk(chunk)
+	return *m, cmd
 }
 
 func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
@@ -47,7 +48,10 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 
 func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.showSpinner = false
-	errMsg := m.streamHandler.HandleError(err)
+	pendingLines, errMsg := m.streamHandler.HandleError(err)
+	for _, line := range pendingLines {
+		m.output.AddLine(line)
+	}
 	m.output.AddError(errMsg, errorStyle)
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
@@ -56,21 +60,22 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 
 func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.showSpinner = false
-	m.output.AddToolStart(toolCall)
+	cmd := m.streamHandler.HandleToolStart(toolCall)
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
 	}
-	return *m, m.streamHandler.HandleToolStart(toolCall)
+	return *m, cmd
 }
 
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
-	m.output.AddToolEnd(toolCall)
+	m.showSpinner = false
+	cmd := m.streamHandler.HandleToolEnd(toolCall)
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
 	}
-	return *m, m.streamHandler.HandleToolEnd(toolCall)
+	return *m, cmd
 }
 
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
@@ -117,24 +122,30 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	case keyUp, keyShiftUp:
 		if m.isAtTopOfInput() {
 			m.viewport.ScrollUp(1)
+			m.userScrolled = !m.viewport.AtBottom()
 			return *m, nil
 		}
 	case keyDown, keyShiftDown:
 		if m.isAtBottomOfInput() {
 			m.viewport.ScrollDown(1)
+			m.userScrolled = !m.viewport.AtBottom()
 			return *m, nil
 		}
 	case keyPageUp:
 		m.viewport.HalfPageUp()
+		m.userScrolled = !m.viewport.AtBottom()
 		return *m, nil
 	case keyPageDown:
 		m.viewport.HalfPageDown()
+		m.userScrolled = !m.viewport.AtBottom()
 		return *m, nil
 	case keyHome:
 		m.viewport.GotoTop()
+		m.userScrolled = true
 		return *m, nil
 	case keyEnd:
 		m.viewport.GotoBottom()
+		m.userScrolled = false
 		return *m, nil
 	}
 

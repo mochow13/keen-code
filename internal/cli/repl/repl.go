@@ -399,8 +399,10 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
 			m.viewport.ScrollUp(3)
+			m.userScrolled = !m.viewport.AtBottom()
 		case tea.MouseButtonWheelDown:
 			m.viewport.ScrollDown(3)
+			m.userScrolled = !m.viewport.AtBottom()
 		}
 		return m, nil
 	}

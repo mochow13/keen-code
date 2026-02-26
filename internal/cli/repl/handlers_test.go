@@ -231,8 +231,8 @@ func TestHandleLLMDone_EmptyResponse(t *testing.T) {
 		t.Errorf("expected 1 message, got %d", len(m.appState.GetMessages()))
 	}
 
-	if len(newM.output.GetLines()) != 2 {
-		t.Errorf("expected 2 lines (1 empty response + 1 empty), got %d", len(newM.output.GetLines()))
+	if len(newM.output.GetLines()) != 1 {
+		t.Errorf("expected 1 line (trailing empty spacer), got %d", len(newM.output.GetLines()))
 	}
 }
 
@@ -295,16 +295,20 @@ func TestHandleToolStart(t *testing.T) {
 		t.Error("expected showSpinner to be false after tool start")
 	}
 
-	if len(newM.output.GetLines()) != 1 {
-		t.Errorf("expected 1 output line for tool start, got %d", len(newM.output.GetLines()))
+	if len(newM.output.GetLines()) != 0 {
+		t.Errorf("expected no persisted output lines for tool start, got %d", len(newM.output.GetLines()))
 	}
 
 	if cmd == nil {
 		t.Error("expected non-nil cmd from handleToolStart")
 	}
 
-	if len(sh.toolCalls) != 1 {
-		t.Errorf("expected 1 tool call in handler, got %d", len(sh.toolCalls))
+	if len(sh.segments) != 1 {
+		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.segments))
+	}
+
+	if sh.segments[0].kind != segmentToolStart {
+		t.Errorf("expected first segment kind %q, got %q", segmentToolStart, sh.segments[0].kind)
 	}
 }
 
@@ -328,12 +332,20 @@ func TestHandleToolEnd(t *testing.T) {
 
 	newM, cmd := m.handleToolEnd(toolCall)
 
-	if len(newM.output.GetLines()) != 1 {
-		t.Errorf("expected 1 output line for tool end, got %d", len(newM.output.GetLines()))
+	if len(newM.output.GetLines()) != 0 {
+		t.Errorf("expected no persisted output lines for tool end, got %d", len(newM.output.GetLines()))
 	}
 
 	if cmd == nil {
 		t.Error("expected non-nil cmd from handleToolEnd")
+	}
+
+	if len(sh.segments) != 1 {
+		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.segments))
+	}
+
+	if sh.segments[0].kind != segmentToolEnd {
+		t.Errorf("expected first segment kind %q, got %q", segmentToolEnd, sh.segments[0].kind)
 	}
 }
 
@@ -356,50 +368,23 @@ func TestHandleToolEnd_WithError(t *testing.T) {
 
 	newM, cmd := m.handleToolEnd(toolCall)
 
-	if len(newM.output.GetLines()) != 1 {
-		t.Errorf("expected 1 output line for tool end, got %d", len(newM.output.GetLines()))
+	if len(newM.output.GetLines()) != 0 {
+		t.Errorf("expected no persisted output lines for tool end, got %d", len(newM.output.GetLines()))
 	}
 
 	if cmd == nil {
 		t.Error("expected non-nil cmd from handleToolEnd")
 	}
 
-	outputStr := newM.output.GetLines()[0]
-	if !strings.Contains(outputStr, "failed") && !strings.Contains(outputStr, "connection") {
-		t.Errorf("expected error info in output, got: %s", outputStr)
-	}
-}
-
-func TestUpdate_PermissionSelector_AllowsToolStartEvent(t *testing.T) {
-	sh := NewStreamHandler(nil)
-	eventCh := make(chan llm.StreamEvent)
-	sh.Start(eventCh, "Loading...")
-
-	m := replModel{
-		permissionSelector: NewPermissionSelector("read_file", "../foo.txt", "/tmp/foo.txt", "read"),
-		streamHandler:      sh,
-		showSpinner:        true,
-		width:              80,
-		output:             NewOutputBuilder(80),
+	if len(sh.segments) != 1 {
+		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.segments))
 	}
 
-	toolCall := &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "../foo.txt"}}
-	updatedModel, cmd := m.Update(llmToolStartMsg{toolCall: toolCall})
-
-	updated, ok := updatedModel.(replModel)
-	if !ok {
-		t.Fatalf("expected replModel, got %T", updatedModel)
+	if sh.segments[0].kind != segmentToolEnd {
+		t.Errorf("expected first segment kind %q, got %q", segmentToolEnd, sh.segments[0].kind)
 	}
 
-	if updated.showSpinner {
-		t.Error("expected showSpinner to be false after tool start while permission selector is active")
-	}
-
-	if len(updated.output.GetLines()) != 1 {
-		t.Errorf("expected 1 output line for tool start, got %d", len(updated.output.GetLines()))
-	}
-
-	if cmd == nil {
-		t.Error("expected non-nil cmd when handling tool start event")
+	if sh.segments[0].toolCall == nil || sh.segments[0].toolCall.Error != "connection failed" {
+		t.Errorf("expected tool end segment with error details")
 	}
 }

@@ -65,7 +65,14 @@ func TestStreamHandler_HandleError(t *testing.T) {
 	sh.HandleChunk("some content")
 
 	testErr := errors.New("stream failed")
-	errMsg := sh.HandleError(testErr)
+	lines, errMsg := sh.HandleError(testErr)
+
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 pending transcript line, got %d", len(lines))
+	}
+	if !strings.Contains(lines[0], "some content") {
+		t.Errorf("expected pending line to include chunk content, got %q", lines[0])
+	}
 
 	if errMsg != "stream failed" {
 		t.Errorf("expected error message 'stream failed', got '%s'", errMsg)
@@ -76,6 +83,40 @@ func TestStreamHandler_HandleError(t *testing.T) {
 	}
 	if sh.HasContent() {
 		t.Error("expected HasContent to be false after HandleError")
+	}
+}
+
+func TestStreamHandler_HandleDone_MixedSegmentsChronological(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+
+	sh.HandleChunk("First chunk")
+	sh.HandleToolStart(&llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "go.mod"}})
+	sh.HandleChunk(" Second chunk")
+	sh.HandleToolEnd(&llm.ToolCall{Name: "read_file", Duration: 5})
+
+	lines, fullResponse := sh.HandleDone()
+
+	if fullResponse != "First chunk Second chunk" {
+		t.Fatalf("unexpected full response: %q", fullResponse)
+	}
+
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 transcript lines, got %d", len(lines))
+	}
+
+	if !strings.Contains(lines[0], "First chunk") {
+		t.Fatalf("expected first line to be first assistant chunk, got %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "read_file") || !strings.Contains(lines[1], "🔧") {
+		t.Fatalf("expected second line to be tool start, got %q", lines[1])
+	}
+	if !strings.Contains(lines[2], "Second chunk") {
+		t.Fatalf("expected third line to be second assistant chunk, got %q", lines[2])
+	}
+	if !strings.Contains(lines[3], "read_file") || !strings.Contains(lines[3], "✓") {
+		t.Fatalf("expected fourth line to be tool end, got %q", lines[3])
 	}
 }
 

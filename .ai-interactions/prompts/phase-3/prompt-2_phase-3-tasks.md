@@ -31,3 +31,12 @@
 
 ### DeepSeek
 19. Now we want to support DeepSeek too. It should be doable through openai compatible API. Give me a plan on how to implement it.
+20. The plan looks good. Let's implement it.
+
+### UI Improvements
+21. @AGENTS.md @repl.go Explore how tool call and llm messages are shown in the REPL ui right now.
+22. Do tool calls and llm messages appear chronologically? If not, what would be a more user-friendly UI?
+23. Based on your findings and suggestions, create an implementation plan for the UI improvements with granular task breakdown.
+24. I think we don't need to introduce a separate `timeline` type now. Let's remove that and implement the UI improvements.
+25. Right now when we scroll up, the REPL continuously scroll at the bottom when new content is being streamed. So there is a flickering behaviour right now. When streaming content finishes, then we can scroll up without flickering. What's the issue? Propose a fix.
+26. 
