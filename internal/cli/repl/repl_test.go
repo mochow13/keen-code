@@ -176,7 +176,7 @@ func TestAdjustTextareaHeight(t *testing.T) {
 	if m.textarea.Height() != maxHeight {
 		t.Errorf("expected textarea height %d, got %d", maxHeight, m.textarea.Height())
 	}
-	expectedVPHeight := m.height - m.textarea.Height() - 2
+	expectedVPHeight := m.height - m.textarea.Height() - 4
 	if m.viewport.Height() != expectedVPHeight {
 		t.Errorf("expected viewport height %d, got %d", expectedVPHeight, m.viewport.Height())
 	}

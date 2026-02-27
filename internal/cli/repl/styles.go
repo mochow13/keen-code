@@ -83,4 +83,7 @@ var (
 	hintStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
 			Italic(true)
+	inputBorderStyle = lipgloss.NewStyle().
+				BorderStyle(lipgloss.ThickBorder()).
+				BorderForeground(primaryColor)
 )

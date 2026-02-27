@@ -52,4 +52,5 @@
 31. @repl.go check how input text area UI looks like right now. Figure out any inconsistencies and propose a fix.
 32. What's the background color of the cursor line?
 33. I want a consistent style for the cursor line and the other two lines of the textarea. Let's fix this.
-34.
+34. Ok. Now, we want the text area to have a border. How can we do that?
+35. Let's make the border a little bit thicker.

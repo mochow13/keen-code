@@ -96,10 +96,16 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	ta.Placeholder = "What are we building?"
 	ta.Focus()
 	ta.CharLimit = 0
-	ta.SetWidth(defaultWidth - 1)
+	ta.SetWidth(defaultWidth - 3)
 	ta.SetHeight(maxHeight)
 	ta.MaxHeight = 0
 	ta.ShowLineNumbers = false
+	ta.SetPromptFunc(2, func(info textarea.PromptInfo) string {
+		if info.LineNumber == 0 {
+			return "> "
+		}
+		return "  "
+	})
 
 	styles := ta.Styles()
 	styles.Focused.Prompt = promptStyle
@@ -215,7 +221,7 @@ func (m replModel) Init() tea.Cmd {
 func (m *replModel) adjustTextareaHeight() {
 	m.textarea.SetHeight(maxHeight)
 	if m.height > 0 {
-		m.viewport.SetHeight(m.height - m.textarea.Height() - 2)
+		m.viewport.SetHeight(m.height - m.textarea.Height() - 4)
 	}
 }
 
@@ -371,12 +377,12 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.textarea.SetWidth(msg.Width - 1)
+		m.textarea.SetWidth(msg.Width - 3)
 		if m.mdRenderer != nil {
 			m.mdRenderer.UpdateWidth(msg.Width)
 		}
 		m.viewport.SetWidth(msg.Width)
-		m.viewport.SetHeight(msg.Height - m.textarea.Height() - 2)
+		m.viewport.SetHeight(msg.Height - m.textarea.Height() - 4)
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -467,7 +473,7 @@ func (m replModel) View() tea.View {
 		view.WriteString(m.viewport.View())
 		view.WriteString("\n")
 
-		view.WriteString(m.textarea.View())
+		view.WriteString(inputBorderStyle.Render(m.textarea.View()))
 
 		content = view.String()
 	}
