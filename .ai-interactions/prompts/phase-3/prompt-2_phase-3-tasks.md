@@ -49,3 +49,7 @@
     - When user copy-pastes a long line
     - When user copy-pastes multiple lines
 30. Great, you have correctly identified the behaviour of the `textarea`. Let's now fix the issue of misbehaving wrapping and height adjustment.
+31. @repl.go check how input text area UI looks like right now. Figure out any inconsistencies and propose a fix.
+32. What's the background color of the cursor line?
+33. I want a consistent style for the cursor line and the other two lines of the textarea. Let's fix this.
+34.

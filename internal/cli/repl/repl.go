@@ -27,9 +27,8 @@ const (
 	modelCommand = "/model"
 
 	/* UI */
-	defaultWidth  = 120
-	maxHeight     = 5
-	initialHeight = 1
+	defaultWidth = 120
+	maxHeight    = 3
 )
 
 var loadingTexts = []string{
@@ -104,7 +103,11 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 
 	styles := ta.Styles()
 	styles.Focused.Prompt = promptStyle
+	styles.Focused.Text = lipgloss.NewStyle()
+	styles.Focused.CursorLine = lipgloss.NewStyle()
 	styles.Blurred.Prompt = promptStyle
+	styles.Blurred.Text = lipgloss.NewStyle()
+	styles.Blurred.CursorLine = lipgloss.NewStyle()
 	ta.SetStyles(styles)
 
 	ta.KeyMap.InsertNewline.SetKeys("ctrl+enter")
@@ -116,7 +119,6 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 
 	initialOutput := buildInitialScreen(ctx)
 	appState := NewAppState(llmClient)
-	appState.RegisterTool(tools.NewDummyTool())
 
 	permissionRequester := NewREPLPermissionRequester()
 	gitAwareness := filesystem.NewGitAwareness()
@@ -267,14 +269,12 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 
 	if input == modelCommand {
 		m.textarea.Reset()
-		m.textarea.SetHeight(1)
 		return m.startModelSelection(), nil
 	}
 
 	if !m.appState.IsClientReady(m.ctx.cfg) {
 		m.output.AddError("LLM client not initialized. Use /model to configure.", errorStyle)
 		m.textarea.Reset()
-		m.textarea.SetHeight(1)
 		return *m, nil
 	}
 
@@ -285,7 +285,6 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	if err != nil {
 		m.output.AddError(err.Error(), errorStyle)
 		m.textarea.Reset()
-		m.textarea.SetHeight(1)
 		return *m, nil
 	}
 
@@ -293,7 +292,6 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	m.loadingText = loadingTexts[rand.Intn(len(loadingTexts))]
 	m.streamHandler.Start(eventCh, m.loadingText)
 	m.textarea.Reset()
-	m.textarea.SetHeight(1)
 	m.userScrolled = false
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
