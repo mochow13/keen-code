@@ -54,8 +54,7 @@ var (
 			Foreground(secondaryColor).
 			Bold(true).
 			Width(12)
-	inputLineStyle = lipgloss.NewStyle()
-	helpDescStyle  = lipgloss.NewStyle().
+	helpDescStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
 			Light: lipgloss.Color("#374151"),
 			Dark:  lipgloss.Color("#E5E7EB"),

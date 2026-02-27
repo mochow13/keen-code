@@ -9,7 +9,6 @@ import (
 
 const (
 	keyEnter     = "enter"
-	keyCtrlJ     = "ctrl+j"
 	keyCtrlC     = "ctrl+c"
 	keyUp        = "up"
 	keyDown      = "down"
@@ -116,8 +115,6 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	switch keyMsg.String() {
 	case keyEnter:
 		return m.handleEnterKey()
-	case keyCtrlJ:
-		return m.handleCtrlJ()
 	case keyCtrlC:
 		m.quitting = true
 		return *m, tea.Quit

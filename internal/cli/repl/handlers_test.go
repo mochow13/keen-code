@@ -149,7 +149,11 @@ func TestHandleKeyMsg_CtrlC(t *testing.T) {
 
 func TestHandleKeyMsg_CtrlJ(t *testing.T) {
 	ta := textarea.New()
+	ta.Focus()
+	ta.KeyMap.InsertNewline.SetKeys("ctrl+j")
+	ta.KeyMap.InsertNewline.SetEnabled(true)
 	ta.SetValue("line 1")
+	ta.CursorEnd()
 	m := replModel{
 		textarea: ta,
 		width:    80,

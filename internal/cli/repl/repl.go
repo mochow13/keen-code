@@ -28,7 +28,7 @@ const (
 
 	/* UI */
 	defaultWidth  = 120
-	maxHeight     = 20
+	maxHeight     = 5
 	initialHeight = 1
 )
 
@@ -94,16 +94,20 @@ func abbreviateHome(path string) string {
 
 func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) replModel {
 	ta := textarea.New()
-	ta.Placeholder = "Type your message..."
+	ta.Placeholder = "What are we building?"
 	ta.Focus()
-	ta.Prompt = ""
 	ta.CharLimit = 0
-	ta.SetWidth(defaultWidth)
-	ta.SetHeight(initialHeight)
-	ta.MaxHeight = maxHeight
+	ta.SetWidth(defaultWidth - 1)
+	ta.SetHeight(maxHeight)
+	ta.MaxHeight = 0
 	ta.ShowLineNumbers = false
 
-	ta.KeyMap.InsertNewline.SetKeys("ctrl+j")
+	styles := ta.Styles()
+	styles.Focused.Prompt = promptStyle
+	styles.Blurred.Prompt = promptStyle
+	ta.SetStyles(styles)
+
+	ta.KeyMap.InsertNewline.SetKeys("ctrl+enter")
 	ta.KeyMap.InsertNewline.SetEnabled(true)
 
 	s := spinner.New()
@@ -207,12 +211,10 @@ func (m replModel) Init() tea.Cmd {
 }
 
 func (m *replModel) adjustTextareaHeight() {
-	currentValue := m.textarea.Value()
-	lineCount := strings.Count(currentValue, "\n") + 1
-	if lineCount > maxHeight {
-		lineCount = maxHeight
+	m.textarea.SetHeight(maxHeight)
+	if m.height > 0 {
+		m.viewport.SetHeight(m.height - m.textarea.Height() - 2)
 	}
-	m.textarea.SetHeight(lineCount)
 }
 
 func (m replModel) isAtTopOfInput() bool {
@@ -317,20 +319,6 @@ func (m *replModel) updateViewportContent() {
 	m.viewport.SetContent(content.String())
 }
 
-func (m *replModel) handleCtrlJ() (replModel, tea.Cmd) {
-	currentValue := m.textarea.Value()
-	newValue := currentValue + "\n"
-	m.textarea.SetValue(newValue)
-
-	lineCount := strings.Count(newValue, "\n") + 1
-	if lineCount > 10 {
-		lineCount = 10
-	}
-	m.textarea.SetHeight(lineCount)
-	m.textarea.CursorEnd()
-	return *m, nil
-}
-
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.permissionSelector != nil {
 		updatedModel, cmd := m.updatePermissionMode(msg)
@@ -385,7 +373,7 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.textarea.SetWidth(msg.Width - 3)
+		m.textarea.SetWidth(msg.Width - 1)
 		if m.mdRenderer != nil {
 			m.mdRenderer.UpdateWidth(msg.Width)
 		}
@@ -397,10 +385,11 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return m.handleKeyMsg(msg)
 
 	case tea.MouseWheelMsg:
-		if msg.Button == tea.MouseWheelUp {
+		switch msg.Button {
+		case tea.MouseWheelUp:
 			m.viewport.ScrollUp(3)
 			m.userScrolled = !m.viewport.AtBottom()
-		} else if msg.Button == tea.MouseWheelDown {
+		case tea.MouseWheelDown:
 			m.viewport.ScrollDown(3)
 			m.userScrolled = !m.viewport.AtBottom()
 		}
@@ -480,16 +469,7 @@ func (m replModel) View() tea.View {
 		view.WriteString(m.viewport.View())
 		view.WriteString("\n")
 
-		textareaView := m.textarea.View()
-		lines := strings.Split(textareaView, "\n")
-
-		view.WriteString(promptStyle.Render("> "))
-		view.WriteString(inputLineStyle.Render(lines[0]))
-
-		for i := 1; i < len(lines); i++ {
-			view.WriteString("\n")
-			view.WriteString(inputLineStyle.Render("  " + lines[i]))
-		}
+		view.WriteString(m.textarea.View())
 
 		content = view.String()
 	}

@@ -42,3 +42,10 @@
 26. Explore the @repl.go and understand the user interface behaviour for keen code.
 27. Is the UI responsive now? By responsive, I mean the text wraps correctly both in input and output.
 28. Ok based on your suggestions, let's first migrate `bubbletea`, `bubbles`, and `lipgloss` to v2.
+29. Well looks like input text area is not behaving as we expected. Let's take a step back and reevaluate the UI design.
+  - Right now, we have this `textarea` where users can type their input. Figure out how it behaves for cases like:
+    - When user types a short line
+    - When user types a long line beyond the size of the window
+    - When user copy-pastes a long line
+    - When user copy-pastes multiple lines
+30. Great, you have correctly identified the behaviour of the `textarea`. Let's now fix the issue of misbehaving wrapping and height adjustment.
