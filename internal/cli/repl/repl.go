@@ -15,9 +15,7 @@ import (
 	"github.com/user/keen-cli/configs/providers"
 	"github.com/user/keen-cli/internal/cli/modelselection"
 	"github.com/user/keen-cli/internal/config"
-	"github.com/user/keen-cli/internal/filesystem"
 	"github.com/user/keen-cli/internal/llm"
-	"github.com/user/keen-cli/internal/tools"
 )
 
 const (
@@ -127,13 +125,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	appState := NewAppState(llmClient)
 
 	permissionRequester := NewREPLPermissionRequester()
-	gitAwareness := filesystem.NewGitAwareness()
-	_ = gitAwareness.LoadGitignoreRecursive(ctx.workingDir)
-	guard := filesystem.NewGuard(ctx.workingDir, gitAwareness)
-	readFileTool := tools.NewReadFileTool(guard, permissionRequester)
-	appState.RegisterTool(readFileTool)
-	globTool := tools.NewGlobTool(guard, permissionRequester)
-	appState.RegisterTool(globTool)
+	setupToolRegistry(ctx.workingDir, appState, permissionRequester)
 
 	mdRenderer, err := NewMarkdownRenderer(defaultWidth)
 

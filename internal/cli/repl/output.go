@@ -2,6 +2,7 @@ package repl
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -86,7 +87,7 @@ func (ob *OutputBuilder) AddToolEnd(toolCall *llm.ToolCall) {
 
 func formatToolStart(toolCall *llm.ToolCall) string {
 	inputJSON := jsonMarshalCompact(toolCall.Input)
-	return "  " + toolStartStyle.Render(fmt.Sprintf("🔧 %s(%s)...", toolCall.Name, inputJSON))
+	return "\n  " + toolStartStyle.Render(fmt.Sprintf("⚙ %s(%s)...", toolCall.Name, inputJSON))
 }
 
 func formatToolEnd(toolCall *llm.ToolCall) string {
@@ -100,9 +101,14 @@ func jsonMarshalCompact(v map[string]any) string {
 	if v == nil {
 		return ""
 	}
-	var parts []string
-	for k, val := range v {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, val))
+	keys := make([]string, 0, len(v))
+	for k := range v {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, v[k]))
 	}
 	return strings.Join(parts, ", ")
 }

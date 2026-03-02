@@ -71,7 +71,7 @@ var (
 		})
 	toolStartStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFA500")).
-			Italic(true)
+			Bold(true)
 	toolSuccessStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00AA00"))
 	toolErrorStyle = lipgloss.NewStyle().

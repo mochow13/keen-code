@@ -26,9 +26,10 @@ const (
 )
 
 type streamSegment struct {
-	kind     streamSegmentType
-	content  string
-	toolCall *llm.ToolCall
+	kind          streamSegmentType
+	content       string
+	toolCall      *llm.ToolCall
+	renderedLines []string
 }
 
 func NewStreamHandler(mdRenderer *MarkdownRenderer) *StreamHandler {
@@ -151,18 +152,29 @@ func (sh *StreamHandler) View(width int, showSpinner bool, spinnerView string) s
 func (sh *StreamHandler) renderViewLines(width int) []string {
 	lines := make([]string, 0)
 
-	for _, segment := range sh.segments {
-		switch segment.kind {
+	lastAssistantIdx := -1
+	for i := range sh.segments {
+		if sh.segments[i].kind == segmentAssistant {
+			lastAssistantIdx = i
+		}
+	}
+
+	for i := range sh.segments {
+		seg := &sh.segments[i]
+		switch seg.kind {
 		case segmentToolStart:
-			if segment.toolCall != nil {
-				lines = append(lines, formatToolStart(segment.toolCall))
+			if seg.toolCall != nil {
+				lines = append(lines, formatToolStart(seg.toolCall))
 			}
 		case segmentToolEnd:
-			if segment.toolCall != nil {
-				lines = append(lines, formatToolEnd(segment.toolCall))
+			if seg.toolCall != nil {
+				lines = append(lines, formatToolEnd(seg.toolCall))
 			}
 		case segmentAssistant:
-			lines = append(lines, sh.renderAssistantViewLines(segment.content, width)...)
+			if seg.renderedLines == nil || i == lastAssistantIdx {
+				seg.renderedLines = sh.renderAssistantViewLines(seg.content, width)
+			}
+			lines = append(lines, seg.renderedLines...)
 		}
 	}
 

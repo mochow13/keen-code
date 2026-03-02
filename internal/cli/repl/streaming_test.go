@@ -109,7 +109,7 @@ func TestStreamHandler_HandleDone_MixedSegmentsChronological(t *testing.T) {
 	if !strings.Contains(lines[0], "First chunk") {
 		t.Fatalf("expected first line to be first assistant chunk, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "read_file") || !strings.Contains(lines[1], "🔧") {
+	if !strings.Contains(lines[1], "read_file") || !strings.Contains(lines[1], "⚙") {
 		t.Fatalf("expected second line to be tool start, got %q", lines[1])
 	}
 	if !strings.Contains(lines[2], "Second chunk") {

@@ -54,3 +54,11 @@
 33. I want a consistent style for the cursor line and the other two lines of the textarea. Let's fix this.
 34. Ok. Now, we want the text area to have a border. How can we do that?
 35. Let's make the border a little bit thicker.
+36. Check the code in repl.go and explain why there are flickering when llm chunks are streaming to the terminal. Explain the fix.
+37. Actually, the behaviour is, for the grep tool, it's parameters are flickering.
+
+### `grep` tool
+38. Based on the design in @.ai-interactions/outputs/phase-3/output-6_grep-tool.md, let's implement the `grep` tool.
+39. The functions are too long in the implementation for the `grep` tool. Let's break them down into smaller functions and focus on quality and readability.
+40. Instead of reading each file's each line one-by-one, let's read the entire file content at once and then search for the pattern in the content. Use the `readFileContent` function from `read_file` tool.
+41. 
