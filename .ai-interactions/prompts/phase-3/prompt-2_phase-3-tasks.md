@@ -61,4 +61,14 @@
 38. Based on the design in @.ai-interactions/outputs/phase-3/output-6_grep-tool.md, let's implement the `grep` tool.
 39. The functions are too long in the implementation for the `grep` tool. Let's break them down into smaller functions and focus on quality and readability.
 40. Instead of reading each file's each line one-by-one, let's read the entire file content at once and then search for the pattern in the content. Use the `readFileContent` function from `read_file` tool.
-41. 
+41. Check the code in @grep.go. Is there a scope for performance improvement for grep? I am thinking in terms of speed.
+
+### UI Interactions
+
+42. Right now in Keen Code, if users press `ctrl+c`, it exits. We want to change the behaviour:
+  - If there is text in the input area, then the first `ctrl+c` press will clear the text.
+  - If the text input area is empty, then `ctrl+c` will exit.
+How would you implement it?
+43. Right now when LLM is streaming or tool is being called, there is no way for the user to interrupt the process. We want to support interrupting the process with `esc` key. Check the code in @repl.go and @handlers.go. Based on that, create a plan and granular todo list for implementing this feature.
+44. When we press esc, the message "Interrupted" is replacing the last streamed content where the interruption happened. Let's show that.
+45. Let's show the "interrupted" message in orange colour. Put create a specific style for it in @styles.go. Make the style adaptive.

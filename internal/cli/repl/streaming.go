@@ -98,6 +98,16 @@ func (sh *StreamHandler) HandleError(err error) ([]string, string) {
 	return lines, err.Error()
 }
 
+func (sh *StreamHandler) HandleInterrupt() []string {
+	lines := sh.renderTranscriptLines()
+	sh.resetState()
+	return lines
+}
+
+func (sh *StreamHandler) Interrupt() {
+	sh.resetState()
+}
+
 func (sh *StreamHandler) resetState() {
 	sh.isActive = false
 	sh.currentResponse = ""
@@ -111,8 +121,9 @@ func (sh *StreamHandler) WaitForEvent() tea.Cmd {
 }
 
 func (sh *StreamHandler) waitForNextEvent() tea.Cmd {
+	eventCh := sh.eventCh
 	return func() tea.Msg {
-		event, ok := <-sh.eventCh
+		event, ok := <-eventCh
 		if !ok {
 			return llmDoneMsg{}
 		}

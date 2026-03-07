@@ -1,4 +1,4 @@
-## `GrepTool`PRD
+## `grep` Tool PRD
 
 As a next step, we want to build the `GrepTool` for LLMs to search for text in files. Following are the strict requirements:
 

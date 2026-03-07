@@ -1,4 +1,4 @@
-## Glob Tool PRD
+## `glob` Tool PRD
 
 We need to implement a `glob` tool that allows LLMs to search for files using glob patterns. It needs to follow the following strict requirements:
 

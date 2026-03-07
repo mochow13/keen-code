@@ -13,7 +13,7 @@ CLI-based coding agent powered by AI using Firebase Genkit for LLM interactions.
 3. Register in `internal/cli/repl/repl.go` in `initialModel()`
 4. Add tests in `internal/tools/{name}_test.go`
 
-See `read_file.go` or `glob.go` as reference.
+Check existing tools in @internal/tools/ for reference.
 
 ## Permission System
 Guard checks paths before filesystem operations:

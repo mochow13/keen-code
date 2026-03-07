@@ -76,6 +76,7 @@ type replModel struct {
 	showSpinner         bool
 	loadingText         string
 	userScrolled        bool
+	streamCancel        context.CancelFunc
 }
 
 func abbreviateHome(path string) string {
@@ -183,7 +184,7 @@ func buildInitialScreen(ctx *replContext) []string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, "  "+titleStyle.Render("Keen v"+ctx.version)+"  "+modeStyle.Render("plan mode"))
+	lines = append(lines, "  "+titleStyle.Render("Keen v"+ctx.version))
 	lines = append(lines, "")
 
 	displayDir := abbreviateHome(ctx.workingDir)
@@ -278,9 +279,10 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 
 	m.appState.AddMessage(llm.RoleUser, input)
 
-	ctx := context.Background()
+	ctx := m.startStreamContext()
 	eventCh, err := m.appState.StreamChat(ctx, m.ctx.cfg)
 	if err != nil {
+		m.clearStreamCancel()
 		m.output.AddError(err.Error(), errorStyle)
 		m.textarea.Reset()
 		return *m, nil
@@ -295,6 +297,20 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	m.viewport.GotoBottom()
 
 	return *m, tea.Batch(m.spinner.Tick, m.streamHandler.WaitForEvent())
+}
+
+func (m *replModel) startStreamContext() context.Context {
+	if m.streamCancel != nil {
+		m.streamCancel()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.streamCancel = cancel
+	return ctx
+}
+
+func (m *replModel) clearStreamCancel() {
+	m.streamCancel = nil
 }
 
 func (m *replModel) updateViewportContent() {
@@ -429,6 +445,13 @@ func (m replModel) handleSpinnerTick(msg spinner.TickMsg) (replModel, tea.Cmd, b
 }
 
 func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	if m.streamHandler == nil || !m.streamHandler.IsActive() {
+		switch msg.(type) {
+		case llmChunkMsg, llmDoneMsg, llmErrorMsg, llmToolStartMsg, llmToolEndMsg:
+			return m, nil, true
+		}
+	}
+
 	switch msg := msg.(type) {
 	case llmChunkMsg:
 		updated, cmd := m.handleLLMChunk(string(msg))
@@ -466,6 +489,8 @@ func (m replModel) View() tea.View {
 		view.WriteString("\n")
 
 		view.WriteString(inputBorderStyle.Render(m.textarea.View()))
+		view.WriteString("\n")
+		view.WriteString(m.inputMetaView())
 
 		content = view.String()
 	}
@@ -474,6 +499,26 @@ func (m replModel) View() tea.View {
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
+}
+
+func (m replModel) inputMetaView() string {
+	provider := "-"
+	model := "-"
+
+	if m.ctx != nil && m.ctx.cfg != nil {
+		if m.ctx.cfg.Provider != "" {
+			provider = m.ctx.cfg.Provider
+		}
+		if m.ctx.cfg.Model != "" {
+			model = m.ctx.cfg.Model
+		}
+	}
+
+	metaLabelStyle := lipgloss.NewStyle().Foreground(mutedColor)
+	providerText := metaLabelStyle.Render("Provider:") + " " + highlightStyle.Render(provider)
+	modelText := metaLabelStyle.Render("Model:") + " " + infoValueStyle.Render(model)
+
+	return "  " + providerText + "   " + modelText
 }
 
 func getHelpText() string {

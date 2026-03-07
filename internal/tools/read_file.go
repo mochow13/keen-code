@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	maxFileSize = 1_048_576 // 1MB
+	maxFileSize = 10_485_760 // 10MB
 )
 
 type PermissionRequester interface {

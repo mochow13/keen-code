@@ -1,6 +1,9 @@
 package repl
 
 import (
+	"context"
+	"errors"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/user/keen-cli/internal/cli/modelselection"
@@ -10,6 +13,8 @@ import (
 const (
 	keyEnter     = "enter"
 	keyCtrlC     = "ctrl+c"
+	keyCtrlD     = "ctrl+d"
+	keyEsc       = "esc"
 	keyUp        = "up"
 	keyDown      = "down"
 	keyPageUp    = "pgup"
@@ -32,6 +37,7 @@ func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 
 func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.showSpinner = false
+	m.clearStreamCancel()
 	responseLines, fullResponse := m.streamHandler.HandleDone()
 	m.appState.AddMessage(llm.RoleAssistant, fullResponse)
 	for _, line := range responseLines {
@@ -47,9 +53,15 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 
 func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.showSpinner = false
+	m.clearStreamCancel()
 	pendingLines, errMsg := m.streamHandler.HandleError(err)
 	for _, line := range pendingLines {
 		m.output.AddLine(line)
+	}
+	if errors.Is(err, context.Canceled) {
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, nil
 	}
 	m.output.AddError(errMsg, errorStyle)
 	m.updateViewportContent()
@@ -115,9 +127,19 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	switch keyMsg.String() {
 	case keyEnter:
 		return m.handleEnterKey()
-	case keyCtrlC:
+	case keyCtrlC, keyCtrlD:
+		if m.textarea.Value() != "" {
+			m.textarea.Reset()
+			m.adjustTextareaHeight()
+			return *m, nil
+		}
 		m.quitting = true
 		return *m, tea.Quit
+	case keyEsc:
+		if m.streamHandler != nil && m.streamHandler.IsActive() {
+			m.interruptStream("Interrupted...what should the agent do instead?")
+		}
+		return *m, nil
 	case keyUp, keyShiftUp:
 		if m.isAtTopOfInput() {
 			m.viewport.ScrollUp(1)
@@ -152,6 +174,22 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	m.textarea, cmd = m.textarea.Update(keyMsg)
 	m.adjustTextareaHeight()
 	return *m, cmd
+}
+
+func (m *replModel) interruptStream(message string) {
+	if m.streamCancel != nil {
+		m.streamCancel()
+		m.clearStreamCancel()
+	}
+
+	m.showSpinner = false
+	for _, line := range m.streamHandler.HandleInterrupt() {
+		m.output.AddLine(line)
+	}
+	m.output.AddStyledLine("\n  "+message, interruptedStyle)
+	m.output.AddEmptyLine()
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
 }
 
 func (m *replModel) handlePermissionKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {

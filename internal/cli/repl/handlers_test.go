@@ -1,6 +1,7 @@
 package repl
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -126,7 +127,7 @@ func TestHandleKeyMsg_Enter(t *testing.T) {
 	}
 }
 
-func TestHandleKeyMsg_CtrlC(t *testing.T) {
+func TestHandleKeyMsg_CtrlC_EmptyInputQuits(t *testing.T) {
 	m := replModel{
 		quitting: false,
 	}
@@ -134,16 +135,93 @@ func TestHandleKeyMsg_CtrlC(t *testing.T) {
 	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 
 	if !newM.quitting {
-		t.Error("expected quitting to be true after ctrl+c")
+		t.Error("expected quitting to be true after ctrl+c with empty input")
 	}
 
 	if cmd == nil {
-		t.Fatal("expected tea.Quit cmd after ctrl+c")
+		t.Fatal("expected tea.Quit cmd after ctrl+c with empty input")
 	}
 
 	msg := cmd()
 	if _, ok := msg.(tea.QuitMsg); !ok {
 		t.Errorf("expected tea.QuitMsg, got %T", msg)
+	}
+}
+
+func TestHandleKeyMsg_CtrlC_WithInputClearsAndDoesNotQuit(t *testing.T) {
+	ta := textarea.New()
+	ta.SetValue("draft text")
+
+	m := replModel{
+		textarea: ta,
+		quitting: false,
+	}
+
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+
+	if newM.textarea.Value() != "" {
+		t.Errorf("expected textarea to be cleared, got %q", newM.textarea.Value())
+	}
+
+	if newM.quitting {
+		t.Error("expected quitting to remain false when ctrl+c clears input")
+	}
+
+	if cmd != nil {
+		t.Error("expected nil cmd when ctrl+c clears input")
+	}
+}
+
+func TestHandleKeyMsg_Esc_WithActiveStreamInterrupts(t *testing.T) {
+	m := newTestModel()
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+	m.streamHandler.HandleChunk("partial response")
+	m.showSpinner = true
+
+	canceled := false
+	m.streamCancel = func() {
+		canceled = true
+	}
+
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	if !canceled {
+		t.Error("expected stream cancel function to be called on esc")
+	}
+	if newM.streamCancel != nil {
+		t.Error("expected stream cancel function to be cleared after esc")
+	}
+	if newM.streamHandler.IsActive() {
+		t.Error("expected stream handler to be inactive after esc interruption")
+	}
+	if newM.showSpinner {
+		t.Error("expected spinner to be hidden after esc interruption")
+	}
+	if !strings.Contains(newM.output.Join(), "partial response") {
+		t.Error("expected streamed partial content to be preserved on interruption")
+	}
+	if !strings.Contains(newM.output.Join(), "Interrupted") {
+		t.Error("expected interrupted message in output")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd for esc interruption")
+	}
+}
+
+func TestHandleKeyMsg_Esc_WhenIdleNoOp(t *testing.T) {
+	m := newTestModel()
+
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	if newM.quitting {
+		t.Error("expected esc to not quit when no active stream")
+	}
+	if len(newM.output.GetLines()) != 0 {
+		t.Error("expected no output when esc pressed without active stream")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd when esc pressed without active stream")
 	}
 }
 
@@ -263,6 +341,36 @@ func TestHandleLLMError_ResetsHandler(t *testing.T) {
 	}
 
 	_ = newM
+}
+
+func TestHandleLLMError_ContextCanceled_DoesNotAddErrorLine(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+	sh.HandleChunk("partial content")
+
+	m := replModel{
+		streamHandler: sh,
+		showSpinner:   true,
+		width:         80,
+		output:        NewOutputBuilder(80),
+		streamCancel:  func() {},
+	}
+
+	newM, cmd := m.handleLLMError(context.Canceled)
+
+	if len(newM.output.GetLines()) != 1 {
+		t.Fatalf("expected only pending transcript line, got %d", len(newM.output.GetLines()))
+	}
+	if strings.Contains(newM.output.Join(), "context canceled") {
+		t.Error("expected cancellation to not render an error line")
+	}
+	if newM.streamCancel != nil {
+		t.Error("expected stream cancel function to be cleared")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd")
+	}
 }
 
 func TestHandleKeyMsg_SpecialCharacters(t *testing.T) {

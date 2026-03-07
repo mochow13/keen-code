@@ -72,6 +72,9 @@ var (
 	toolStartStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFA500")).
 			Bold(true)
+	interruptedStyle = lipgloss.NewStyle().
+				Foreground(accentColor).
+				Bold(true)
 	toolSuccessStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00AA00"))
 	toolErrorStyle = lipgloss.NewStyle().
