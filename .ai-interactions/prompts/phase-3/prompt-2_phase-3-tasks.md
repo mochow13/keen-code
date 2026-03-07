@@ -1,4 +1,4 @@
-## Design Tools
+## Phase 3 Tasks
 
 ### `dummy_echo` Tool
 1. Ok Kimi, time to start working on @.ai-interactions/outputs/phase-3/output-1_design-tools.md. Create a todo list first. Then implement one by one.

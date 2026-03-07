@@ -86,8 +86,23 @@ func (ob *OutputBuilder) AddToolEnd(toolCall *llm.ToolCall) {
 }
 
 func formatToolStart(toolCall *llm.ToolCall) string {
-	inputJSON := jsonMarshalCompact(toolCall.Input)
-	return "\n  " + toolStartStyle.Render(fmt.Sprintf("⚙ %s(%s)...", toolCall.Name, inputJSON))
+	inputDisplay := formatToolInput(toolCall.Name, toolCall.Input)
+	return "\n  " + toolStartStyle.Render(fmt.Sprintf("⚙ %s(%s)...", toolCall.Name, inputDisplay))
+}
+
+func formatToolInput(toolName string, input map[string]any) string {
+	if input == nil {
+		return ""
+	}
+
+	if toolName == "write_file" {
+		if path, ok := input["path"]; ok {
+			return fmt.Sprintf("path=%v", path)
+		}
+		return ""
+	}
+
+	return jsonMarshalCompact(input)
 }
 
 func formatToolEnd(toolCall *llm.ToolCall) string {

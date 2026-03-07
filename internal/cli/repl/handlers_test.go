@@ -500,3 +500,32 @@ func TestHandleToolEnd_WithError(t *testing.T) {
 		t.Errorf("expected tool end segment with error details")
 	}
 }
+
+func TestHandleLLMStreamMsg_ToolEnd_ReturnsSpinnerTick(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+
+	m := newTestModel()
+	m.streamHandler = sh
+
+	toolCall := &llm.ToolCall{
+		Name:   "test_tool",
+		Input:  map[string]any{"arg1": "value1"},
+		Output: "tool result",
+	}
+
+	updated, cmd, handled := m.handleLLMStreamMsg(llmToolEndMsg{toolCall: toolCall})
+
+	if !handled {
+		t.Error("expected tool end msg to be handled")
+	}
+
+	if !updated.showSpinner {
+		t.Error("expected showSpinner to be true after tool end")
+	}
+
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd to include spinner tick")
+	}
+}

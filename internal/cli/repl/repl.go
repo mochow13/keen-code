@@ -467,6 +467,9 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 		return updated, cmd, true
 	case llmToolEndMsg:
 		updated, cmd := m.handleToolEnd(msg.toolCall)
+		if updated.showSpinner {
+			return updated, tea.Batch(cmd, updated.spinner.Tick), true
+		}
 		return updated, cmd, true
 	default:
 		return m, nil, false

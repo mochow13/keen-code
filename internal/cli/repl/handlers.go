@@ -80,7 +80,7 @@ func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd)
 }
 
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
-	m.showSpinner = false
+	m.showSpinner = true
 	cmd := m.streamHandler.HandleToolEnd(toolCall)
 	m.updateViewportContent()
 	if !m.userScrolled {
