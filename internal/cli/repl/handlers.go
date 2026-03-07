@@ -71,7 +71,14 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 
 func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.showSpinner = false
-	cmd := m.streamHandler.HandleToolStart(toolCall)
+	var cmd tea.Cmd
+	if toolCall.Name == "bash" {
+		command, _ := toolCall.Input["command"].(string)
+		summary, _ := toolCall.Input["summary"].(string)
+		cmd = m.streamHandler.HandleBashStart(command, summary)
+	} else {
+		cmd = m.streamHandler.HandleToolStart(toolCall)
+	}
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
@@ -81,7 +88,12 @@ func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd)
 
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.showSpinner = false
-	cmd := m.streamHandler.HandleToolEnd(toolCall)
+	var cmd tea.Cmd
+	if toolCall.Name == "bash" {
+		cmd = m.streamHandler.HandleBashEnd(toolCall)
+	} else {
+		cmd = m.streamHandler.HandleToolEnd(toolCall)
+	}
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()

@@ -23,18 +23,24 @@ type PermissionSelector struct {
 	path         string
 	resolvedPath string
 	operation    string
+	isDangerous  bool
 	cursor       int
 	choices      []string
 }
 
-func NewPermissionSelector(toolName, path, resolvedPath, operation string) *PermissionSelector {
+func NewPermissionSelector(toolName, path, resolvedPath, operation string, isDangerous bool) *PermissionSelector {
+	choices := []string{"Allow", "Allow for this session", "Deny"}
+	if isDangerous {
+		choices = []string{"Allow", "Deny"}
+	}
 	return &PermissionSelector{
 		toolName:     toolName,
 		path:         path,
 		resolvedPath: resolvedPath,
 		operation:    operation,
+		isDangerous:  isDangerous,
 		cursor:       0,
-		choices:      []string{"Allow", "Allow for this session", "Deny"},
+		choices:      choices,
 	}
 }
 
@@ -71,15 +77,28 @@ func (ps *PermissionSelector) View() tea.View {
 func (ps *PermissionSelector) ViewString() string {
 	var view strings.Builder
 
-	view.WriteString(titleStyle.Render(fmt.Sprintf("Allow %s?", ps.toolName)))
+	if ps.isDangerous {
+		view.WriteString(warningTitleStyle.Render("⚠️ Allow Dangerous Command?"))
+		view.WriteString("\n")
+		view.WriteString(warningTextStyle.Render("The LLM flagged this command as potentially dangerous"))
+	} else {
+		view.WriteString(titleStyle.Render(fmt.Sprintf("Allow %s?", ps.toolName)))
+	}
 	view.WriteString("\n\n")
 
 	view.WriteString("  " + infoLabelStyle.Render("Tool:") + " " + infoValueStyle.Render(ps.toolName))
 	view.WriteString("\n")
-	view.WriteString("  " + infoLabelStyle.Render("Path:") + " " + infoValueStyle.Render(ps.path))
+	if ps.isDangerous {
+		view.WriteString("  " + infoLabelStyle.Render("Command:") + " " + infoValueStyle.Render(ps.path))
+	} else {
+		view.WriteString("  " + infoLabelStyle.Render("Path:") + " " + infoValueStyle.Render(ps.path))
+	}
 	view.WriteString("\n")
-	view.WriteString("  " + infoLabelStyle.Render("Resolved:") + " " + infoValueStyle.Render(ps.resolvedPath))
-	view.WriteString("\n\n")
+	if ps.resolvedPath != "" {
+		view.WriteString("  " + infoLabelStyle.Render("Resolved:") + " " + infoValueStyle.Render(ps.resolvedPath))
+		view.WriteString("\n")
+	}
+	view.WriteString("\n")
 
 	for i, choice := range ps.choices {
 		cursorStr := "  "
@@ -97,6 +116,12 @@ func (ps *PermissionSelector) ViewString() string {
 }
 
 func (ps *PermissionSelector) GetChoice() PermissionChoice {
+	if ps.isDangerous {
+		if ps.cursor == 0 {
+			return PermissionChoiceAllow
+		}
+		return PermissionChoiceDeny
+	}
 	return PermissionChoice(ps.cursor)
 }
 

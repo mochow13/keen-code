@@ -89,4 +89,19 @@ var (
 	inputBorderStyle = lipgloss.NewStyle().
 				BorderStyle(lipgloss.ThickBorder()).
 				BorderForeground(primaryColor)
+	warningTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#DC2626"))
+	warningTextStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#EF4444"))
+	bashCommandStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(secondaryColor)
+	bashOutputStyle = lipgloss.NewStyle().
+			Foreground(compat.AdaptiveColor{
+			Light: lipgloss.Color("#374151"),
+			Dark:  lipgloss.Color("#E5E7EB"),
+		})
+	bashSummaryStyle = lipgloss.NewStyle().
+				Foreground(mutedColor)
 )

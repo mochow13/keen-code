@@ -23,12 +23,16 @@ const (
 	segmentAssistant streamSegmentType = "assistant"
 	segmentToolStart streamSegmentType = "tool_start"
 	segmentToolEnd   streamSegmentType = "tool_end"
+	segmentBash      streamSegmentType = "bash"
 )
 
 type streamSegment struct {
 	kind          streamSegmentType
 	content       string
 	toolCall      *llm.ToolCall
+	command       string
+	summary       string
+	output        string
 	renderedLines []string
 }
 
@@ -82,6 +86,42 @@ func (sh *StreamHandler) HandleToolStart(toolCall *llm.ToolCall) tea.Cmd {
 
 func (sh *StreamHandler) HandleToolEnd(toolCall *llm.ToolCall) tea.Cmd {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentToolEnd, toolCall: toolCall})
+	return sh.waitForNextEvent()
+}
+
+func (sh *StreamHandler) HandleBashStart(command, summary string) tea.Cmd {
+	sh.segments = append(sh.segments, streamSegment{
+		kind:    segmentBash,
+		command: command,
+		summary: summary,
+	})
+	return sh.waitForNextEvent()
+}
+
+func (sh *StreamHandler) HandleBashOutput(chunk string) tea.Cmd {
+	n := len(sh.segments)
+	if n > 0 && sh.segments[n-1].kind == segmentBash {
+		sh.segments[n-1].output += chunk
+	}
+	return sh.waitForNextEvent()
+}
+
+func (sh *StreamHandler) HandleBashEnd(toolCall *llm.ToolCall) tea.Cmd {
+	n := len(sh.segments)
+	if n > 0 && sh.segments[n-1].kind == segmentBash {
+		if result, ok := toolCall.Output.(map[string]any); ok {
+			if stdout, ok := result["stdout"].(string); ok {
+				sh.segments[n-1].output = stdout
+			}
+			if stderr, ok := result["stderr"].(string); ok && stderr != "" {
+				if sh.segments[n-1].output != "" {
+					sh.segments[n-1].output += "\n"
+				}
+				sh.segments[n-1].output += stderr
+			}
+		}
+		sh.segments[n-1].toolCall = toolCall
+	}
 	return sh.waitForNextEvent()
 }
 
@@ -181,6 +221,9 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 			if seg.toolCall != nil {
 				lines = append(lines, formatToolEnd(seg.toolCall))
 			}
+		case segmentBash:
+			bashLines := sh.renderBashSegment(seg, width)
+			lines = append(lines, bashLines...)
 		case segmentAssistant:
 			if seg.renderedLines == nil || i == lastAssistantIdx {
 				seg.renderedLines = sh.renderAssistantViewLines(seg.content, width)
@@ -205,6 +248,9 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 			if segment.toolCall != nil {
 				lines = append(lines, formatToolEnd(segment.toolCall))
 			}
+		case segmentBash:
+			bashLines := sh.renderBashSegment(&segment, 0)
+			lines = append(lines, bashLines...)
 		case segmentAssistant:
 			lines = append(lines, sh.renderAssistantTranscriptLines(segment.content)...)
 		}
@@ -272,6 +318,33 @@ func formatResponseLines(response string) []string {
 		result[i] = "  " + line
 	}
 	return result
+}
+
+func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []string {
+	lines := make([]string, 0)
+
+	lines = append(lines, "")
+	lines = append(lines, bashCommandStyle.Render("$ "+seg.command))
+
+	if seg.summary != "" {
+		lines = append(lines, bashSummaryStyle.Render("› "+seg.summary))
+	}
+
+	lines = append(lines, "")
+
+	if seg.output != "" {
+		outputLines := strings.SplitSeq(seg.output, "\n")
+		for line := range outputLines {
+			if width > 0 {
+				wrapStyle := lipgloss.NewStyle().Width(width - 4)
+				lines = append(lines, "  "+bashOutputStyle.Render(wrapStyle.Render(line)))
+			} else {
+				lines = append(lines, "  "+bashOutputStyle.Render(line))
+			}
+		}
+	}
+
+	return lines
 }
 
 type llmChunkMsg string

@@ -22,4 +22,7 @@ func setupToolRegistry(
 
 	grepTool := tools.NewGrepTool(guard, permissionRequester)
 	appState.RegisterTool(grepTool)
+
+	bashTool := tools.NewBashTool(guard, permissionRequester)
+	appState.RegisterTool(bashTool)
 }

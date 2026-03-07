@@ -10,6 +10,7 @@ type PermissionRequest struct {
 	Path         string
 	ResolvedPath string
 	Operation    string
+	IsDangerous  bool
 	ResponseChan chan bool
 }
 
@@ -29,9 +30,9 @@ func NewREPLPermissionRequester() *REPLPermissionRequester {
 	}
 }
 
-func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string) (bool, error) {
+func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string, isDangerous bool) (bool, error) {
 	r.mu.Lock()
-	if r.sessionAllowedTools[toolName] {
+	if !isDangerous && r.sessionAllowedTools[toolName] {
 		r.mu.Unlock()
 		return true, nil
 	}
@@ -42,6 +43,7 @@ func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolNam
 		Path:         path,
 		ResolvedPath: resolvedPath,
 		Operation:    operation,
+		IsDangerous:  isDangerous,
 		ResponseChan: make(chan bool, 1),
 	}
 
@@ -79,8 +81,10 @@ func (r *REPLPermissionRequester) SendResponse(choice PermissionChoice, toolName
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	isDangerous := r.pending != nil && r.pending.IsDangerous
 	allowed := choice == PermissionChoiceAllow || choice == PermissionChoiceAllowSession
-	if choice == PermissionChoiceAllowSession {
+
+	if choice == PermissionChoiceAllowSession && !isDangerous {
 		r.sessionAllowedTools[toolName] = true
 	}
 
