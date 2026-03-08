@@ -426,7 +426,7 @@ func (m replModel) consumePermissionRequest(msg tea.Msg) (replModel, tea.Cmd, bo
 		if tickMsg, ok := msg.(spinner.TickMsg); ok && m.showSpinner {
 			m.spinner, cmd = m.spinner.Update(tickMsg)
 		}
-		m.permissionSelector = NewPermissionSelector(req.ToolName, req.Path, req.ResolvedPath, req.Operation)
+		m.permissionSelector = NewPermissionSelector(req.ToolName, req.Path, req.ResolvedPath, req.Operation, req.IsDangerous)
 		return m, cmd, true
 	default:
 		return m, nil, false

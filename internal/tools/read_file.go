@@ -14,7 +14,7 @@ const (
 )
 
 type PermissionRequester interface {
-	RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string) (bool, error)
+	RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string, isDangerous bool) (bool, error)
 }
 
 type ReadFileTool struct {
@@ -81,7 +81,7 @@ func (t *ReadFileTool) Execute(ctx context.Context, input any) (any, error) {
 		if t.permissionRequester == nil {
 			return nil, fmt.Errorf("permission denied: user approval required but not available")
 		}
-		allowed, err := t.permissionRequester.RequestPermission(ctx, t.Name(), path, resolvedPath, "read")
+		allowed, err := t.permissionRequester.RequestPermission(ctx, t.Name(), path, resolvedPath, "read", false)
 		if err != nil {
 			return nil, fmt.Errorf("permission request failed: %w", err)
 		}

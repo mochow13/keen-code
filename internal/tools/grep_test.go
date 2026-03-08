@@ -14,7 +14,7 @@ type mockGrepPermissionRequester struct {
 	allow bool
 }
 
-func (m *mockGrepPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string) (bool, error) {
+func (m *mockGrepPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string, isDangerous bool) (bool, error) {
 	return m.allow, nil
 }
 

@@ -40,7 +40,7 @@ func TestUpdate_PermissionSelector_AllowsToolStartEvent(t *testing.T) {
 	sh.Start(eventCh, "Loading...")
 
 	m := replModel{
-		permissionSelector: NewPermissionSelector("read_file", "../foo.txt", "/tmp/foo.txt", "read"),
+		permissionSelector: NewPermissionSelector("read_file", "../foo.txt", "/tmp/foo.txt", "read", false),
 		streamHandler:      sh,
 		showSpinner:        true,
 		width:              80,
@@ -240,7 +240,7 @@ func TestUpdate_RoutesToNormalMode(t *testing.T) {
 
 func TestUpdate_RoutesToPermissionMode(t *testing.T) {
 	m := newTestModel()
-	m.permissionSelector = NewPermissionSelector("tool", "path", "/resolved", "read")
+	m.permissionSelector = NewPermissionSelector("tool", "path", "/resolved", "read", false)
 
 	result, _ := m.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
 	updated := result.(*replModel)

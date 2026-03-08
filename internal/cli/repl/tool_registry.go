@@ -25,4 +25,7 @@ func setupToolRegistry(
 
 	writeFileTool := tools.NewWriteFileTool(guard, permissionRequester)
 	appState.RegisterTool(writeFileTool)
+
+	bashTool := tools.NewBashTool(guard, permissionRequester)
+	appState.RegisterTool(bashTool)
 }

@@ -109,7 +109,7 @@ func formatToolEnd(toolCall *llm.ToolCall) string {
 	if toolCall.Error != "" {
 		return "  " + toolErrorStyle.Render(fmt.Sprintf("✗ %s failed: %s", toolCall.Name, toolCall.Error))
 	}
-	return "  " + toolSuccessStyle.Render(fmt.Sprintf("✓ %s (%s)", toolCall.Name, toolCall.Duration))
+	return "  " + toolSuccessStyle.Render(fmt.Sprintf("✓ %s (%s)", toolCall.Name, toolCall.Duration)) + "\n"
 }
 
 func jsonMarshalCompact(v map[string]any) string {
