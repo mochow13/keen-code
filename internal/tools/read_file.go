@@ -13,10 +13,6 @@ const (
 	maxFileSize = 10_485_760 // 10MB
 )
 
-type PermissionRequester interface {
-	RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string, isDangerous bool) (bool, error)
-}
-
 type ReadFileTool struct {
 	guard               *filesystem.Guard
 	permissionRequester PermissionRequester
