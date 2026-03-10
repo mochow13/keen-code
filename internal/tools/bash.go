@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/user/keen-cli/internal/filesystem"
+	"github.com/user/keen-code/internal/filesystem"
 )
 
 const (

@@ -1,8 +1,8 @@
 package repl
 
 import (
-	"github.com/user/keen-cli/internal/filesystem"
-	"github.com/user/keen-cli/internal/tools"
+	"github.com/user/keen-code/internal/filesystem"
+	"github.com/user/keen-code/internal/tools"
 )
 
 func setupToolRegistry(

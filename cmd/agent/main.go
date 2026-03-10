@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	clicmd "github.com/user/keen-cli/internal/cli/cmd"
+	clicmd "github.com/user/keen-code/internal/cli/cmd"
 )
 
 const version = "0.1.0"

@@ -3,7 +3,7 @@ package llm
 import (
 	"fmt"
 
-	"github.com/user/keen-cli/internal/config"
+	"github.com/user/keen-code/internal/config"
 )
 
 type Provider string

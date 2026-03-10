@@ -8,8 +8,8 @@ import (
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
-	"github.com/user/keen-cli/internal/config"
-	"github.com/user/keen-cli/internal/tools"
+	"github.com/user/keen-code/internal/config"
+	"github.com/user/keen-code/internal/tools"
 )
 
 func TestGenkitClient_StreamChat_Success(t *testing.T) {

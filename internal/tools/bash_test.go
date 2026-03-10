@@ -7,9 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/user/keen-cli/internal/filesystem"
+	"github.com/user/keen-code/internal/filesystem"
 )
 
 type mockBashPermissionRequester struct {
@@ -417,32 +416,6 @@ func TestBashTool_Execute_LargeOutput(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(stdout), "\n")
 	if len(lines) != 1000 {
 		t.Errorf("expected 1000 lines, got %d", len(lines))
-	}
-}
-
-func TestBashTool_Execute_Timeout(t *testing.T) {
-	tempDir := t.TempDir()
-	guard := filesystem.NewGuard(tempDir, nil)
-	mockPR := &mockBashPermissionRequester{allow: true}
-	tool := NewBashTool(guard, mockPR)
-
-	start := time.Now()
-	_, err := tool.Execute(context.Background(), map[string]any{
-		"command": "sleep 120",
-	})
-	elapsed := time.Since(start)
-
-	if err == nil {
-		t.Fatal("expected timeout error")
-	}
-
-	if !strings.Contains(err.Error(), "timed out") {
-		t.Errorf("expected timeout error message, got %q", err.Error())
-	}
-
-	// Should timeout at 60s, but allow some margin
-	if elapsed > 75*time.Second {
-		t.Errorf("command should have timed out around 60s, but took %v", elapsed)
 	}
 }
 

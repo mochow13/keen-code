@@ -36,9 +36,6 @@ var (
 	highlightStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor).
 			Bold(true)
-	modeStyle = lipgloss.NewStyle().
-			Foreground(accentColor).
-			Bold(true)
 	tipStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
 			Italic(true)

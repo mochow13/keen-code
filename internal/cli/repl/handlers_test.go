@@ -8,8 +8,8 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"github.com/user/keen-cli/internal/cli/modelselection"
-	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-code/internal/cli/modelselection"
+	"github.com/user/keen-code/internal/llm"
 )
 
 func TestHandleLLMChunk(t *testing.T) {

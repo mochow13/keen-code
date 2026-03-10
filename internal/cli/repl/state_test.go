@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/user/keen-cli/internal/config"
-	"github.com/user/keen-cli/internal/llm"
-	"github.com/user/keen-cli/internal/tools"
+	"github.com/user/keen-code/internal/config"
+	"github.com/user/keen-code/internal/llm"
+	"github.com/user/keen-code/internal/tools"
 )
 
 type mockLLMClient struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/user/keen-cli/internal/filesystem"
+	"github.com/user/keen-code/internal/filesystem"
 )
 
 type WriteFileTool struct {

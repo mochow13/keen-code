@@ -12,10 +12,10 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/user/keen-cli/configs/providers"
-	"github.com/user/keen-cli/internal/cli/modelselection"
-	"github.com/user/keen-cli/internal/config"
-	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-code/configs/providers"
+	"github.com/user/keen-code/internal/cli/modelselection"
+	"github.com/user/keen-code/internal/config"
+	"github.com/user/keen-code/internal/llm"
 )
 
 const (

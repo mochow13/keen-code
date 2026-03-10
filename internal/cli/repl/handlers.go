@@ -6,8 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/user/keen-cli/internal/cli/modelselection"
-	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-code/internal/cli/modelselection"
+	"github.com/user/keen-code/internal/llm"
 )
 
 const (
@@ -87,7 +87,7 @@ func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd)
 }
 
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
-	m.showSpinner = false
+	m.showSpinner = true
 	var cmd tea.Cmd
 	if toolCall.Name == "bash" {
 		cmd = m.streamHandler.HandleBashEnd(toolCall)

@@ -3,7 +3,7 @@ package llm
 import (
 	"testing"
 
-	"github.com/user/keen-cli/internal/config"
+	"github.com/user/keen-code/internal/config"
 )
 
 func TestNewClient_MissingAPIKey(t *testing.T) {

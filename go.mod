@@ -1,4 +1,4 @@
-module github.com/user/keen-cli
+module github.com/user/keen-code
 
 go 1.25.7
 

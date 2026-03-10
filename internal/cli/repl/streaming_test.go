@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-code/internal/llm"
 )
 
 func TestStreamHandler_HandleChunk(t *testing.T) {

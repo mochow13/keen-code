@@ -14,3 +14,8 @@
 6. The UI for `edit_file` tool will be different than other tools. It will show the file content with the changes highlighted like a `git diff`. First the diff will be shown, then the user will be asked to confirm the changes. If the user confirms, the changes will be applied to the file.
 7. If the permission is already granted for writing, the diff will be shown and also the file will be edited.
 8. It's important that the UI experience is seamless for the user.
+
+### Execution
+
+1. Check the PRD in @.ai-interactions/prompts/phase-3/prompt-8_edit-file-tool.md and plan in @.ai-interactions/outputs/phase-3/output-8_edit-file-tool.md. Review them and let's check for potential overkill or premature optimisation.
+2. We will ignore the possible improvements in the plan for now. Let's implement it.

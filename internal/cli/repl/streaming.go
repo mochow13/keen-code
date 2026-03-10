@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-code/internal/llm"
 )
 
 type StreamHandler struct {

@@ -10,7 +10,7 @@ import (
 	"regexp"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/user/keen-cli/internal/filesystem"
+	"github.com/user/keen-code/internal/filesystem"
 )
 
 const maxMatchLimit = 1000

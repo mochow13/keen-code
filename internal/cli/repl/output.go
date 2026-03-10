@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/user/keen-cli/internal/llm"
+	"github.com/user/keen-code/internal/llm"
 )
 
 type OutputBuilder struct {

@@ -12,8 +12,8 @@ import (
 	"github.com/firebase/genkit/go/plugins/anthropic"
 	"github.com/firebase/genkit/go/plugins/compat_oai"
 	"github.com/firebase/genkit/go/plugins/googlegenai"
-	"github.com/user/keen-cli/internal/config"
-	"github.com/user/keen-cli/internal/tools"
+	"github.com/user/keen-code/internal/config"
+	"github.com/user/keen-code/internal/tools"
 )
 
 const maxToolTurns = 2000

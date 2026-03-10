@@ -2,7 +2,7 @@ package llm
 
 import (
 	"github.com/firebase/genkit/go/ai"
-	"github.com/user/keen-cli/internal/tools"
+	"github.com/user/keen-code/internal/tools"
 )
 
 func ToGenkitTool(t tools.Tool) *ai.ToolDef[any, any] {
