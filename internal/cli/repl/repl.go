@@ -236,6 +236,8 @@ func (m *replModel) startModelSelection() replModel {
 		m.ctx.cfg,
 		onComplete,
 	)
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
 	return *m
 }
 
@@ -327,15 +329,25 @@ func (m *replModel) updateViewportContent() {
 		content.WriteString(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()))
 	}
 
+	if m.modelSelection != nil {
+		content.WriteString(formatModelSelectionCard(m.modelSelection))
+	}
+
 	m.viewport.SetContent(content.String())
 }
 
-func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.modelSelection != nil {
-		updated, cmd := m.handleKeyMsg(msg)
-		return &updated, cmd
+func formatModelSelectionCard(ms *modelselection.Model) string {
+	boxed := permissionCardStyle.Render(ms.ViewString())
+	lines := strings.Split(strings.TrimRight(boxed, "\n"), "\n")
+	var sb strings.Builder
+	sb.WriteString("\n")
+	for _, l := range lines {
+		sb.WriteString("  " + l + "\n")
 	}
+	return sb.String()
+}
 
+func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	updatedModel, cmd := m.updateNormalMode(msg)
 	return &updatedModel, cmd
 }
@@ -346,6 +358,10 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	}
 
 	if updated, cmd, handled := m.consumePermissionRequest(msg); handled {
+		return updated, cmd
+	}
+
+	if updated, cmd, handled := m.consumeModelSelectionResult(msg); handled {
 		return updated, cmd
 	}
 
@@ -409,6 +425,34 @@ func (m replModel) consumePermissionRequest(msg tea.Msg) (replModel, tea.Cmd, bo
 	}
 }
 
+func (m replModel) consumeModelSelectionResult(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	if m.modelSelection == nil {
+		return m, nil, false
+	}
+
+	if modelselection.IsComplete(msg) {
+		successMsg := "✓ Updated to " + m.modelSelection.SelectedProvider + " / " + m.modelSelection.SelectedModel
+		m.output.AddStyledLine("  "+successMsg, highlightStyle)
+		m.output.AddEmptyLine()
+		m.modelSelection = nil
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, nil, true
+	}
+
+	if modelselection.IsCancel(msg) {
+		cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
+		m.output.AddStyledLine("  Model selection cancelled", cancelStyle)
+		m.output.AddEmptyLine()
+		m.modelSelection = nil
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, nil, true
+	}
+
+	return m, nil, false
+}
+
 func (m replModel) handleSpinnerTick(msg spinner.TickMsg) (replModel, tea.Cmd, bool) {
 	if !m.showSpinner {
 		return m, nil, false
@@ -425,8 +469,6 @@ func (m replModel) View() tea.View {
 
 	if m.quitting {
 		content = lipgloss.NewStyle().Foreground(mutedColor).Render("\n  Goodbye!\n")
-	} else if m.modelSelection != nil {
-		content = m.modelSelection.ViewString()
 	} else {
 		var view strings.Builder
 

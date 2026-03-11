@@ -5,8 +5,6 @@ import (
 	"errors"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
-	"github.com/user/keen-code/internal/cli/modelselection"
 	"github.com/user/keen-code/internal/llm"
 )
 
@@ -103,31 +101,9 @@ func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	if m.modelSelection != nil {
-		newModel, cmd := m.modelSelection.Update(msg)
-		if ms, ok := newModel.(*modelselection.Model); ok {
-			m.modelSelection = ms
-		}
-
-		if modelselection.IsComplete(msg) {
-			successMsg := "✓ Updated to " + m.modelSelection.SelectedProvider + " / " + m.modelSelection.SelectedModel
-			m.output.AddStyledLine("  "+successMsg, highlightStyle)
-			m.output.AddEmptyLine()
-			m.modelSelection = nil
-			m.updateViewportContent()
-			m.viewport.GotoBottom()
-			return *m, nil
-		}
-
-		if modelselection.IsCancel(msg) {
-			cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
-			m.output.AddStyledLine("  Model selection cancelled", cancelStyle)
-			m.output.AddEmptyLine()
-			m.modelSelection = nil
-			m.updateViewportContent()
-			m.viewport.GotoBottom()
-			return *m, nil
-		}
-
+		var cmd tea.Cmd
+		m.modelSelection, cmd = m.modelSelection.Update(msg)
+		m.updateViewportContent()
 		return *m, cmd
 	}
 

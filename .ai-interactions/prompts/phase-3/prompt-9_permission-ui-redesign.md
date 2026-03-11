@@ -7,3 +7,4 @@
 5. Implement the plan in @.ai-interactions/outputs/phase-3/output-11_permission-ui-redesign.md
 6. We have too many tests in @internal/cli/repl/permission_card_test.go. We only should keep useful tests. Let's trim it.
 7. Move the tests to @internal/cli/repl/streaming_test.go.
+8. Now, we have a permission card. This is better than modal approach. We want to follow the same principle for model selection. The code is mainly in @internal/cli/modelselection/. Let's implement.

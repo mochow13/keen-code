@@ -49,11 +49,7 @@ func New(registry *providers.Registry, globalCfg *config.GlobalConfig, loader *c
 	}
 }
 
-func (m *Model) Init() tea.Cmd {
-	return nil
-}
-
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
@@ -61,7 +57,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	switch m.Step {
 	case StepProvider:
 		switch msg.String() {
@@ -120,7 +116,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) complete() (tea.Model, tea.Cmd) {
+func (m *Model) complete() (*Model, tea.Cmd) {
 	existingKey := ""
 	if providerCfg, exists := m.globalCfg.GetProviderConfig(m.SelectedProvider); exists {
 		existingKey = providerCfg.APIKey
@@ -160,10 +156,6 @@ func (m *Model) complete() (tea.Model, tea.Cmd) {
 	}
 
 	return m, func() tea.Msg { return keyEnter{} }
-}
-
-func (m *Model) View() tea.View {
-	return tea.NewView(m.ViewString())
 }
 
 func (m *Model) ViewString() string {
