@@ -136,6 +136,13 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return *m, nil
 	}
 
+	if m.streamHandler != nil && m.streamHandler.HasPendingPermission() {
+		switch keyMsg.String() {
+		case "up", "k", "down", "j", keyEnter, keyEsc:
+			return m.handlePermissionKeyMsg(keyMsg)
+		}
+	}
+
 	switch keyMsg.String() {
 	case keyEnter:
 		return m.handleEnterKey()
@@ -204,46 +211,84 @@ func (m *replModel) interruptStream(message string) {
 	m.viewport.GotoBottom()
 }
 
-func (m *replModel) handlePermissionKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
-	newModel, cmd := m.permissionSelector.Update(msg)
-	if ps, ok := newModel.(*PermissionSelector); ok {
-		m.permissionSelector = ps
-	}
-
-	if IsPermissionComplete(msg) {
-		choice := m.permissionSelector.GetChoice()
-		toolName := m.permissionSelector.toolName
-		m.permissionRequester.SendResponse(choice, toolName)
-
+func (m *replModel) handlePermissionKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		m.streamHandler.MovePendingCursor(-1)
+		m.updateViewportContent()
+		if !m.userScrolled {
+			m.viewport.GotoBottom()
+		}
+	case "down", "j":
+		m.streamHandler.MovePendingCursor(1)
+		m.updateViewportContent()
+		if !m.userScrolled {
+			m.viewport.GotoBottom()
+		}
+	case keyEnter:
+		req := m.streamHandler.GetPendingPermissionRequest()
+		if req == nil {
+			return *m, nil
+		}
+		choice := m.streamHandler.GetPendingChoice()
+		var status PermissionStatus
 		switch choice {
 		case PermissionChoiceAllow:
-			successMsg := "✓ Permission granted for " + toolName
-			m.output.AddStyledLine("  "+successMsg, highlightStyle)
+			status = PermissionStatusAllowed
 		case PermissionChoiceAllowSession:
-			successMsg := "✓ Permission granted for " + toolName + " (this session)"
-			m.output.AddStyledLine("  "+successMsg, highlightStyle)
+			status = PermissionStatusAllowedSession
 		case PermissionChoiceDeny:
-			cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
-			m.output.AddStyledLine("  Permission denied for "+toolName, cancelStyle)
+			status = PermissionStatusDenied
 		}
-		m.output.AddEmptyLine()
-		m.permissionSelector = nil
+		m.streamHandler.ResolvePendingPermission(status)
+		m.permissionRequester.SendResponse(choice, req.ToolName)
 		m.updateViewportContent()
-		m.viewport.GotoBottom()
-		return *m, nil
+		if !m.userScrolled {
+			m.viewport.GotoBottom()
+		}
+	case keyEsc:
+		req := m.streamHandler.GetPendingPermissionRequest()
+		if req == nil {
+			return *m, nil
+		}
+		m.streamHandler.ResolvePendingPermission(PermissionStatusDenied)
+		m.permissionRequester.SendResponse(PermissionChoiceDeny, req.ToolName)
+		m.updateViewportContent()
+		if !m.userScrolled {
+			m.viewport.GotoBottom()
+		}
+	}
+	return *m, nil
+}
+
+func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	if m.streamHandler == nil || !m.streamHandler.IsActive() {
+		switch msg.(type) {
+		case llmChunkMsg, llmDoneMsg, llmErrorMsg, llmToolStartMsg, llmToolEndMsg:
+			return m, nil, true
+		}
 	}
 
-	if IsPermissionCancel(msg) {
-		toolName := m.permissionSelector.toolName
-		m.permissionRequester.SendResponse(PermissionChoiceDeny, toolName)
-		cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
-		m.output.AddStyledLine("  Permission denied for "+toolName, cancelStyle)
-		m.output.AddEmptyLine()
-		m.permissionSelector = nil
-		m.updateViewportContent()
-		m.viewport.GotoBottom()
-		return *m, nil
+	switch msg := msg.(type) {
+	case llmChunkMsg:
+		updated, cmd := m.handleLLMChunk(string(msg))
+		return updated, cmd, true
+	case llmDoneMsg:
+		updated, cmd := m.handleLLMDone()
+		return updated, cmd, true
+	case llmErrorMsg:
+		updated, cmd := m.handleLLMError(msg.err)
+		return updated, cmd, true
+	case llmToolStartMsg:
+		updated, cmd := m.handleToolStart(msg.toolCall)
+		return updated, cmd, true
+	case llmToolEndMsg:
+		updated, cmd := m.handleToolEnd(msg.toolCall)
+		if updated.showSpinner {
+			return updated, tea.Batch(cmd, updated.spinner.Tick), true
+		}
+		return updated, cmd, true
+	default:
+		return m, nil, false
 	}
-
-	return *m, cmd
 }

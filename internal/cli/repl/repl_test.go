@@ -34,17 +34,27 @@ func newTestModel() replModel {
 	}
 }
 
-func TestUpdate_PermissionSelector_AllowsToolStartEvent(t *testing.T) {
+func TestUpdate_InlinePermission_AllowsToolStartEvent(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
+	req := &PermissionRequest{
+		RequestID:    "1",
+		ToolName:     "read_file",
+		Path:         "../foo.txt",
+		ResolvedPath: "/tmp/foo.txt",
+		Operation:    "read",
+		Status:       PermissionStatusPending,
+		ResponseChan: make(chan bool, 1),
+	}
+	sh.HandlePermissionRequest(req)
+
 	m := replModel{
-		permissionSelector: NewPermissionSelector("read_file", "../foo.txt", "/tmp/foo.txt", "read", false),
-		streamHandler:      sh,
-		showSpinner:        true,
-		width:              80,
-		output:             NewOutputBuilder(80),
+		streamHandler: sh,
+		showSpinner:   true,
+		width:         80,
+		output:        NewOutputBuilder(80),
 	}
 
 	toolCall := &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "../foo.txt"}}
@@ -56,7 +66,7 @@ func TestUpdate_PermissionSelector_AllowsToolStartEvent(t *testing.T) {
 	}
 
 	if updated.showSpinner {
-		t.Error("expected showSpinner to be false after tool start while permission selector is active")
+		t.Error("expected showSpinner to be false after tool start while permission is pending")
 	}
 
 	if len(updated.output.GetLines()) != 0 {
@@ -238,15 +248,32 @@ func TestUpdate_RoutesToNormalMode(t *testing.T) {
 	}
 }
 
-func TestUpdate_RoutesToPermissionMode(t *testing.T) {
+func TestUpdate_RoutesToPermissionHandling(t *testing.T) {
 	m := newTestModel()
-	m.permissionSelector = NewPermissionSelector("tool", "path", "/resolved", "read", false)
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
 
-	result, _ := m.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	req := &PermissionRequest{
+		RequestID:    "1",
+		ToolName:     "read_file",
+		Path:         "foo.txt",
+		ResolvedPath: "/resolved/foo.txt",
+		Operation:    "read",
+		Status:       PermissionStatusPending,
+		ResponseChan: make(chan bool, 1),
+	}
+	m.streamHandler.HandlePermissionRequest(req)
+
+	if !m.streamHandler.HasPendingPermission() {
+		t.Fatal("expected pending permission")
+	}
+
+	// Pressing 'j' should move the cursor down
+	result, _ := m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 	updated := result.(*replModel)
 
-	if updated.permissionSelector == nil {
-		t.Error("expected permission selector to still be active")
+	if !updated.streamHandler.HasPendingPermission() {
+		t.Error("expected pending permission to remain after 'j' key")
 	}
 }
 

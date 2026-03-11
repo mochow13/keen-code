@@ -2,20 +2,38 @@ package repl
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 )
 
+type PermissionStatus string
+
+const (
+	PermissionStatusPending            PermissionStatus = "pending"
+	PermissionStatusAllowed            PermissionStatus = "allowed"
+	PermissionStatusAllowedSession     PermissionStatus = "allowed_session"
+	PermissionStatusDenied             PermissionStatus = "denied"
+	PermissionStatusAutoAllowedSession PermissionStatus = "auto_allowed_session"
+)
+
+var permissionRequestCounter uint64
+
 type PermissionRequest struct {
+	RequestID    string
 	ToolName     string
 	Path         string
 	ResolvedPath string
 	Operation    string
 	IsDangerous  bool
+	Preview      string
+	PreviewKind  string
+	AutoApproved bool
+	Status       PermissionStatus
 	ResponseChan chan bool
 }
 
 type REPLPermissionRequester struct {
 	requestChan         chan *PermissionRequest
-	responseChan        chan bool
 	pending             *PermissionRequest
 	sessionAllowedTools map[string]bool
 }
@@ -23,7 +41,6 @@ type REPLPermissionRequester struct {
 func NewREPLPermissionRequester() *REPLPermissionRequester {
 	return &REPLPermissionRequester{
 		requestChan:         make(chan *PermissionRequest, 1),
-		responseChan:        make(chan bool, 1),
 		sessionAllowedTools: make(map[string]bool),
 	}
 }
@@ -33,12 +50,15 @@ func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolNam
 		return true, nil
 	}
 
+	id := atomic.AddUint64(&permissionRequestCounter, 1)
 	req := &PermissionRequest{
+		RequestID:    fmt.Sprintf("%d", id),
 		ToolName:     toolName,
 		Path:         path,
 		ResolvedPath: resolvedPath,
 		Operation:    operation,
 		IsDangerous:  isDangerous,
+		Status:       PermissionStatusPending,
 		ResponseChan: make(chan bool, 1),
 	}
 

@@ -325,3 +325,350 @@ func TestStreamHandler_WaitForEvent_ReturnsDoneOnClosedChannel(t *testing.T) {
 var _ tea.Msg = llmChunkMsg("")
 var _ tea.Msg = llmDoneMsg{}
 var _ tea.Msg = llmErrorMsg{}
+
+func makeTestPermissionRequest(isDangerous bool) *PermissionRequest {
+	return &PermissionRequest{
+		RequestID:    "test-1",
+		ToolName:     "read_file",
+		Path:         "../secret.txt",
+		ResolvedPath: "/home/user/secret.txt",
+		Operation:    "read",
+		IsDangerous:  isDangerous,
+		Status:       PermissionStatusPending,
+		ResponseChan: make(chan bool, 1),
+	}
+}
+
+func TestStreamHandler_HandlePermissionRequest_AddsSegment(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+
+	if len(sh.segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(sh.segments))
+	}
+	if sh.segments[0].kind != segmentPermission {
+		t.Errorf("expected segmentPermission, got %q", sh.segments[0].kind)
+	}
+	if sh.segments[0].permissionReq != req {
+		t.Error("expected permission request to be stored in segment")
+	}
+}
+
+func TestStreamHandler_HasPendingPermission_True(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+
+	if !sh.HasPendingPermission() {
+		t.Error("expected HasPendingPermission to be true")
+	}
+}
+
+func TestStreamHandler_HasPendingPermission_FalseWhenResolved(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+	sh.ResolvePendingPermission(PermissionStatusAllowed)
+
+	if sh.HasPendingPermission() {
+		t.Error("expected HasPendingPermission to be false after resolution")
+	}
+}
+
+func TestStreamHandler_MovePendingCursor(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+
+	sh.MovePendingCursor(1)
+	if sh.segments[0].permissionCursor != 1 {
+		t.Errorf("expected cursor at 1, got %d", sh.segments[0].permissionCursor)
+	}
+
+	sh.MovePendingCursor(100)
+	if sh.segments[0].permissionCursor != 2 {
+		t.Errorf("expected cursor clamped at 2, got %d", sh.segments[0].permissionCursor)
+	}
+
+	sh.MovePendingCursor(-100)
+	if sh.segments[0].permissionCursor != 0 {
+		t.Errorf("expected cursor clamped at 0, got %d", sh.segments[0].permissionCursor)
+	}
+}
+
+func TestStreamHandler_GetPendingChoice_NonDangerous(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+
+	if sh.GetPendingChoice() != PermissionChoiceAllow {
+		t.Error("expected initial choice to be Allow")
+	}
+
+	sh.MovePendingCursor(1)
+	if sh.GetPendingChoice() != PermissionChoiceAllowSession {
+		t.Error("expected choice at cursor 1 to be AllowSession")
+	}
+
+	sh.MovePendingCursor(1)
+	if sh.GetPendingChoice() != PermissionChoiceDeny {
+		t.Error("expected choice at cursor 2 to be Deny")
+	}
+}
+
+func TestStreamHandler_GetPendingChoice_Dangerous(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(true)
+	sh.HandlePermissionRequest(req)
+
+	sh.MovePendingCursor(1)
+	if sh.GetPendingChoice() != PermissionChoiceDeny {
+		t.Error("expected cursor 1 to be Deny for dangerous (no AllowSession)")
+	}
+}
+
+func TestStreamHandler_ResolvePendingPermission(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+	sh.ResolvePendingPermission(PermissionStatusAllowedSession)
+
+	if sh.segments[0].permissionReq.Status != PermissionStatusAllowedSession {
+		t.Errorf("expected status AllowedSession, got %q", sh.segments[0].permissionReq.Status)
+	}
+}
+
+func TestRenderPermissionCard_Pending(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+
+	view := sh.View(80, false, "")
+
+	if !strings.Contains(view, "Permission Required") {
+		t.Error("expected 'Permission Required' in pending card")
+	}
+	if !strings.Contains(view, "read_file") {
+		t.Error("expected tool name in card")
+	}
+	if !strings.Contains(view, "Allow for this session") {
+		t.Error("expected 'Allow for this session' choice in card")
+	}
+	if !strings.Contains(view, "↑/↓") {
+		t.Error("expected keyboard hint in card")
+	}
+}
+
+func TestRenderPermissionCard_Dangerous(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(true)
+	sh.HandlePermissionRequest(req)
+
+	view := sh.View(80, false, "")
+
+	if !strings.Contains(view, "Allow Dangerous Command") {
+		t.Error("expected dangerous warning in card")
+	}
+	if strings.Contains(view, "Allow for this session") {
+		t.Error("expected no 'Allow for this session' for dangerous operations")
+	}
+}
+
+func TestRenderPermissionCard_Resolved_Allowed(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+	sh.ResolvePendingPermission(PermissionStatusAllowed)
+
+	view := sh.View(80, false, "")
+
+	if !strings.Contains(view, "✓") {
+		t.Error("expected checkmark in resolved allowed card")
+	}
+	if strings.Contains(view, "Permission Required") {
+		t.Error("expected no card title in resolved state")
+	}
+}
+
+func TestRenderPermissionCard_Resolved_Denied(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+	sh.ResolvePendingPermission(PermissionStatusDenied)
+
+	view := sh.View(80, false, "")
+
+	if !strings.Contains(view, "✗") {
+		t.Error("expected X mark in resolved denied card")
+	}
+}
+
+func TestRenderPermissionCard_PreviewTruncation(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	var previewLines []string
+	for i := range permissionPreviewMaxLines + 10 {
+		previewLines = append(previewLines, strings.Repeat("x", i%40))
+	}
+	req.Preview = strings.Join(previewLines, "\n")
+	sh.HandlePermissionRequest(req)
+
+	view := sh.View(80, false, "")
+
+	if !strings.Contains(view, "more preview lines omitted") {
+		t.Error("expected truncation message in card with long preview")
+	}
+}
+
+func TestPermissionTranscript_ResolvedBeforeDone(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+
+	sh.HandleChunk("before permission")
+
+	req := makeTestPermissionRequest(false)
+	sh.HandlePermissionRequest(req)
+	sh.ResolvePendingPermission(PermissionStatusAllowedSession)
+
+	sh.HandleChunk(" after permission")
+
+	lines, _ := sh.HandleDone()
+
+	foundBefore, foundStatus, foundAfter := false, false, false
+	for _, l := range lines {
+		if strings.Contains(l, "before permission") {
+			foundBefore = true
+		}
+		if strings.Contains(l, "✓") && strings.Contains(l, "this session") {
+			foundStatus = true
+		}
+		if strings.Contains(l, "after permission") {
+			foundAfter = true
+		}
+	}
+
+	if !foundBefore {
+		t.Error("expected 'before permission' in transcript")
+	}
+	if !foundStatus {
+		t.Error("expected resolved permission status line in transcript")
+	}
+	if !foundAfter {
+		t.Error("expected 'after permission' in transcript")
+	}
+}
+
+func TestHandleKeyMsg_PermissionEnter_ResolvesAllowed(t *testing.T) {
+	m := newTestModel()
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	m.streamHandler.HandlePermissionRequest(req)
+
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if newM.streamHandler.HasPendingPermission() {
+		t.Error("expected permission to be resolved after Enter")
+	}
+	if req.Status != PermissionStatusAllowed {
+		t.Errorf("expected status Allowed, got %q", req.Status)
+	}
+}
+
+func TestHandleKeyMsg_PermissionEsc_Denies(t *testing.T) {
+	m := newTestModel()
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	m.streamHandler.HandlePermissionRequest(req)
+
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	if newM.streamHandler.HasPendingPermission() {
+		t.Error("expected permission to be resolved after Esc")
+	}
+	if req.Status != PermissionStatusDenied {
+		t.Errorf("expected status Denied, got %q", req.Status)
+	}
+}
+
+func TestHandleKeyMsg_PermissionEnter_AllowSession(t *testing.T) {
+	m := newTestModel()
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	m.streamHandler.HandlePermissionRequest(req)
+
+	m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyDown})
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if req.Status != PermissionStatusAllowedSession {
+		t.Errorf("expected status AllowedSession, got %q", req.Status)
+	}
+	if !newM.permissionRequester.sessionAllowedTools["read_file"] {
+		t.Error("expected read_file to be session-allowed after AllowSession choice")
+	}
+}
+
+func TestHandleKeyMsg_NonPermissionKey_PassesToTextarea(t *testing.T) {
+	m := newTestModel()
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	m.streamHandler.HandlePermissionRequest(req)
+
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	if !newM.streamHandler.HasPendingPermission() {
+		t.Error("expected permission to still be pending after non-permission key")
+	}
+}
+
+func TestHandleKeyMsg_Enter_WhenPermissionPending_DoesNotSubmit(t *testing.T) {
+	m := newTestModel()
+	m.textarea.SetValue("some user input")
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	m.streamHandler.HandlePermissionRequest(req)
+
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if newM.textarea.Value() != "some user input" {
+		t.Error("expected textarea to keep its value when Enter resolves permission")
+	}
+	if newM.streamHandler.HasPendingPermission() {
+		t.Error("expected permission to be resolved")
+	}
+}

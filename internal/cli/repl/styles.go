@@ -46,7 +46,8 @@ var (
 			MarginTop(1)
 	promptStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(primaryColor)
+			Foreground(primaryColor).
+			MarginTop(2)
 	helpCmdStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor).
 			Bold(true).
@@ -89,8 +90,6 @@ var (
 	warningTitleStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("#DC2626"))
-	warningTextStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#EF4444"))
 	bashCommandStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(secondaryColor)
@@ -101,4 +100,14 @@ var (
 		})
 	bashSummaryStyle = lipgloss.NewStyle().
 				Foreground(mutedColor)
+	permissionCardStyle = lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(secondaryColor).
+				Padding(1, 2)
+	permissionTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(secondaryColor)
+	permissionSelectionStyle = lipgloss.NewStyle().
+					Foreground(secondaryColor).
+					Bold(true)
 )

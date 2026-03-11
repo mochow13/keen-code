@@ -1,6 +1,7 @@
 package repl
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,20 +21,23 @@ type StreamHandler struct {
 type streamSegmentType string
 
 const (
-	segmentAssistant streamSegmentType = "assistant"
-	segmentToolStart streamSegmentType = "tool_start"
-	segmentToolEnd   streamSegmentType = "tool_end"
-	segmentBash      streamSegmentType = "bash"
+	segmentAssistant  streamSegmentType = "assistant"
+	segmentToolStart  streamSegmentType = "tool_start"
+	segmentToolEnd    streamSegmentType = "tool_end"
+	segmentBash       streamSegmentType = "bash"
+	segmentPermission streamSegmentType = "permission"
 )
 
 type streamSegment struct {
-	kind          streamSegmentType
-	content       string
-	toolCall      *llm.ToolCall
-	command       string
-	summary       string
-	output        string
-	renderedLines []string
+	kind             streamSegmentType
+	content          string
+	toolCall         *llm.ToolCall
+	command          string
+	summary          string
+	output           string
+	renderedLines    []string
+	permissionReq    *PermissionRequest
+	permissionCursor int
 }
 
 func NewStreamHandler(mdRenderer *MarkdownRenderer) *StreamHandler {
@@ -123,6 +127,81 @@ func (sh *StreamHandler) HandleBashEnd(toolCall *llm.ToolCall) tea.Cmd {
 		sh.segments[n-1].toolCall = toolCall
 	}
 	return sh.waitForNextEvent()
+}
+
+func (sh *StreamHandler) HandlePermissionRequest(req *PermissionRequest) {
+	sh.segments = append(sh.segments, streamSegment{
+		kind:          segmentPermission,
+		permissionReq: req,
+	})
+}
+
+func (sh *StreamHandler) HasPendingPermission() bool {
+	n := len(sh.segments)
+	if n == 0 {
+		return false
+	}
+	seg := &sh.segments[n-1]
+	return seg.kind == segmentPermission &&
+		seg.permissionReq != nil &&
+		seg.permissionReq.Status == PermissionStatusPending
+}
+
+func (sh *StreamHandler) MovePendingCursor(delta int) {
+	n := len(sh.segments)
+	if n == 0 {
+		return
+	}
+	seg := &sh.segments[n-1]
+	if seg.kind != segmentPermission || seg.permissionReq == nil {
+		return
+	}
+	choices := permissionChoices(seg.permissionReq.IsDangerous)
+	newCursor := seg.permissionCursor + delta
+	if newCursor < 0 {
+		newCursor = 0
+	}
+	if newCursor >= len(choices) {
+		newCursor = len(choices) - 1
+	}
+	seg.permissionCursor = newCursor
+}
+
+func (sh *StreamHandler) GetPendingChoice() PermissionChoice {
+	n := len(sh.segments)
+	if n == 0 {
+		return PermissionChoiceDeny
+	}
+	seg := &sh.segments[n-1]
+	if seg.kind != segmentPermission || seg.permissionReq == nil {
+		return PermissionChoiceDeny
+	}
+	return permissionChoiceAt(seg.permissionCursor, seg.permissionReq.IsDangerous)
+}
+
+func (sh *StreamHandler) GetPendingPermissionRequest() *PermissionRequest {
+	n := len(sh.segments)
+	if n == 0 {
+		return nil
+	}
+	seg := &sh.segments[n-1]
+	if seg.kind != segmentPermission || seg.permissionReq == nil {
+		return nil
+	}
+	return seg.permissionReq
+}
+
+func (sh *StreamHandler) ResolvePendingPermission(status PermissionStatus) {
+	n := len(sh.segments)
+	if n == 0 {
+		return
+	}
+	seg := &sh.segments[n-1]
+	if seg.kind != segmentPermission || seg.permissionReq == nil {
+		return
+	}
+	seg.permissionReq.Status = status
+	seg.renderedLines = nil
 }
 
 func (sh *StreamHandler) HandleDone() ([]string, string) {
@@ -229,6 +308,10 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 				seg.renderedLines = sh.renderAssistantViewLines(seg.content, width)
 			}
 			lines = append(lines, seg.renderedLines...)
+		case segmentPermission:
+			if seg.permissionReq != nil {
+				lines = append(lines, renderPermissionCard(seg, width)...)
+			}
 		}
 	}
 
@@ -238,21 +321,26 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 func (sh *StreamHandler) renderTranscriptLines() []string {
 	lines := make([]string, 0)
 
-	for _, segment := range sh.segments {
-		switch segment.kind {
+	for i := range sh.segments {
+		seg := &sh.segments[i]
+		switch seg.kind {
 		case segmentToolStart:
-			if segment.toolCall != nil {
-				lines = append(lines, formatToolStart(segment.toolCall))
+			if seg.toolCall != nil {
+				lines = append(lines, formatToolStart(seg.toolCall))
 			}
 		case segmentToolEnd:
-			if segment.toolCall != nil {
-				lines = append(lines, formatToolEnd(segment.toolCall))
+			if seg.toolCall != nil {
+				lines = append(lines, formatToolEnd(seg.toolCall))
 			}
 		case segmentBash:
-			bashLines := sh.renderBashSegment(&segment, 0)
+			bashLines := sh.renderBashSegment(seg, 0)
 			lines = append(lines, bashLines...)
 		case segmentAssistant:
-			lines = append(lines, sh.renderAssistantTranscriptLines(segment.content)...)
+			lines = append(lines, sh.renderAssistantTranscriptLines(seg.content)...)
+		case segmentPermission:
+			if seg.permissionReq != nil {
+				lines = append(lines, renderPermissionResolved(seg.permissionReq)...)
+			}
 		}
 	}
 
@@ -345,6 +433,96 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []stri
 	}
 
 	return lines
+}
+
+const permissionPreviewMaxLines = 120
+
+func renderPermissionCard(seg *streamSegment, width int) []string {
+	req := seg.permissionReq
+	if req == nil {
+		return nil
+	}
+
+	if req.Status != PermissionStatusPending {
+		return renderPermissionResolved(req)
+	}
+
+	var sb strings.Builder
+
+	if req.IsDangerous {
+		sb.WriteString(warningTitleStyle.Render("⚠  Allow Dangerous Command?"))
+	} else {
+		sb.WriteString(permissionTitleStyle.Render("Permission Required"))
+	}
+	sb.WriteString("\n\n")
+
+	sb.WriteString(infoLabelStyle.Render("Tool:") + " " + infoValueStyle.Render(req.ToolName) + "\n")
+	sb.WriteString(infoLabelStyle.Render("Operation:") + " " + infoValueStyle.Render(req.Operation) + "\n")
+	if req.IsDangerous {
+		sb.WriteString(infoLabelStyle.Render("Command:") + " " + infoValueStyle.Render(req.Path) + "\n")
+	} else {
+		sb.WriteString(infoLabelStyle.Render("Path:") + " " + infoValueStyle.Render(req.Path) + "\n")
+		if req.ResolvedPath != "" {
+			sb.WriteString(infoLabelStyle.Render("Resolved:") + " " + infoValueStyle.Render(req.ResolvedPath) + "\n")
+		}
+	}
+
+	if req.Preview != "" {
+		previewStyle := lipgloss.NewStyle().Foreground(mutedColor)
+		previewLines := strings.Split(req.Preview, "\n")
+		total := len(previewLines)
+		truncated := total > permissionPreviewMaxLines
+		if truncated {
+			previewLines = previewLines[:permissionPreviewMaxLines]
+		}
+		sb.WriteString("\n")
+		for _, l := range previewLines {
+			sb.WriteString(previewStyle.Render(l) + "\n")
+		}
+		if truncated {
+			sb.WriteString(hintStyle.Render(fmt.Sprintf("... %d more preview lines omitted", total-permissionPreviewMaxLines)) + "\n")
+		}
+	}
+
+	sb.WriteString("\n")
+
+	choices := permissionChoices(req.IsDangerous)
+	for i, choice := range choices {
+		if i == seg.permissionCursor {
+			sb.WriteString("> " + permissionSelectionStyle.Render(choice) + "\n")
+		} else {
+			sb.WriteString("  " + normalStyle.Render(choice) + "\n")
+		}
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(hintStyle.Render("[↑/↓ navigate  Enter confirm  Esc deny]"))
+
+	boxed := permissionCardStyle.Render(sb.String())
+	rawLines := strings.Split(strings.TrimRight(boxed, "\n"), "\n")
+	result := make([]string, 0, len(rawLines)+1)
+	result = append(result, "")
+	for _, l := range rawLines {
+		result = append(result, "  "+l)
+	}
+	return result
+}
+
+func renderPermissionResolved(req *PermissionRequest) []string {
+	var line string
+	switch req.Status {
+	case PermissionStatusAllowed:
+		line = "  " + highlightStyle.Render("✓ Permission granted for "+req.ToolName)
+	case PermissionStatusAllowedSession:
+		line = "  " + highlightStyle.Render("✓ Permission granted for "+req.ToolName+" (this session)")
+	case PermissionStatusDenied:
+		line = "  " + lipgloss.NewStyle().Foreground(mutedColor).Render("✗ Permission denied for "+req.ToolName)
+	case PermissionStatusAutoAllowedSession:
+		line = "  " + highlightStyle.Render("✓ Auto-approved for "+req.ToolName+" (session)")
+	default:
+		line = "  " + lipgloss.NewStyle().Foreground(mutedColor).Render("✗ Permission cancelled for "+req.ToolName)
+	}
+	return []string{line}
 }
 
 type llmChunkMsg string

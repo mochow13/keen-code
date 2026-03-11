@@ -65,7 +65,6 @@ type replModel struct {
 	appState            *AppState
 	output              *OutputBuilder
 	modelSelection      *modelselection.Model
-	permissionSelector  *PermissionSelector
 	permissionRequester *REPLPermissionRequester
 	quitting            bool
 	streamHandler       *StreamHandler
@@ -332,11 +331,6 @@ func (m *replModel) updateViewportContent() {
 }
 
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.permissionSelector != nil {
-		updatedModel, cmd := m.updatePermissionMode(msg)
-		return &updatedModel, cmd
-	}
-
 	if m.modelSelection != nil {
 		updated, cmd := m.handleKeyMsg(msg)
 		return &updated, cmd
@@ -344,27 +338,6 @@ func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	updatedModel, cmd := m.updateNormalMode(msg)
 	return &updatedModel, cmd
-}
-
-func (m replModel) updatePermissionMode(msg tea.Msg) (replModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg, permissionKeyEnter, permissionKeyCancel:
-		return m.handlePermissionKeyMsg(msg)
-	case spinner.TickMsg:
-		updated, cmd, handled := m.handleSpinnerTick(msg)
-		if handled {
-			return updated, cmd
-		}
-		return m, nil
-	default:
-		if updated, cmd, handled := m.handleLLMStreamMsg(msg); handled {
-			if m.showSpinner {
-				return updated, tea.Batch(cmd, m.spinner.Tick)
-			}
-			return updated, cmd
-		}
-		return m, nil
-	}
 }
 
 func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
@@ -426,7 +399,10 @@ func (m replModel) consumePermissionRequest(msg tea.Msg) (replModel, tea.Cmd, bo
 		if tickMsg, ok := msg.(spinner.TickMsg); ok && m.showSpinner {
 			m.spinner, cmd = m.spinner.Update(tickMsg)
 		}
-		m.permissionSelector = NewPermissionSelector(req.ToolName, req.Path, req.ResolvedPath, req.Operation, req.IsDangerous)
+		m.streamHandler.HandlePermissionRequest(req)
+		m.showSpinner = false
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
 		return m, cmd, true
 	default:
 		return m, nil, false
@@ -444,45 +420,11 @@ func (m replModel) handleSpinnerTick(msg spinner.TickMsg) (replModel, tea.Cmd, b
 	return m, cmd, true
 }
 
-func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
-	if m.streamHandler == nil || !m.streamHandler.IsActive() {
-		switch msg.(type) {
-		case llmChunkMsg, llmDoneMsg, llmErrorMsg, llmToolStartMsg, llmToolEndMsg:
-			return m, nil, true
-		}
-	}
-
-	switch msg := msg.(type) {
-	case llmChunkMsg:
-		updated, cmd := m.handleLLMChunk(string(msg))
-		return updated, cmd, true
-	case llmDoneMsg:
-		updated, cmd := m.handleLLMDone()
-		return updated, cmd, true
-	case llmErrorMsg:
-		updated, cmd := m.handleLLMError(msg.err)
-		return updated, cmd, true
-	case llmToolStartMsg:
-		updated, cmd := m.handleToolStart(msg.toolCall)
-		return updated, cmd, true
-	case llmToolEndMsg:
-		updated, cmd := m.handleToolEnd(msg.toolCall)
-		if updated.showSpinner {
-			return updated, tea.Batch(cmd, updated.spinner.Tick), true
-		}
-		return updated, cmd, true
-	default:
-		return m, nil, false
-	}
-}
-
 func (m replModel) View() tea.View {
 	var content string
 
 	if m.quitting {
 		content = lipgloss.NewStyle().Foreground(mutedColor).Render("\n  Goodbye!\n")
-	} else if m.permissionSelector != nil {
-		content = m.permissionSelector.ViewString()
 	} else if m.modelSelection != nil {
 		content = m.modelSelection.ViewString()
 	} else {
