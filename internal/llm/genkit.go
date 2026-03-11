@@ -33,8 +33,6 @@ func NewGenkitClient(cfg *ClientConfig) (*GenkitClient, error) {
 	var g *genkit.Genkit
 	var modelName string
 
-	slog.Debug("Initializing genkit", "provider", cfg.Provider, "model", cfg.Model)
-
 	switch cfg.Provider {
 	case config.ProviderAnthropic:
 		g = genkit.Init(ctx, genkit.WithPlugins(&anthropic.Anthropic{
@@ -205,6 +203,7 @@ func (c *GenkitClient) executeTools(
 		start := time.Now()
 
 		input, _ := req.Input.(map[string]any)
+		slog.Debug("Tool request", "tool", req.Name, "input", input)
 		eventCh <- StreamEvent{
 			Type: StreamEventTypeToolStart,
 			ToolCall: &ToolCall{
@@ -235,6 +234,7 @@ func (c *GenkitClient) executeTools(
 
 		if execErr != nil {
 			toolCall.Error = execErr.Error()
+			slog.Debug("Tool response", "tool", req.Name, "error", execErr.Error(), "duration", duration)
 			eventCh <- StreamEvent{
 				Type:     StreamEventTypeToolEnd,
 				ToolCall: toolCall,
@@ -245,6 +245,7 @@ func (c *GenkitClient) executeTools(
 				Output: map[string]any{"error": execErr.Error()},
 			}))
 		} else {
+			slog.Debug("Tool response", "tool", req.Name, "duration", duration)
 			eventCh <- StreamEvent{
 				Type:     StreamEventTypeToolEnd,
 				ToolCall: toolCall,

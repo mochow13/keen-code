@@ -4,42 +4,22 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	clicmd "github.com/user/keen-code/internal/cli/cmd"
+	"github.com/user/keen-code/internal/logging"
 )
 
 const version = "0.1.0"
 
-const (
-	logLevelEnvVar = "KEEN_LOG_LEVEL"
-
-	logLevelDebug   = "debug"
-	logLevelInfo    = "info"
-	logLevelWarn    = "warn"
-	logLevelWarning = "warning"
-	logLevelError   = "error"
-)
-
-func parseLogLevel() slog.Level {
-	switch strings.ToLower(os.Getenv(logLevelEnvVar)) {
-	case logLevelDebug:
-		return slog.LevelDebug
-	case logLevelInfo:
-		return slog.LevelInfo
-	case logLevelWarn, logLevelWarning:
-		return slog.LevelWarn
-	case logLevelError:
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}
-
 func main() {
-	opts := &slog.HandlerOptions{Level: parseLogLevel()}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, opts))
-	slog.SetDefault(logger)
+	cleanup, logFile, err := logging.Init()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing logging: %v\n", err)
+		os.Exit(1)
+	}
+	defer cleanup()
+
+	slog.Debug("Logging initialized", "file", logFile)
 
 	rootCmd := clicmd.NewRootCommand(version)
 	if err := rootCmd.Execute(); err != nil {

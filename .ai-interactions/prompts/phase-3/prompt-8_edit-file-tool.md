@@ -17,5 +17,11 @@
 
 ### Execution
 
-1. Check the PRD in @.ai-interactions/prompts/phase-3/prompt-8_edit-file-tool.md and plan in @.ai-interactions/outputs/phase-3/output-8_edit-file-tool.md. Review them and let's check for potential overkill or premature optimisation.
+1. Check the PRD in @.ai-interactions/prompts/phase-3/prompt-8_edit-file-tool.md and plan in @.ai-interactions/outputs/phase-3/output-10_edit-file-tool.md. Review them and let's check for potential overkill or premature optimisation.
 2. We will ignore the possible improvements in the plan for now. Let's implement it.
+3. If permission is already given, any edit the LLM is asked for doesn't happen. Also no diff is shown. Check why.
+4. So what we want is this:
+- If LLM tries to update a file but there is no permission, a permission is asked along with showing the diff.
+- If permission is already given for the session, the diff is still shown.
+Give me some possible approaches for this.
+5. 
