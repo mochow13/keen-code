@@ -212,7 +212,7 @@ func (t *GrepTool) requestPermission(ctx context.Context, basePath, resolvedPath
 		return fmt.Errorf("permission denied: user approval required but not available")
 	}
 
-	allowed, err := t.permissionRequester.RequestPermission(ctx, t.Name(), basePath, resolvedPath, "read", false)
+	allowed, err := t.permissionRequester.RequestPermission(ctx, t.Name(), basePath, resolvedPath, false)
 	if err != nil {
 		return fmt.Errorf("permission request failed: %w", err)
 	}

@@ -452,12 +452,11 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 	if req.IsDangerous {
 		sb.WriteString(warningTitleStyle.Render("⚠  Allow Dangerous Command?"))
 	} else {
-		sb.WriteString(permissionTitleStyle.Render("Permission Required"))
+		sb.WriteString(userPromptStyle.Render("Permission Required"))
 	}
 	sb.WriteString("\n\n")
 
 	sb.WriteString(infoLabelStyle.Render("Tool:") + " " + infoValueStyle.Render(req.ToolName) + "\n")
-	sb.WriteString(infoLabelStyle.Render("Operation:") + " " + infoValueStyle.Render(req.Operation) + "\n")
 	if req.IsDangerous {
 		sb.WriteString(infoLabelStyle.Render("Command:") + " " + infoValueStyle.Render(req.Path) + "\n")
 	} else {
@@ -489,7 +488,8 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 	choices := permissionChoices(req.IsDangerous)
 	for i, choice := range choices {
 		if i == seg.permissionCursor {
-			sb.WriteString("> " + permissionSelectionStyle.Render(choice) + "\n")
+			sb.WriteString(userPromptSelectionStyle.Render("> " + choice))
+			sb.WriteString("\n")
 		} else {
 			sb.WriteString("  " + normalStyle.Render(choice) + "\n")
 		}
@@ -498,7 +498,7 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 	sb.WriteString("\n")
 	sb.WriteString(hintStyle.Render("[↑/↓ navigate  Enter confirm  Esc deny]"))
 
-	boxed := permissionCardStyle.Render(sb.String())
+	boxed := userPromptCardStyle.Render(sb.String())
 	rawLines := strings.Split(strings.TrimRight(boxed, "\n"), "\n")
 	result := make([]string, 0, len(rawLines)+1)
 	result = append(result, "")

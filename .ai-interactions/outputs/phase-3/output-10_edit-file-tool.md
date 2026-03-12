@@ -1,452 +1,320 @@
-# `edit_file` Tool Implementation Plan (Simplified)
+# Plan: `edit_file` Tool
 
-Based on the PRD at `.ai-interactions/prompts/phase-3/prompt-8_edit-file-tool.md`.
+## Context
 
-## Overview
+The agent currently has `read_file` and `write_file` tools but no way to make targeted edits to existing files. The `edit_file` tool enables the LLM to replace strings in files with a Git-style diff shown inline in the REPL UI before the edit is applied.
 
-The `edit_file` tool allows the LLM to perform string-replacement edits on existing files. Its key differentiator from `write_file` is a **diff-first UX**: the user always sees a git-style diff of the proposed changes before they are applied. The tool hooks into the existing permission architecture while introducing a minimal REPL extension for diff review.
+## Files to Modify/Create
 
----
+**New:**
+- `internal/tools/edit_file.go`
+- `internal/tools/edit_file_test.go`
 
-## Requirements Mapping
-
-| PRD Requirement | Design Decision |
-|---|---|
-| File must exist | `os.Stat` before reading; return error if not found |
-| 4 inputs: `path`, `oldString`, `newString`, `shouldReplaceAll` | Standard tool schema; all required except `shouldReplaceAll` (defaults to `false`) |
-| Return `success`, `path`, `replacementCount` | Success result map with those three fields |
-| Use existing permission mechanisms | Extend `PermissionRequest` with `DiffPreview` field |
-| Show git-style diff before applying | Use `github.com/sergi/go-diff/diffmatchpatch` library |
-| Ask confirm if permission not auto-granted | Diff embedded in `PermissionRequest`, rendered by `PermissionSelector` |
-| If permission already granted (session), show diff and auto-apply | Same flow - diff generated and returned in result, displayed in output |
-| Seamless UX | No double confirmation; diff and permission decision are one step |
+**Modified:**
+- `internal/tools/permission.go` — add `EditDiffLine` types + `EditPermissionRequester` interface
+- `internal/cli/repl/permission_requester.go` — add `DiffLines` to `PermissionRequest`, implement `RequestEditPermission`
+- `internal/cli/repl/streaming.go` — render diff lines in permission card
+- `internal/cli/repl/styles.go` — add 5 diff-specific styles
+- `internal/cli/repl/output.go` — add `edit_file` to `formatToolInput` special cases
+- `internal/cli/repl/repl.go` — auto-respond in `consumePermissionRequest` when `AutoApproved`
+- `internal/cli/repl/tool_registry.go` — register `EditFileTool`
 
 ---
 
-## Key Simplifications from Original Plan
+## Step 1: Types & Interface — `internal/tools/permission.go`
 
-1. **Use existing diff library** (`github.com/sergi/go-diff/diffmatchpatch`) instead of custom LCS algorithm
-2. **Extend `PermissionRequest`** with `DiffPreview` field instead of creating new `EditPermissionRequester` interface
-3. **Extend existing `RequestPermission()`** method with optional `diffPreview` parameter
-4. **Skip special notification channel** - diff renders inline with permission prompt
-5. **Skip "Editing..." streaming indicator** - unnecessary ceremony
-6. **Combine REPL phases** into cohesive updates
+Add after the existing `PermissionRequester` interface:
 
----
+```go
+type EditDiffLineKind int
 
-## Architecture
+const (
+    DiffLineContext EditDiffLineKind = iota
+    DiffLineAdded
+    DiffLineRemoved
+    DiffLineHunk
+)
 
+type EditDiffLine struct {
+    Kind       EditDiffLineKind
+    OldLineNum int    // 0 for added lines and hunk headers
+    NewLineNum int    // 0 for removed lines and hunk headers
+    Content    string // raw line content without +/- prefix
+}
+
+type EditPermissionRequester interface {
+    PermissionRequester
+    RequestEditPermission(ctx context.Context, path, resolvedPath string, diffLines []EditDiffLine) (bool, error)
+}
 ```
-edit_file.Execute():
-  1. Validate inputs (path, oldString, newString, shouldReplaceAll)
-  2. Check guard permissions (blocked paths)
-  3. Resolve path and verify file exists
-  4. Read file content
-  5. Perform string replacement (strings.Replace or ReplaceAll)
-  6. Generate unified diff using go-diff library
-  7. Call permissionRequester.RequestPermission(ctx, toolName, path, resolvedPath, "write", false, diffString)
-  8. If approved: write new content to file
-  9. Return {success, path, replacementCount}
-```
 
 ---
 
-## Files to Create / Modify
+## Step 2: `internal/tools/edit_file.go`
 
-| File | Action | Details |
-|------|--------|---------|
-| `internal/tools/edit_file.go` | Create | Tool implementation with diff generation |
-| `internal/tools/edit_file_test.go` | Create | Unit tests for all scenarios |
-| `internal/cli/repl/permission_requester.go` | Modify | Add `DiffPreview` to `PermissionRequest`; extend `RequestPermission()` signature with optional `diffPreview` parameter |
-| `internal/cli/repl/permission_selector.go` | Modify | Add `diffPreview` field; render colored diff in `ViewString()` when present |
-| `internal/cli/repl/styles.go` | Modify | Add `diffAddStyle` (green) and `diffRemoveStyle` (red) |
-| `internal/cli/repl/tool_registry.go` | Modify | Register `EditFileTool` |
-| `go.mod` | Modify | Add `github.com/sergi/go-diff/diffmatchpatch` dependency |
+### Structure
 
----
-
-## Phase 1: Core Tool
-
-### 1. Create `internal/tools/edit_file.go`
-
-**Imports:**
-- Standard: `context`, `fmt`, `os`, `strings`
-- Internal: `github.com/user/keen-cli/internal/filesystem`
-- External: `github.com/sergi/go-diff/diffmatchpatch`
-
-**Struct `EditFileTool`:**
 ```go
 type EditFileTool struct {
     guard               *filesystem.Guard
-    permissionRequester PermissionRequester
+    permissionRequester EditPermissionRequester
+}
+
+func NewEditFileTool(guard *filesystem.Guard, permissionRequester EditPermissionRequester) *EditFileTool
+```
+
+### `InputSchema`
+
+Properties: `path` (string, required), `oldString` (string, required), `newString` (string, required), `shouldReplaceAll` (bool, optional).
+
+### `Execute` logic
+
+1. Parse inputs; validate `path`, `oldString`, `newString` (same pattern as `write_file.go:50-74`)
+2. `resolvedPath, err := t.guard.ResolvePath(path)`
+3. Check `t.guard.CheckPath(path, "edit")` — deny if `PermissionDenied`
+4. Read file using `readFileContent(resolvedPath)` (reuse from `read_file.go`) — returns error if file doesn't exist
+5. Validate `strings.Contains(oldContent, oldString)` — error if not found
+6. Apply replacement: `strings.ReplaceAll` or `strings.Replace(..., 1)` depending on `shouldReplaceAll`; track `replacementCount`
+7. Compute diff: `diffLines := computeEditDiff(oldContent, newContent, oldString, newString, shouldReplaceAll)`
+8. If `t.permissionRequester == nil`, return error
+9. `allowed, err := t.permissionRequester.RequestEditPermission(ctx, path, resolvedPath, diffLines)`
+10. If not allowed, return error
+11. Write: `os.WriteFile(resolvedPath, []byte(newContent), 0644)`
+12. Return `map[string]any{"success": true, "path": resolvedPath, "replacementCount": replacementCount}`
+
+### `computeEditDiff` (unexported, same file)
+
+Use **`github.com/aymanbagabas/go-udiff`** (already in `go.sum` as a transitive dep; `go get` promotes it to direct).
+
+```go
+import "github.com/aymanbagabas/go-udiff"
+
+func computeEditDiff(oldContent, newContent string) []EditDiffLine {
+    edits := udiff.Strings(oldContent, newContent)
+    unified, err := udiff.ToUnified("old", "new", oldContent, edits, 3)
+    if err != nil || unified == nil {
+        return nil
+    }
+    var out []EditDiffLine
+    for _, hunk := range unified.Hunks {
+        out = append(out, EditDiffLine{
+            Kind:    DiffLineHunk,
+            Content: fmt.Sprintf("@@ -%d,%d +%d,%d @@", hunk.FromLine, hunk.FromCount, hunk.ToLine, hunk.ToCount),
+        })
+        oldLine := hunk.FromLine
+        newLine := hunk.ToLine
+        for _, line := range hunk.Lines {
+            switch line.Kind {
+            case udiff.Equal:
+                out = append(out, EditDiffLine{Kind: DiffLineContext, OldLineNum: oldLine, NewLineNum: newLine, Content: line.Content})
+                oldLine++; newLine++
+            case udiff.Delete:
+                out = append(out, EditDiffLine{Kind: DiffLineRemoved, OldLineNum: oldLine, Content: line.Content})
+                oldLine++
+            case udiff.Insert:
+                out = append(out, EditDiffLine{Kind: DiffLineAdded, NewLineNum: newLine, Content: line.Content})
+                newLine++
+            }
+        }
+    }
+    return out
 }
 ```
 
-**Constructor:**
-```go
-func NewEditFileTool(guard *filesystem.Guard, permissionRequester PermissionRequester) *EditFileTool
-```
-
-**Interface methods:**
-- `Name()` → `"edit_file"`
-- `Description()` → "Edit a file by replacing a string with another string. Shows a diff before applying changes."
-- `InputSchema()` → Object with properties: `path` (string, required), `oldString` (string, required), `newString` (string, required), `shouldReplaceAll` (boolean, optional, default false)
-- `Execute(ctx, input)` → Main logic
-
-**Execute flow:**
-1. Validate input is `map[string]any`
-2. Extract and validate: `path` (string, non-empty), `oldString` (string, non-empty), `newString` (string), `shouldReplaceAll` (bool, default false)
-3. Resolve path with guard
-4. Check if blocked: `guard.IsBlocked(path)` → return error if denied
-5. Check file exists: `os.Stat(resolvedPath)` → error if not found
-6. Read file: `os.ReadFile(resolvedPath)`
-7. Perform replacement:
-   - If `shouldReplaceAll`: `strings.ReplaceAll(content, oldString, newString)`
-   - Else: `strings.Replace(content, oldString, newString, 1)`
-   - Count replacements made
-8. If `oldString` not found → return error: "string not found"
-9. Generate diff using `diffmatchpatch`:
-   - Create DMP instance
-   - Compute line-mode diff
-   - Format as unified diff with `@@` headers
-10. Request permission with diff: `permissionRequester.RequestPermission(ctx, toolName, path, resolvedPath, "write", false, diffString)`
-11. If not approved → return "permission denied by user" error
-12. Write file: `os.WriteFile(resolvedPath, []byte(newContent), 0644)`
-13. Return success result:
-    ```go
-    map[string]any{
-        "success":           true,
-        "path":              resolvedPath,
-        "replacementCount":  replacementCount,
-    }
-    ```
-
-### 2. Create `internal/tools/edit_file_test.go`
-
-**Test cases:**
-- `TestEditFileTool_Name` → verify returns "edit_file"
-- `TestEditFileTool_Description` → verify non-empty
-- `TestEditFileTool_InputSchema` → verify required fields and types
-- `TestEditFileTool_Execute_InvalidInput` → nil input, missing path, missing oldString, missing newString, wrong types
-- `TestEditFileTool_Execute_FileNotFound` → path that doesn't exist
-- `TestEditFileTool_Execute_BlockedPath` → path blocked by guard
-- `TestEditFileTool_Execute_StringNotFound` → oldString not in file
-- `TestEditFileTool_Execute_ReplaceFirst` → shouldReplaceAll=false with multiple matches, only first replaced
-- `TestEditFileTool_Execute_ReplaceAll` → shouldReplaceAll=true, all matches replaced
-- `TestEditFileTool_Execute_UserAllows` → permission pending, mock returns true
-- `TestEditFileTool_Execute_UserDenies` → permission pending, mock returns false
-- `TestEditFileTool_Execute_SessionApproved` → RequestPermission returns true immediately
-- `TestEditFileTool_Execute_VerifyCount` → verify replacementCount is correct
+Call site in `Execute`: `diffLines := computeEditDiff(oldContent, newContent)` — no longer needs `oldString`/`newString`/`shouldReplaceAll` since those only affect `newContent`.
 
 ---
 
-## Phase 2: Permission System Extensions
+## Step 3: `internal/cli/repl/permission_requester.go`
 
-### 3. Modify `internal/cli/repl/permission_requester.go`
+### Add `DiffLines` to `PermissionRequest`
 
-**Add to `PermissionRequest` struct:**
 ```go
-type PermissionRequest struct {
-    ToolName     string
-    Path         string
-    ResolvedPath string
-    Operation    string
-    IsDangerous  bool
-    DiffPreview  string  // NEW: diff for edit_file tool
-    ResponseChan chan bool
-}
+DiffLines []tools.EditDiffLine  // nil for non-edit tools
 ```
 
-**Extend `RequestPermission` signature:**
-```go
-// Update existing method signature to include optional diffPreview
-func (r *REPLPermissionRequester) RequestPermission(
-    ctx context.Context, 
-    toolName, path, resolvedPath, operation string, 
-    isDangerous bool, diffPreview string,  // Add diffPreview parameter
-) (bool, error) {
-    // Same logic as before but includes diff in request
-    r.mu.Lock()
-    if !isDangerous && r.sessionAllowedTools[toolName] {
-        r.mu.Unlock()
-        return true, nil
-    }
-    r.mu.Unlock()
+Add `"github.com/user/keen-code/internal/tools"` import.
 
+### Add `RequestEditPermission` to `REPLPermissionRequester`
+
+```go
+func (r *REPLPermissionRequester) RequestEditPermission(
+    ctx context.Context, path, resolvedPath string, diffLines []tools.EditDiffLine,
+) (bool, error) {
+    autoApproved := r.sessionAllowedTools["edit_file"]
+    id := atomic.AddUint64(&permissionRequestCounter, 1)
     req := &PermissionRequest{
-        ToolName:     toolName,
+        RequestID:    fmt.Sprintf("%d", id),
+        ToolName:     "edit_file",
         Path:         path,
         ResolvedPath: resolvedPath,
-        Operation:    operation,
-        IsDangerous:  isDangerous,
-        DiffPreview:  diffPreview,  // Include diff (empty string for non-edit tools)
+        DiffLines:    diffLines,
+        AutoApproved: autoApproved,
+        Status:       PermissionStatusPending,
         ResponseChan: make(chan bool, 1),
     }
-
-    r.mu.Lock()
     r.pending = req
-    r.mu.Unlock()
-
     select {
     case r.requestChan <- req:
         select {
         case response := <-req.ResponseChan:
-            r.mu.Lock()
             r.pending = nil
-            r.mu.Unlock()
             return response, nil
         case <-ctx.Done():
-            r.mu.Lock()
             r.pending = nil
-            r.mu.Unlock()
             return false, ctx.Err()
         }
     case <-ctx.Done():
-        r.mu.Lock()
         r.pending = nil
-        r.mu.Unlock()
         return false, ctx.Err()
     }
 }
 ```
 
-**Update `PermissionRequester` interface:**
+Unlike `RequestPermission`, this always goes through `requestChan` — even when auto-approved — so the diff is always shown in the UI.
+
+---
+
+## Step 4: `internal/cli/repl/repl.go` — `consumePermissionRequest`
+
+After `m.streamHandler.HandlePermissionRequest(req)`, add auto-approve handling:
+
 ```go
-// In internal/tools/permission_requester.go or wherever the interface is defined
-type PermissionRequester interface {
-    RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string, isDangerous bool, diffPreview string) (bool, error)
+if req.AutoApproved {
+    m.streamHandler.ResolvePendingPermission(PermissionStatusAutoAllowedSession)
+    m.permissionRequester.SendResponse(PermissionChoiceAllowSession, req.ToolName)
 }
 ```
 
-**Update existing tool calls:**
-All existing tools calling `RequestPermission` need to pass empty string for `diffPreview`:
+This immediately unblocks the tool goroutine while still causing the diff card to render as "Auto-approved" in the transcript.
+
+---
+
+## Step 5: `internal/cli/repl/styles.go`
+
+Add after `bashSummaryStyle`:
+
 ```go
-// Example: write_file tool
-allowed, err := t.permissionRequester.RequestPermission(ctx, t.Name(), path, resolvedPath, "write", false, "")
-```
-
-### 4. Modify `internal/cli/repl/permission_selector.go`
-
-**Add to `PermissionSelector` struct:**
-```go
-type PermissionSelector struct {
-    toolName     string
-    path         string
-    resolvedPath string
-    operation    string
-    isDangerous  bool
-    diffPreview  string  // NEW
-    cursor       int
-    choices      []string
-}
-```
-
-**Update `NewPermissionSelector`:**
-```go
-func NewPermissionSelector(toolName, path, resolvedPath, operation string, isDangerous bool, diffPreview string) *PermissionSelector {
-    choices := []string{"Allow", "Allow for this session", "Deny"}
-    if isDangerous {
-        choices = []string{"Allow", "Deny"}
-    }
-    return &PermissionSelector{
-        toolName:     toolName,
-        path:         path,
-        resolvedPath: resolvedPath,
-        operation:    operation,
-        isDangerous:  isDangerous,
-        diffPreview:  diffPreview,  // Store diff
-        cursor:       0,
-        choices:      choices,
-    }
-}
-```
-
-**Update `ViewString()` to render diff:**
-```go
-func (ps *PermissionSelector) ViewString() string {
-    var view strings.Builder
-
-    // Title based on whether there's a diff
-    if ps.diffPreview != "" {
-        view.WriteString(titleStyle.Render("Review Edit?"))
-    } else if ps.isDangerous {
-        view.WriteString(warningTitleStyle.Render("⚠️ Allow Dangerous Command?"))
-        view.WriteString("\n")
-        view.WriteString(warningTextStyle.Render("The LLM flagged this command as potentially dangerous"))
-    } else {
-        view.WriteString(titleStyle.Render(fmt.Sprintf("Allow %s?", ps.toolName)))
-    }
-    view.WriteString("\n\n")
-
-    // Tool/Path info
-    view.WriteString("  " + infoLabelStyle.Render("Tool:") + " " + infoValueStyle.Render(ps.toolName))
-    view.WriteString("\n")
-    if ps.isDangerous {
-        view.WriteString("  " + infoLabelStyle.Render("Command:") + " " + infoValueStyle.Render(ps.path))
-    } else {
-        view.WriteString("  " + infoLabelStyle.Render("Path:") + " " + infoValueStyle.Render(ps.path))
-    }
-    view.WriteString("\n")
-    if ps.resolvedPath != "" {
-        view.WriteString("  " + infoLabelStyle.Render("Resolved:") + " " + infoValueStyle.Render(ps.resolvedPath))
-        view.WriteString("\n")
-    }
-
-    // Diff preview (if present)
-    if ps.diffPreview != "" {
-        view.WriteString("\n")
-        // Split diff into lines and colorize
-        lines := strings.Split(ps.diffPreview, "\n")
-        for _, line := range lines {
-            if strings.HasPrefix(line, "+") {
-                view.WriteString(diffAddStyle.Render(line) + "\n")
-            } else if strings.HasPrefix(line, "-") {
-                view.WriteString(diffRemoveStyle.Render(line) + "\n")
-            } else {
-                view.WriteString(line + "\n")
-            }
-        }
-    }
-
-    view.WriteString("\n")
-
-    // Choices
-    for i, choice := range ps.choices {
-        cursorStr := "  "
-        style := normalStyle
-        if i == ps.cursor {
-            cursorStr = "> "
-            style = selectionStyle
-        }
-        view.WriteString(cursorStr + style.Render(choice) + "\n")
-    }
-
-    view.WriteString("\n" + hintStyle.Render("[↑/↓ to navigate, Enter to confirm, Esc to cancel]"))
-
-    return view.String()
-}
-```
-
-### 5. Modify `internal/cli/repl/styles.go`
-
-**Add diff styles:**
-```go
-var (
-    // ... existing styles ...
-    
-    diffAddStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color("42"))  // Green
-    
-    diffRemoveStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color("196")) // Red
-)
+diffAddStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
+    Light: lipgloss.Color("#166534"), Dark: lipgloss.Color("#4ADE80"),
+})
+diffRemoveStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
+    Light: lipgloss.Color("#991B1B"), Dark: lipgloss.Color("#F87171"),
+})
+diffContextStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
+    Light: lipgloss.Color("#374151"), Dark: lipgloss.Color("#9CA3AF"),
+})
+diffHunkStyle = lipgloss.NewStyle().
+    Foreground(compat.AdaptiveColor{
+        Light: lipgloss.Color("#1D4ED8"), Dark: lipgloss.Color("#60A5FA"),
+    }).Bold(true)
+diffLineNumStyle = lipgloss.NewStyle().Foreground(mutedColor)
 ```
 
 ---
 
-## Phase 3: Tool Registration
+## Step 6: `internal/cli/repl/streaming.go`
 
-### 6. Modify `internal/cli/repl/tool_registry.go`
+### Add `renderDiffLine` helper (package-level function)
 
-Add registration in `initialModel()`:
+```go
+func renderDiffLine(dl tools.EditDiffLine, width int) string {
+    switch dl.Kind {
+    case tools.DiffLineHunk:
+        return diffHunkStyle.Render(dl.Content)
+    case tools.DiffLineAdded:
+        lineNum := fmt.Sprintf("%4d", dl.NewLineNum)
+        line := diffAddStyle.Render("+ " + dl.Content)
+        return diffLineNumStyle.Render("     "+lineNum) + " " + line
+    case tools.DiffLineRemoved:
+        lineNum := fmt.Sprintf("%4d", dl.OldLineNum)
+        line := diffRemoveStyle.Render("- " + dl.Content)
+        return diffLineNumStyle.Render(lineNum+"     ") + " " + line
+    default: // DiffLineContext
+        old := fmt.Sprintf("%4d", dl.OldLineNum)
+        new := fmt.Sprintf("%4d", dl.NewLineNum)
+        line := diffContextStyle.Render("  " + dl.Content)
+        return diffLineNumStyle.Render(old+" "+new) + " " + line
+    }
+}
+```
+
+### Modify `renderPermissionCard`
+
+Replace the `Preview` rendering block (lines 470-485) with:
+
+```go
+if req.DiffLines != nil {
+    sb.WriteString("\n")
+    for _, dl := range req.DiffLines {
+        sb.WriteString(renderDiffLine(dl, width) + "\n")
+    }
+    sb.WriteString("\n")
+} else if req.Preview != "" {
+    // existing preview rendering unchanged
+    ...
+}
+```
+
+Add `"github.com/user/keen-code/internal/tools"` import.
+
+---
+
+## Step 7: `internal/cli/repl/output.go`
+
+Change the `if toolName == "write_file"` block in `formatToolInput` to a `switch`:
+
+```go
+switch toolName {
+case "write_file", "edit_file":
+    if path, ok := input["path"]; ok {
+        return fmt.Sprintf("path=%v", path)
+    }
+    return ""
+}
+```
+
+---
+
+## Step 8: `internal/cli/repl/tool_registry.go`
+
+After registering `writeFileTool`:
+
 ```go
 editFileTool := tools.NewEditFileTool(guard, permissionRequester)
 appState.RegisterTool(editFileTool)
 ```
 
----
-
-## Phase 4: Verification
-
-### 7. Run tests and build
-
-```bash
-# Add dependency
-go get github.com/sergi/go-diff/diffmatchpatch
-
-# Run tool tests
-go test ./internal/tools/... -v -run EditFile
-
-# Run REPL tests
-go test ./internal/cli/repl/... -v
-
-# Run all tests
-go test ./...
-
-# Build
-go build -o keen-cli ./cmd/keen
-```
+`permissionRequester` is `*REPLPermissionRequester` which satisfies `tools.EditPermissionRequester` after Step 3.
 
 ---
 
-## Error Taxonomy
+## Step 9: `internal/tools/edit_file_test.go`
 
-1. `invalid input`: missing/wrong-type input parameter
-2. `invalid input: oldString must be non-empty`: empty `oldString`
-3. `permission denied by policy`: blocked path
-4. `permission denied by user`: user selected Deny
-5. `not found`: file does not exist
-6. `not accessible`: OS permission or I/O error when reading
-7. `string not found`: `oldString` not present in file content
-8. `write failed`: I/O error when writing replacement
+Use a `mockEditPermissionRequester` implementing both `RequestPermission` and `RequestEditPermission`.
 
----
-
-## UX Flow Examples
-
-### Interactive Permission with Diff
-
-```
-Review Edit?
-
-  Tool:     edit_file
-  Path:     src/main.go
-  Resolved: /home/user/project/src/main.go
-
-@@ -10,7 +10,7 @@
-   func main() {
--    oldCode()
-+    newCode()
-   }
-
-> Allow
-  Allow for this session
-  Deny
-
-[↑/↓ to navigate, Enter to confirm, Esc to cancel]
-```
-
-### Session-Approved (Auto-applied)
-
-Diff is still shown in the viewport output after the edit completes:
-
-```
-✓ Edit applied to src/main.go (1 replacement)
-
-@@ -10,7 +10,7 @@
-   func main() {
--    oldCode()
-+    newCode()
-   }
-```
+Test cases:
+- Input validation (nil/wrong types, missing fields, empty path)
+- `Execute` success: single replacement, replace-all, replace-first (two occurrences)
+- `Execute` errors: file not found, oldString not found, permission denied by policy, permission denied by user, nil requester
+- `computeEditDiff` smoke test: verify added/removed/context lines are present and hunk header is emitted for a simple single-line change
 
 ---
 
-## Design Decisions
+## Implementation Order
 
-1. **Use existing diff library**: `go-diff` is battle-tested, no need to implement LCS ourselves
-2. **Single permission interface**: Extend `PermissionRequest` with optional `DiffPreview` field rather than creating new interface
-3. **Unified UX**: Diff and permission prompt shown together in one screen
-4. **Color-coded diff**: Green for additions (+), red for deletions (-)
-5. **Safe default**: `shouldReplaceAll` defaults to `false` to prevent unintended multi-replacement
-6. **Error on string-not-found**: Return error rather than silently succeeding with 0 replacements
+1. `tools/permission.go` → 2. `tools/edit_file.go` → 3. `tools/edit_file_test.go` → 4. `repl/styles.go` → 5. `repl/permission_requester.go` → 6. `repl/streaming.go` → 7. `repl/output.go` → 8. `repl/repl.go` → 9. `repl/tool_registry.go`
 
 ---
 
-## Summary
+## Verification
 
-**Original plan**: 10 phases, custom diff algorithm, new interface, special notification channel, streaming indicator
-
-**Simplified plan**: 3 phases, existing library, extended struct, unified rendering
-
-The simplified plan maintains all UX requirements while reducing complexity and maintenance burden.
+1. `go build ./...` — no compile errors
+2. `go test ./internal/tools/...` — all tests pass
+3. `go test ./internal/cli/repl/...` — existing tests still pass
+4. Manual test: start the agent, ask it to edit a file. Verify:
+   - Tool call shows `⚙ edit_file(path=...)...`
+   - Diff card appears with colored `+`/`-` lines and line numbers
+   - Permission choices appear if not session-approved
+   - "Allow for this session" → subsequent edits auto-approve and show diff-only card
+   - File content is correctly updated on disk

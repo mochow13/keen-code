@@ -13,7 +13,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/user/keen-code/configs/providers"
-	"github.com/user/keen-code/internal/cli/modelselection"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/llm"
 )
@@ -64,7 +63,7 @@ type replModel struct {
 	ctx                 *replContext
 	appState            *AppState
 	output              *OutputBuilder
-	modelSelection      *modelselection.Model
+	modelSelection      *Model
 	permissionRequester *REPLPermissionRequester
 	quitting            bool
 	streamHandler       *StreamHandler
@@ -229,7 +228,7 @@ func (m *replModel) startModelSelection() replModel {
 	onComplete := func(provider, model, apiKey string) error {
 		return m.updateLLMClient()
 	}
-	m.modelSelection = modelselection.New(
+	m.modelSelection = New(
 		m.ctx.registry,
 		m.ctx.globalCfg,
 		m.ctx.loader,
@@ -336,8 +335,8 @@ func (m *replModel) updateViewportContent() {
 	m.viewport.SetContent(content.String())
 }
 
-func formatModelSelectionCard(ms *modelselection.Model) string {
-	boxed := permissionCardStyle.Render(ms.ViewString())
+func formatModelSelectionCard(ms *Model) string {
+	boxed := userPromptCardStyle.Render(ms.ViewString())
 	lines := strings.Split(strings.TrimRight(boxed, "\n"), "\n")
 	var sb strings.Builder
 	sb.WriteString("\n")
@@ -430,7 +429,7 @@ func (m replModel) consumeModelSelectionResult(msg tea.Msg) (replModel, tea.Cmd,
 		return m, nil, false
 	}
 
-	if modelselection.IsComplete(msg) {
+	if IsComplete(msg) {
 		successMsg := "✓ Updated to " + m.modelSelection.SelectedProvider + " / " + m.modelSelection.SelectedModel
 		m.output.AddStyledLine("  "+successMsg, highlightStyle)
 		m.output.AddEmptyLine()
@@ -440,7 +439,7 @@ func (m replModel) consumeModelSelectionResult(msg tea.Msg) (replModel, tea.Cmd,
 		return m, nil, true
 	}
 
-	if modelselection.IsCancel(msg) {
+	if IsCancel(msg) {
 		cancelStyle := lipgloss.NewStyle().Foreground(mutedColor)
 		m.output.AddStyledLine("  Model selection cancelled", cancelStyle)
 		m.output.AddEmptyLine()

@@ -44,7 +44,6 @@ func TestUpdate_InlinePermission_AllowsToolStartEvent(t *testing.T) {
 		ToolName:     "read_file",
 		Path:         "../foo.txt",
 		ResolvedPath: "/tmp/foo.txt",
-		Operation:    "read",
 		Status:       PermissionStatusPending,
 		ResponseChan: make(chan bool, 1),
 	}
@@ -258,7 +257,6 @@ func TestUpdate_RoutesToPermissionHandling(t *testing.T) {
 		ToolName:     "read_file",
 		Path:         "foo.txt",
 		ResolvedPath: "/resolved/foo.txt",
-		Operation:    "read",
 		Status:       PermissionStatusPending,
 		ResponseChan: make(chan bool, 1),
 	}

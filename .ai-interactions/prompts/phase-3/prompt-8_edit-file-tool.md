@@ -2,7 +2,9 @@
 
 ### PRD
 
-1. `edit_file` tool will be used to edit a file.
+We want to now create an `edit_file` tool that will enable LLMs to edit files.
+
+1. `edit_file` tool will be used to edit a file. It can edit any UTF-8 files just like how it can read them in `read_file` tool. LLM must read a file at least once before editing it.
 2. The file must exist. If it doesn't exist, `edit_file` tool will return an error.
 3. The `edit_file` tool will take 4 inputs: `path`, `oldString`, `newString`, `shouldReplaceAll`.
     - `path` is the absolute or relative path to the file to edit.
@@ -11,9 +13,14 @@
     - `shouldReplaceAll` is a boolean that indicates whether to replace all occurrences of `oldString` with `newString`.
 4. The tool will return `success` flag, `path`, and `replacementCount`.
 5. The `edit_file` tool must use the existing permission mechanisms that are already used in other tools.
-6. The UI for `edit_file` tool will be different than other tools. It will show the file content with the changes highlighted like a `git diff`. First the diff will be shown, then the user will be asked to confirm the changes. If the user confirms, the changes will be applied to the file.
-7. If the permission is already granted for writing, the diff will be shown and also the file will be edited.
-8. It's important that the UI experience is seamless for the user.
+6. The UI for `edit_file` will be very specific and different from other tools:
+    - When LLM wants to use `edit_file` tool, the REPL will first show the tool call like how it's done for `write_file` tool.
+    - After that, REPL will show the changes being made like a diff in Github pull request. To achieve this, we need to make sure the UI is neat and colored properly to provide a seamless experience to the users.
+    - For now, we will show the full diff in a card. We will not implement collapse feature.
+    - The diff also needs to show line numbers on the left from the file.
+    - Finally, the existing permission card will be rendered if user has not already given session permission for the `edit_file` tool. If user gives permission, then only the file will be edited. If user denies, then an error will be returned and passed to LLM.
+    - If session permission is granted for writing, only diff will be shown, and the file will be edited directly.
+7. It's important that the UI experience is seamless for the user.
 
 ### Execution
 

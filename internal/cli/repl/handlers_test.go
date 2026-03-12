@@ -8,7 +8,6 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"github.com/user/keen-code/internal/cli/modelselection"
 	"github.com/user/keen-code/internal/llm"
 )
 
@@ -247,7 +246,7 @@ func TestHandleKeyMsg_CtrlJ(t *testing.T) {
 func TestHandleKeyMsg_ModelSelectionMode(t *testing.T) {
 	m := replModel{
 		width:          80,
-		modelSelection: &modelselection.Model{},
+		modelSelection: &Model{},
 	}
 
 	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'a', Text: "a"})
@@ -376,7 +375,7 @@ func TestHandleLLMError_ContextCanceled_DoesNotAddErrorLine(t *testing.T) {
 func TestHandleKeyMsg_SpecialCharacters(t *testing.T) {
 	m := replModel{
 		width:          80,
-		modelSelection: &modelselection.Model{},
+		modelSelection: &Model{},
 	}
 
 	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'é', Text: "é"})

@@ -15,7 +15,7 @@ type mockPermissionRequester struct {
 	called bool
 }
 
-func (m *mockPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string, isDangerous bool) (bool, error) {
+func (m *mockPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath string, isDangerous bool) (bool, error) {
 	m.called = true
 	return m.allow, nil
 }

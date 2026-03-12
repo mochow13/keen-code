@@ -91,7 +91,7 @@ func (t *GlobTool) Execute(ctx context.Context, input any) (any, error) {
 		if t.permissionRequester == nil {
 			return nil, fmt.Errorf("permission denied: user approval required but not available")
 		}
-		allowed, err := t.permissionRequester.RequestPermission(ctx, t.Name(), basePath, resolvedBasePath, "read", false)
+		allowed, err := t.permissionRequester.RequestPermission(ctx, t.Name(), basePath, resolvedBasePath, false)
 		if err != nil {
 			return nil, fmt.Errorf("permission request failed: %w", err)
 		}

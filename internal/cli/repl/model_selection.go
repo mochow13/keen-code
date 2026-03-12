@@ -1,4 +1,4 @@
-package modelselection
+package repl
 
 import (
 	"fmt"
@@ -17,8 +17,8 @@ const (
 	StepAPIKey
 )
 
-type keyEnter struct{}
-type keyCancel struct{}
+type modelSelectionCompleteMsg struct{}
+type modelSelectionCancelMsg struct{}
 
 type Model struct {
 	Step             Step
@@ -76,7 +76,7 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 			m.ModelCursor = 0
 			m.Step = StepModel
 		case "esc":
-			return m, func() tea.Msg { return keyCancel{} }
+			return m, func() tea.Msg { return modelSelectionCancelMsg{} }
 		}
 
 	case StepModel:
@@ -93,13 +93,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 			m.SelectedModel = m.ModelList[m.ModelCursor].ID
 			m.Step = StepAPIKey
 		case "esc":
-			return m, func() tea.Msg { return keyCancel{} }
+			return m, func() tea.Msg { return modelSelectionCancelMsg{} }
 		}
 
 	case StepAPIKey:
 		switch msg.String() {
 		case "esc":
-			return m, func() tea.Msg { return keyCancel{} }
+			return m, func() tea.Msg { return modelSelectionCancelMsg{} }
 		case "enter":
 			return m.complete()
 		case "backspace":
@@ -155,7 +155,7 @@ func (m *Model) complete() (*Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, func() tea.Msg { return keyEnter{} }
+	return m, func() tea.Msg { return modelSelectionCompleteMsg{} }
 }
 
 func (m *Model) ViewString() string {
@@ -172,7 +172,7 @@ func (m *Model) ViewString() string {
 
 func (m *Model) renderProviderSelection() string {
 	var view strings.Builder
-	view.WriteString(titleStyle.Render("Select a provider:"))
+	view.WriteString(userPromptStyle.Render("Select a provider:"))
 	view.WriteString("\n\n")
 	view.WriteString(m.renderList(m.ProviderCursor, func(i int) string { return m.ProviderList[i].Name }, len(m.ProviderList)))
 	view.WriteString("\n" + hintStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
@@ -182,7 +182,7 @@ func (m *Model) renderProviderSelection() string {
 func (m *Model) renderModelSelection() string {
 	var view strings.Builder
 	providerName := m.getProviderName(m.SelectedProvider)
-	view.WriteString(titleStyle.Render(fmt.Sprintf("Select a model for %s:", providerName)))
+	view.WriteString(userPromptStyle.Render(fmt.Sprintf("Select a model for %s:", providerName)))
 	view.WriteString("\n\n")
 	view.WriteString(m.renderList(m.ModelCursor, func(i int) string { return m.ModelList[i].Name }, len(m.ModelList)))
 	view.WriteString("\n" + hintStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
@@ -198,7 +198,7 @@ func (m *Model) renderAPIKeyInput() string {
 	if existingKey != "" {
 		title += "\n" + hintStyle.Render("(press Enter to keep existing key)")
 	}
-	view.WriteString(titleStyle.Render(title))
+	view.WriteString(userPromptStyle.Render(title))
 	view.WriteString("\n\n")
 
 	maskedKey := strings.Repeat("•", len(m.APIKeyInput))
@@ -214,13 +214,12 @@ func (m *Model) renderAPIKeyInput() string {
 func (m *Model) renderList(cursor int, getName func(int) string, count int) string {
 	var view strings.Builder
 	for i := 0; i < count; i++ {
-		cursorStr := "  "
-		style := normalStyle
 		if i == cursor {
-			cursorStr = "> "
-			style = selectionStyle
+			view.WriteString(modelSelectionStyle.Render("> " + getName(i)))
+			view.WriteString("\n")
+			continue
 		}
-		view.WriteString(cursorStr + style.Render(getName(i)) + "\n")
+		view.WriteString("  " + normalStyle.Render(getName(i)) + "\n")
 	}
 	return view.String()
 }
@@ -240,11 +239,11 @@ func (m *Model) getExistingAPIKey(providerID string) string {
 }
 
 func IsComplete(msg tea.Msg) bool {
-	_, ok := msg.(keyEnter)
+	_, ok := msg.(modelSelectionCompleteMsg)
 	return ok
 }
 
 func IsCancel(msg tea.Msg) bool {
-	_, ok := msg.(keyCancel)
+	_, ok := msg.(modelSelectionCancelMsg)
 	return ok
 }

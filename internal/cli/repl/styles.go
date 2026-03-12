@@ -81,6 +81,9 @@ var (
 	selectionStyle = lipgloss.NewStyle().
 			Foreground(primaryColor).
 			Bold(true)
+	modelSelectionStyle = lipgloss.NewStyle().
+				Foreground(secondaryColor).
+				Bold(true)
 	hintStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
 			Italic(true)
@@ -100,14 +103,14 @@ var (
 		})
 	bashSummaryStyle = lipgloss.NewStyle().
 				Foreground(mutedColor)
-	permissionCardStyle = lipgloss.NewStyle().
+	userPromptCardStyle = lipgloss.NewStyle().
 				BorderStyle(lipgloss.RoundedBorder()).
 				BorderForeground(secondaryColor).
 				Padding(1, 2)
-	permissionTitleStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(secondaryColor)
-	permissionSelectionStyle = lipgloss.NewStyle().
+	userPromptStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(secondaryColor)
+	userPromptSelectionStyle = lipgloss.NewStyle().
 					Foreground(secondaryColor).
 					Bold(true)
 )

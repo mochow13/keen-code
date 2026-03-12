@@ -332,7 +332,6 @@ func makeTestPermissionRequest(isDangerous bool) *PermissionRequest {
 		ToolName:     "read_file",
 		Path:         "../secret.txt",
 		ResolvedPath: "/home/user/secret.txt",
-		Operation:    "read",
 		IsDangerous:  isDangerous,
 		Status:       PermissionStatusPending,
 		ResponseChan: make(chan bool, 1),

@@ -23,7 +23,6 @@ type PermissionRequest struct {
 	ToolName     string
 	Path         string
 	ResolvedPath string
-	Operation    string
 	IsDangerous  bool
 	Preview      string
 	PreviewKind  string
@@ -45,7 +44,7 @@ func NewREPLPermissionRequester() *REPLPermissionRequester {
 	}
 }
 
-func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath, operation string, isDangerous bool) (bool, error) {
+func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolName, path, resolvedPath string, isDangerous bool) (bool, error) {
 	if !isDangerous && r.sessionAllowedTools[toolName] {
 		return true, nil
 	}
@@ -56,7 +55,6 @@ func (r *REPLPermissionRequester) RequestPermission(ctx context.Context, toolNam
 		ToolName:     toolName,
 		Path:         path,
 		ResolvedPath: resolvedPath,
-		Operation:    operation,
 		IsDangerous:  isDangerous,
 		Status:       PermissionStatusPending,
 		ResponseChan: make(chan bool, 1),
