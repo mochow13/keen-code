@@ -72,3 +72,8 @@ How would you implement it?
 43. Right now when LLM is streaming or tool is being called, there is no way for the user to interrupt the process. We want to support interrupting the process with `esc` key. Check the code in @repl.go and @handlers.go. Based on that, create a plan and granular todo list for implementing this feature.
 44. When we press esc, the message "Interrupted" is replacing the last streamed content where the interruption happened. Let's show that.
 45. Let's show the "interrupted" message in orange colour. Put create a specific style for it in @styles.go. Make the style adaptive.
+46. The output of `bash_tool` is shown in full. We want to show it as a collapsible section. How would you implement it?
+47. It seems the diff and permission card for edit file tool is rendering only after interaction from mouse or keyboard. Why?
+48. Which approach is preferable? Explain.
+49. How can we reuse the same WaitForEvent instead of a new source of events?
+50. Create a todo list for this. Share the list with me. After that, let's implement the tasks.

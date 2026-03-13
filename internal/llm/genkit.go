@@ -2,16 +2,19 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"log/slog"
 	"time"
 
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/firebase/genkit/go/plugins/anthropic"
 	"github.com/firebase/genkit/go/plugins/compat_oai"
 	"github.com/firebase/genkit/go/plugins/googlegenai"
+	"github.com/joho/godotenv"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/tools"
 )
@@ -35,9 +38,19 @@ func NewGenkitClient(cfg *ClientConfig) (*GenkitClient, error) {
 
 	switch cfg.Provider {
 	case config.ProviderAnthropic:
-		g = genkit.Init(ctx, genkit.WithPlugins(&anthropic.Anthropic{
-			APIKey: cfg.APIKey,
-		}))
+		env, _ := godotenv.Read(".env")
+		baseURL := env["ANTHROPIC_BASE_URL"]
+
+		if baseURL == "" {
+			g = genkit.Init(ctx, genkit.WithPlugins(&anthropic.Anthropic{
+				APIKey: cfg.APIKey,
+			}))
+		} else {
+			g = genkit.Init(ctx, genkit.WithPlugins(&anthropic.Anthropic{
+				APIKey:  cfg.APIKey,
+				BaseURL: baseURL,
+			}))
+		}
 		modelName = "anthropic/" + cfg.Model
 	case config.ProviderOpenAI:
 		g = genkit.Init(ctx, genkit.WithPlugins(&compat_oai.OpenAICompatible{
@@ -129,6 +142,12 @@ func (c *GenkitClient) StreamChat(
 				ai.WithMessages(aiMessages...),
 			}
 
+			if c.provider == config.ProviderAnthropic {
+				opts = append(opts, ai.WithConfig(&anthropicsdk.MessageNewParams{
+					MaxTokens: 16192,
+				}))
+			}
+
 			if len(genkitTools) > 0 {
 				opts = append(opts, ai.WithTools(genkitTools...))
 				opts = append(opts, ai.WithReturnToolRequests(true))
@@ -203,6 +222,13 @@ func (c *GenkitClient) executeTools(
 		start := time.Now()
 
 		input, _ := req.Input.(map[string]any)
+		if input == nil {
+			if raw, ok := req.Input.(json.RawMessage); ok {
+				if err := json.Unmarshal(raw, &input); err != nil {
+					input = nil
+				}
+			}
+		}
 		slog.Debug("Tool request", "tool", req.Name, "input", input)
 		eventCh <- StreamEvent{
 			Type: StreamEventTypeToolStart,
@@ -220,7 +246,7 @@ func (c *GenkitClient) executeTools(
 		} else if tool, exists := registry.Get(req.Name); !exists {
 			execErr = fmt.Errorf("tool %q not found", req.Name)
 		} else {
-			output, execErr = tool.Execute(ctx, req.Input)
+			output, execErr = tool.Execute(ctx, input)
 		}
 
 		duration := time.Since(start)

@@ -29,3 +29,5 @@ We want to now create an `edit_file` tool that will enable LLMs to edit files.
 3. We are managing editLines through permissionRequester. Why not treat it as a segment?
 4. We are still implementing the interface by `REPLPermissionRequester`. Can we have a completely decoupled approach?
 5. The types and interface outlined in Step 1 should not be in permission.go. Let's put it in its own file.
+6. Review the entire plan and make sure diff generation and UI rendering for diff are decoupled from permission mechanism.
+7. Ok let's implement the plan.
