@@ -95,7 +95,8 @@ func formatToolInput(toolName string, input map[string]any) string {
 		return ""
 	}
 
-	if toolName == "write_file" {
+	switch toolName {
+	case "write_file", "edit_file":
 		if path, ok := input["path"]; ok {
 			return fmt.Sprintf("path=%v", path)
 		}

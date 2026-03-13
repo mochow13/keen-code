@@ -8,6 +8,8 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"github.com/user/keen-code/configs/providers"
+	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/llm"
 )
 
@@ -253,6 +255,25 @@ func TestHandleKeyMsg_ModelSelectionMode(t *testing.T) {
 
 	if newM.modelSelection == nil {
 		t.Error("expected modelSelection to remain set")
+	}
+}
+
+func TestUpdateNormalMode_ModelSelectionPasteGoesToAPIKeyInput(t *testing.T) {
+	m := newTestModel()
+	m.textarea.SetValue("existing prompt")
+	m.modelSelection = &Model{
+		Step:      StepAPIKey,
+		registry:  &providers.Registry{},
+		globalCfg: &config.GlobalConfig{},
+	}
+
+	newM, _ := m.updateNormalMode(tea.PasteMsg{Content: "sk-test-123"})
+
+	if newM.modelSelection.APIKeyInput != "sk-test-123" {
+		t.Fatalf("expected pasted API key to go to model selection, got %q", newM.modelSelection.APIKeyInput)
+	}
+	if newM.textarea.Value() != "existing prompt" {
+		t.Fatalf("expected textarea to remain unchanged, got %q", newM.textarea.Value())
 	}
 }
 

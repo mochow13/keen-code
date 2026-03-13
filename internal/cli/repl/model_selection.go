@@ -53,6 +53,8 @@ func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
+	case tea.PasteMsg:
+		return m.handlePasteMsg(msg)
 	}
 	return m, nil
 }
@@ -113,6 +115,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 		}
 	}
 
+	return m, nil
+}
+
+func (m *Model) handlePasteMsg(msg tea.PasteMsg) (*Model, tea.Cmd) {
+	if m.Step == StepAPIKey && msg.Content != "" {
+		m.APIKeyInput += msg.Content
+	}
 	return m, nil
 }
 

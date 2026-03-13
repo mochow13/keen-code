@@ -28,6 +28,7 @@ func newTestModel() replModel {
 		output:              NewOutputBuilder(80),
 		streamHandler:       NewStreamHandler(nil),
 		permissionRequester: NewREPLPermissionRequester(),
+		diffEmitter:         NewREPLDiffEmitter(),
 		spinner:             spinner.New(),
 		width:               80,
 		height:              30,

@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/user/keen-code/internal/llm"
+	"github.com/user/keen-code/internal/tools"
 )
 
 type StreamHandler struct {
@@ -26,6 +27,7 @@ const (
 	segmentToolEnd    streamSegmentType = "tool_end"
 	segmentBash       streamSegmentType = "bash"
 	segmentPermission streamSegmentType = "permission"
+	segmentDiff       streamSegmentType = "diff"
 )
 
 type streamSegment struct {
@@ -38,6 +40,7 @@ type streamSegment struct {
 	renderedLines    []string
 	permissionReq    *PermissionRequest
 	permissionCursor int
+	diffLines        []tools.EditDiffLine
 }
 
 func NewStreamHandler(mdRenderer *MarkdownRenderer) *StreamHandler {
@@ -133,6 +136,13 @@ func (sh *StreamHandler) HandlePermissionRequest(req *PermissionRequest) {
 	sh.segments = append(sh.segments, streamSegment{
 		kind:          segmentPermission,
 		permissionReq: req,
+	})
+}
+
+func (sh *StreamHandler) HandleDiff(lines []tools.EditDiffLine) {
+	sh.segments = append(sh.segments, streamSegment{
+		kind:      segmentDiff,
+		diffLines: lines,
 	})
 }
 
@@ -312,6 +322,8 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 			if seg.permissionReq != nil {
 				lines = append(lines, renderPermissionCard(seg, width)...)
 			}
+		case segmentDiff:
+			lines = append(lines, renderDiffSegment(seg)...)
 		}
 	}
 
@@ -341,6 +353,8 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 			if seg.permissionReq != nil {
 				lines = append(lines, renderPermissionResolved(seg.permissionReq)...)
 			}
+		case segmentDiff:
+			lines = append(lines, renderDiffSegment(seg)...)
 		}
 	}
 
@@ -432,6 +446,33 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []stri
 		}
 	}
 
+	return lines
+}
+
+func renderDiffLine(dl tools.EditDiffLine) string {
+	switch dl.Kind {
+	case tools.DiffLineHunk:
+		return "  " + diffHunkStyle.Render(dl.Content)
+	case tools.DiffLineAdded:
+		lineNum := fmt.Sprintf("%4d", dl.NewLineNum)
+		return diffLineNumStyle.Render("     "+lineNum) + " " + diffAddStyle.Render("+ "+dl.Content)
+	case tools.DiffLineRemoved:
+		lineNum := fmt.Sprintf("%4d", dl.OldLineNum)
+		return diffLineNumStyle.Render(lineNum+"     ") + " " + diffRemoveStyle.Render("- "+dl.Content)
+	default:
+		return diffLineNumStyle.Render(fmt.Sprintf("%4d %4d", dl.OldLineNum, dl.NewLineNum)) + " " + diffContextStyle.Render("  "+dl.Content)
+	}
+}
+
+func renderDiffSegment(seg *streamSegment) []string {
+	if len(seg.diffLines) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, len(seg.diffLines)+1)
+	lines = append(lines, "")
+	for _, dl := range seg.diffLines {
+		lines = append(lines, renderDiffLine(dl))
+	}
 	return lines
 }
 

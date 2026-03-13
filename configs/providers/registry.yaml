@@ -2,12 +2,12 @@ providers:
   - id: anthropic
     name: Anthropic
     models:
-      - id: claude-3-opus
-        name: Claude 3 Opus
-      - id: claude-3-sonnet
-        name: Claude 3 Sonnet
-      - id: claude-3-haiku
-        name: Claude 3 Haiku
+      - id: claude-opus-4-6
+        name: Claude Opus 4.6
+      - id: claude-sonnet-4-6
+        name: Claude Sonnet 4.6
+      - id: claude-haiku-4-5-20251001
+        name: Claude Haiku 4.6
 
   - id: openai
     name: OpenAI

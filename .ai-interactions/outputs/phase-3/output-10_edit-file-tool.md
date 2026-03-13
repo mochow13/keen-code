@@ -4,28 +4,38 @@
 
 The agent currently has `read_file` and `write_file` tools but no way to make targeted edits to existing files. The `edit_file` tool enables the LLM to replace strings in files with a Git-style diff shown inline in the REPL UI before the edit is applied.
 
+## Architecture: DiffEmitter
+
+The diff is shown as its own independent segment in the transcript, decoupled from permission handling. The tool:
+1. Calls `diffEmitter.EmitDiff(lines)` — blocks until the REPL creates the segment
+2. Then calls the standard `RequestPermission` — shows permission card only if not session-approved
+
+This keeps `PermissionRequest` clean (no diff data), eliminates the need for a special `EditPermissionRequester` interface, and makes auto-approve transparent (standard session logic handles it).
+
 ## Files to Modify/Create
 
 **New:**
 - `internal/tools/edit_file.go`
 - `internal/tools/edit_file_test.go`
+- `internal/tools/diff.go` — `EditDiffLine` types + `DiffEmitter` interface
 
 **Modified:**
-- `internal/tools/permission.go` — add `EditDiffLine` types + `EditPermissionRequester` interface
-- `internal/cli/repl/permission_requester.go` — add `DiffLines` to `PermissionRequest`, implement `RequestEditPermission`
-- `internal/cli/repl/streaming.go` — render diff lines in permission card
+- `internal/tools/permission.go` — no changes
+- `internal/cli/repl/diff_emitter.go` — new `REPLDiffEmitter` type implementing `DiffEmitter`
+- `internal/cli/repl/permission_requester.go` — no changes (stays focused on yes/no only)
+- `internal/cli/repl/streaming.go` — add `segmentDiff` type, `HandleDiff`, `renderDiffSegment`
 - `internal/cli/repl/styles.go` — add 5 diff-specific styles
 - `internal/cli/repl/output.go` — add `edit_file` to `formatToolInput` special cases
-- `internal/cli/repl/repl.go` — auto-respond in `consumePermissionRequest` when `AutoApproved`
+- `internal/cli/repl/repl.go` — consume from `diffEmitter.GetDiffChan()` in update loop
 - `internal/cli/repl/tool_registry.go` — register `EditFileTool`
 
 ---
 
-## Step 1: Types & Interface — `internal/tools/permission.go`
-
-Add after the existing `PermissionRequester` interface:
+## Step 1: `internal/tools/diff.go` (new file)
 
 ```go
+package tools
+
 type EditDiffLineKind int
 
 const (
@@ -42,9 +52,8 @@ type EditDiffLine struct {
     Content    string // raw line content without +/- prefix
 }
 
-type EditPermissionRequester interface {
-    PermissionRequester
-    RequestEditPermission(ctx context.Context, path, resolvedPath string, diffLines []EditDiffLine) (bool, error)
+type DiffEmitter interface {
+    EmitDiff(lines []EditDiffLine)
 }
 ```
 
@@ -57,10 +66,11 @@ type EditPermissionRequester interface {
 ```go
 type EditFileTool struct {
     guard               *filesystem.Guard
-    permissionRequester EditPermissionRequester
+    diffEmitter         DiffEmitter
+    permissionRequester PermissionRequester
 }
 
-func NewEditFileTool(guard *filesystem.Guard, permissionRequester EditPermissionRequester) *EditFileTool
+func NewEditFileTool(guard *filesystem.Guard, diffEmitter DiffEmitter, permissionRequester PermissionRequester) *EditFileTool
 ```
 
 ### `InputSchema`
@@ -75,12 +85,11 @@ Properties: `path` (string, required), `oldString` (string, required), `newStrin
 4. Read file using `readFileContent(resolvedPath)` (reuse from `read_file.go`) — returns error if file doesn't exist
 5. Validate `strings.Contains(oldContent, oldString)` — error if not found
 6. Apply replacement: `strings.ReplaceAll` or `strings.Replace(..., 1)` depending on `shouldReplaceAll`; track `replacementCount`
-7. Compute diff: `diffLines := computeEditDiff(oldContent, newContent, oldString, newString, shouldReplaceAll)`
-8. If `t.permissionRequester == nil`, return error
-9. `allowed, err := t.permissionRequester.RequestEditPermission(ctx, path, resolvedPath, diffLines)`
-10. If not allowed, return error
-11. Write: `os.WriteFile(resolvedPath, []byte(newContent), 0644)`
-12. Return `map[string]any{"success": true, "path": resolvedPath, "replacementCount": replacementCount}`
+7. `t.diffEmitter.EmitDiff(computeEditDiff(oldContent, newContent))` — blocks until REPL acknowledges
+8. `allowed, err := t.permissionRequester.RequestPermission(ctx, "edit_file", path, resolvedPath, "edit", false)`
+9. If not allowed, return error
+10. Write: `os.WriteFile(resolvedPath, []byte(newContent), 0644)`
+11. Return `map[string]any{"success": true, "path": resolvedPath, "replacementCount": replacementCount}`
 
 ### `computeEditDiff` (unexported, same file)
 
@@ -121,72 +130,53 @@ func computeEditDiff(oldContent, newContent string) []EditDiffLine {
 }
 ```
 
-Call site in `Execute`: `diffLines := computeEditDiff(oldContent, newContent)` — no longer needs `oldString`/`newString`/`shouldReplaceAll` since those only affect `newContent`.
-
 ---
 
-## Step 3: `internal/cli/repl/permission_requester.go`
+## Step 3: `internal/cli/repl/diff_emitter.go` (new file)
 
-### Add `DiffLines` to `PermissionRequest`
-
-```go
-DiffLines []tools.EditDiffLine  // nil for non-edit tools
-```
-
-Add `"github.com/user/keen-code/internal/tools"` import.
-
-### Add `RequestEditPermission` to `REPLPermissionRequester`
+A standalone type responsible solely for shuttling diff lines from a tool goroutine to the REPL renderer. No knowledge of permissions.
 
 ```go
-func (r *REPLPermissionRequester) RequestEditPermission(
-    ctx context.Context, path, resolvedPath string, diffLines []tools.EditDiffLine,
-) (bool, error) {
-    autoApproved := r.sessionAllowedTools["edit_file"]
-    id := atomic.AddUint64(&permissionRequestCounter, 1)
-    req := &PermissionRequest{
-        RequestID:    fmt.Sprintf("%d", id),
-        ToolName:     "edit_file",
-        Path:         path,
-        ResolvedPath: resolvedPath,
-        DiffLines:    diffLines,
-        AutoApproved: autoApproved,
-        Status:       PermissionStatusPending,
-        ResponseChan: make(chan bool, 1),
+type diffEmitRequest struct {
+    lines []tools.EditDiffLine
+    done  chan struct{}
+}
+
+type REPLDiffEmitter struct {
+    diffChan chan diffEmitRequest
+}
+
+func NewREPLDiffEmitter() *REPLDiffEmitter {
+    return &REPLDiffEmitter{
+        diffChan: make(chan diffEmitRequest, 1),
     }
-    r.pending = req
-    select {
-    case r.requestChan <- req:
-        select {
-        case response := <-req.ResponseChan:
-            r.pending = nil
-            return response, nil
-        case <-ctx.Done():
-            r.pending = nil
-            return false, ctx.Err()
-        }
-    case <-ctx.Done():
-        r.pending = nil
-        return false, ctx.Err()
-    }
+}
+
+func (e *REPLDiffEmitter) EmitDiff(lines []tools.EditDiffLine) {
+    done := make(chan struct{})
+    e.diffChan <- diffEmitRequest{lines: lines, done: done}
+    <-done  // block until REPL acknowledges segment creation
+}
+
+func (e *REPLDiffEmitter) GetDiffChan() <-chan diffEmitRequest {
+    return e.diffChan
 }
 ```
 
-Unlike `RequestPermission`, this always goes through `requestChan` — even when auto-approved — so the diff is always shown in the UI.
+`*REPLDiffEmitter` satisfies `tools.DiffEmitter`. `REPLPermissionRequester` is untouched.
 
 ---
 
-## Step 4: `internal/cli/repl/repl.go` — `consumePermissionRequest`
+## Step 4: `internal/cli/repl/repl.go`
 
-After `m.streamHandler.HandlePermissionRequest(req)`, add auto-approve handling:
+In the update loop, add consumption of `diffEmitter.GetDiffChan()`. The REPL model holds `diffEmitter *REPLDiffEmitter` alongside `permissionRequester *REPLPermissionRequester`:
 
 ```go
-if req.AutoApproved {
-    m.streamHandler.ResolvePendingPermission(PermissionStatusAutoAllowedSession)
-    m.permissionRequester.SendResponse(PermissionChoiceAllowSession, req.ToolName)
-}
+case req := <-m.diffEmitter.GetDiffChan():
+    m.streamHandler.HandleDiff(req.lines)
+    close(req.done)
+    return m, nil
 ```
-
-This immediately unblocks the tool goroutine while still causing the diff card to render as "Auto-approved" in the transcript.
 
 ---
 
@@ -215,45 +205,59 @@ diffLineNumStyle = lipgloss.NewStyle().Foreground(mutedColor)
 
 ## Step 6: `internal/cli/repl/streaming.go`
 
-### Add `renderDiffLine` helper (package-level function)
+### Add `segmentDiff` type
 
 ```go
-func renderDiffLine(dl tools.EditDiffLine, width int) string {
+segmentDiff streamSegmentType = "diff"
+```
+
+Add `diffLines []tools.EditDiffLine` field to `streamSegment`.
+
+### Add `HandleDiff`
+
+```go
+func (sh *StreamHandler) HandleDiff(lines []tools.EditDiffLine) {
+    sh.segments = append(sh.segments, streamSegment{
+        kind:      segmentDiff,
+        diffLines: lines,
+    })
+}
+```
+
+### Add `renderDiffSegment` and `renderDiffLine`
+
+```go
+func renderDiffLine(dl tools.EditDiffLine) string {
     switch dl.Kind {
     case tools.DiffLineHunk:
         return diffHunkStyle.Render(dl.Content)
     case tools.DiffLineAdded:
         lineNum := fmt.Sprintf("%4d", dl.NewLineNum)
-        line := diffAddStyle.Render("+ " + dl.Content)
-        return diffLineNumStyle.Render("     "+lineNum) + " " + line
+        return diffLineNumStyle.Render("     "+lineNum) + " " + diffAddStyle.Render("+ "+dl.Content)
     case tools.DiffLineRemoved:
         lineNum := fmt.Sprintf("%4d", dl.OldLineNum)
-        line := diffRemoveStyle.Render("- " + dl.Content)
-        return diffLineNumStyle.Render(lineNum+"     ") + " " + line
+        return diffLineNumStyle.Render(lineNum+"     ") + " " + diffRemoveStyle.Render("- "+dl.Content)
     default: // DiffLineContext
-        old := fmt.Sprintf("%4d", dl.OldLineNum)
-        new := fmt.Sprintf("%4d", dl.NewLineNum)
-        line := diffContextStyle.Render("  " + dl.Content)
-        return diffLineNumStyle.Render(old+" "+new) + " " + line
+        return diffLineNumStyle.Render(fmt.Sprintf("%4d %4d", dl.OldLineNum, dl.NewLineNum)) + " " + diffContextStyle.Render("  "+dl.Content)
     }
+}
+
+func renderDiffSegment(seg streamSegment) []string {
+    var lines []string
+    for _, dl := range seg.diffLines {
+        lines = append(lines, renderDiffLine(dl))
+    }
+    return lines
 }
 ```
 
-### Modify `renderPermissionCard`
+### Wire into `renderViewLines` and `renderTranscriptLines`
 
-Replace the `Preview` rendering block (lines 470-485) with:
+Both functions have a `switch seg.kind` block that renders each segment. Add a `case segmentDiff:` branch to both:
 
 ```go
-if req.DiffLines != nil {
-    sb.WriteString("\n")
-    for _, dl := range req.DiffLines {
-        sb.WriteString(renderDiffLine(dl, width) + "\n")
-    }
-    sb.WriteString("\n")
-} else if req.Preview != "" {
-    // existing preview rendering unchanged
-    ...
-}
+case segmentDiff:
+    lines = append(lines, renderDiffSegment(seg)...)
 ```
 
 Add `"github.com/user/keen-code/internal/tools"` import.
@@ -278,32 +282,34 @@ case "write_file", "edit_file":
 
 ## Step 8: `internal/cli/repl/tool_registry.go`
 
-After registering `writeFileTool`:
+Create `REPLDiffEmitter` separately and pass it alongside `permissionRequester`:
 
 ```go
-editFileTool := tools.NewEditFileTool(guard, permissionRequester)
+diffEmitter := NewREPLDiffEmitter()
+editFileTool := tools.NewEditFileTool(guard, diffEmitter, permissionRequester)
 appState.RegisterTool(editFileTool)
 ```
 
-`permissionRequester` is `*REPLPermissionRequester` which satisfies `tools.EditPermissionRequester` after Step 3.
+Also store `diffEmitter` on the REPL model so `repl.go` can consume from `GetDiffChan()`.
 
 ---
 
 ## Step 9: `internal/tools/edit_file_test.go`
 
-Use a `mockEditPermissionRequester` implementing both `RequestPermission` and `RequestEditPermission`.
+Use a `mockDiffEmitter` (captures emitted lines) + standard `mockPermissionRequester`.
 
 Test cases:
 - Input validation (nil/wrong types, missing fields, empty path)
 - `Execute` success: single replacement, replace-all, replace-first (two occurrences)
-- `Execute` errors: file not found, oldString not found, permission denied by policy, permission denied by user, nil requester
+- `Execute` errors: file not found, oldString not found, permission denied by policy, permission denied by user
+- Verify `EmitDiff` is called before `RequestPermission` in success path
 - `computeEditDiff` smoke test: verify added/removed/context lines are present and hunk header is emitted for a simple single-line change
 
 ---
 
 ## Implementation Order
 
-1. `tools/permission.go` → 2. `tools/edit_file.go` → 3. `tools/edit_file_test.go` → 4. `repl/styles.go` → 5. `repl/permission_requester.go` → 6. `repl/streaming.go` → 7. `repl/output.go` → 8. `repl/repl.go` → 9. `repl/tool_registry.go`
+1. `tools/diff.go` → 2. `tools/edit_file.go` → 3. `tools/edit_file_test.go` → 4. `repl/styles.go` → 5. `repl/diff_emitter.go` → 6. `repl/streaming.go` → 7. `repl/output.go` → 8. `repl/repl.go` → 9. `repl/tool_registry.go`
 
 ---
 
@@ -314,7 +320,7 @@ Test cases:
 3. `go test ./internal/cli/repl/...` — existing tests still pass
 4. Manual test: start the agent, ask it to edit a file. Verify:
    - Tool call shows `⚙ edit_file(path=...)...`
-   - Diff card appears with colored `+`/`-` lines and line numbers
-   - Permission choices appear if not session-approved
-   - "Allow for this session" → subsequent edits auto-approve and show diff-only card
+   - Diff segment appears with colored `+`/`-` lines and line numbers
+   - Permission card appears separately below the diff (if not session-approved)
+   - "Allow for this session" → subsequent edits show diff only, no permission card
    - File content is correctly updated on disk

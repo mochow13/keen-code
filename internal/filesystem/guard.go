@@ -64,7 +64,7 @@ func (g *Guard) CheckPath(path string, operation string) Permission {
 			return PermissionGranted
 		}
 		return PermissionPending
-	case "write":
+	case "write", "edit":
 		return PermissionPending
 	default:
 		return PermissionDenied

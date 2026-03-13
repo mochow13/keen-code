@@ -65,6 +65,7 @@ type replModel struct {
 	output              *OutputBuilder
 	modelSelection      *Model
 	permissionRequester *REPLPermissionRequester
+	diffEmitter         *REPLDiffEmitter
 	quitting            bool
 	streamHandler       *StreamHandler
 	mdRenderer          *MarkdownRenderer
@@ -124,7 +125,8 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	appState := NewAppState(llmClient)
 
 	permissionRequester := NewREPLPermissionRequester()
-	setupToolRegistry(ctx.workingDir, appState, permissionRequester)
+	diffEmitter := NewREPLDiffEmitter()
+	setupToolRegistry(ctx.workingDir, appState, permissionRequester, diffEmitter)
 
 	mdRenderer, err := NewMarkdownRenderer(defaultWidth)
 
@@ -145,6 +147,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		streamHandler:       NewStreamHandler(mdRenderer),
 		mdRenderer:          mdRenderer,
 		permissionRequester: permissionRequester,
+		diffEmitter:         diffEmitter,
 	}
 
 	if needsSetup {
@@ -356,12 +359,20 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return updated, cmd
 	}
 
+	if updated, cmd, handled := m.consumeDiffRequest(msg); handled {
+		return updated, cmd
+	}
+
 	if updated, cmd, handled := m.consumePermissionRequest(msg); handled {
 		return updated, cmd
 	}
 
 	if updated, cmd, handled := m.consumeModelSelectionResult(msg); handled {
 		return updated, cmd
+	}
+
+	if m.modelSelection != nil {
+		return m.handleKeyMsg(msg)
 	}
 
 	switch msg := msg.(type) {
@@ -400,6 +411,24 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	m.textarea, cmd = m.textarea.Update(msg)
 	m.adjustTextareaHeight()
 	return m, cmd
+}
+
+func (m replModel) consumeDiffRequest(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	switch msg.(type) {
+	case llmChunkMsg, llmDoneMsg, llmErrorMsg:
+		return m, nil, false
+	}
+
+	select {
+	case req := <-m.diffEmitter.GetDiffChan():
+		m.streamHandler.HandleDiff(req.lines)
+		close(req.done)
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, nil, true
+	default:
+		return m, nil, false
+	}
 }
 
 func (m replModel) consumePermissionRequest(msg tea.Msg) (replModel, tea.Cmd, bool) {

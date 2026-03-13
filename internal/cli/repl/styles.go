@@ -103,6 +103,20 @@ var (
 		})
 	bashSummaryStyle = lipgloss.NewStyle().
 				Foreground(mutedColor)
+	diffAddStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
+		Light: lipgloss.Color("#166534"), Dark: lipgloss.Color("#4ADE80"),
+	})
+	diffRemoveStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
+		Light: lipgloss.Color("#991B1B"), Dark: lipgloss.Color("#F87171"),
+	})
+	diffContextStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
+		Light: lipgloss.Color("#374151"), Dark: lipgloss.Color("#9CA3AF"),
+	})
+	diffHunkStyle = lipgloss.NewStyle().
+			Foreground(compat.AdaptiveColor{
+			Light: lipgloss.Color("#1D4ED8"), Dark: lipgloss.Color("#60A5FA"),
+		}).Bold(true)
+	diffLineNumStyle = lipgloss.NewStyle().Foreground(mutedColor)
 	userPromptCardStyle = lipgloss.NewStyle().
 				BorderStyle(lipgloss.RoundedBorder()).
 				BorderForeground(secondaryColor).

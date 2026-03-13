@@ -9,6 +9,7 @@ func setupToolRegistry(
 	workingDir string,
 	appState *AppState,
 	permissionRequester *REPLPermissionRequester,
+	diffEmitter *REPLDiffEmitter,
 ) {
 	gitAwareness := filesystem.NewGitAwareness()
 	_ = gitAwareness.LoadGitignoreRecursive(workingDir)
@@ -25,6 +26,9 @@ func setupToolRegistry(
 
 	writeFileTool := tools.NewWriteFileTool(guard, permissionRequester)
 	appState.RegisterTool(writeFileTool)
+
+	editFileTool := tools.NewEditFileTool(guard, diffEmitter, permissionRequester)
+	appState.RegisterTool(editFileTool)
 
 	bashTool := tools.NewBashTool(guard, permissionRequester)
 	appState.RegisterTool(bashTool)
