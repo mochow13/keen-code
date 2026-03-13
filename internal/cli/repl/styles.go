@@ -116,7 +116,7 @@ var (
 			Foreground(compat.AdaptiveColor{
 			Light: lipgloss.Color("#1D4ED8"), Dark: lipgloss.Color("#60A5FA"),
 		}).Bold(true)
-	diffLineNumStyle = lipgloss.NewStyle().Foreground(mutedColor)
+	diffLineNumStyle    = lipgloss.NewStyle().Foreground(mutedColor)
 	userPromptCardStyle = lipgloss.NewStyle().
 				BorderStyle(lipgloss.RoundedBorder()).
 				BorderForeground(secondaryColor).
