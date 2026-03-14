@@ -31,3 +31,4 @@ We want to now create an `edit_file` tool that will enable LLMs to edit files.
 5. The types and interface outlined in Step 1 should not be in permission.go. Let's put it in its own file.
 6. Review the entire plan and make sure diff generation and UI rendering for diff are decoupled from permission mechanism.
 7. Ok let's implement the plan.
+8. It seems when permission is already given for edit_file tool in the session, the diff is not shown. Find out why.

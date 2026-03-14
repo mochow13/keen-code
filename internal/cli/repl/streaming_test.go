@@ -13,7 +13,7 @@ func TestStreamHandler_HandleChunk(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
-	cmd := sh.HandleChunk("Hello")
+	sh.HandleChunk("Hello")
 	if sh.GetResponse() != "Hello" {
 		t.Errorf("expected response 'Hello', got '%s'", sh.GetResponse())
 	}
@@ -24,10 +24,6 @@ func TestStreamHandler_HandleChunk(t *testing.T) {
 	sh.HandleChunk(" World")
 	if sh.GetResponse() != "Hello World" {
 		t.Errorf("expected response 'Hello World', got '%s'", sh.GetResponse())
-	}
-
-	if cmd == nil {
-		t.Error("expected non-nil cmd")
 	}
 }
 
@@ -134,6 +130,24 @@ func TestStreamHandler_View_WithSpinner(t *testing.T) {
 	}
 }
 
+func TestStreamHandler_View_WithRunningBashShowsInlineStatus(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Brewing...")
+	sh.HandleBashStart("npm test", "running tests")
+
+	view := sh.View(80, true, "⠋")
+
+	if !strings.Contains(view, "Running command...") {
+		t.Fatal("expected inline running message for bash")
+	}
+	if !strings.Contains(view, "Press Esc to interrupt") {
+		t.Fatal("expected interrupt hint for running bash")
+	}
+	if strings.Contains(view, "Brewing...") {
+		t.Fatal("expected bottom spinner line to be suppressed while bash is running")
+	}
+}
+
 func TestStreamHandler_View_WithContent(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
@@ -157,7 +171,7 @@ func TestStreamHandler_View_NoSpinnerNoContent(t *testing.T) {
 	}
 }
 
-func TestWaitForNextEvent_Chunk(t *testing.T) {
+func TestWaitForAsyncEvent_Chunk(t *testing.T) {
 	eventCh := make(chan llm.StreamEvent, 1)
 	eventCh <- llm.StreamEvent{
 		Type:    llm.StreamEventTypeChunk,
@@ -165,10 +179,7 @@ func TestWaitForNextEvent_Chunk(t *testing.T) {
 	}
 	close(eventCh)
 
-	sh := NewStreamHandler(nil)
-	sh.Start(eventCh, "Loading...")
-
-	cmd := sh.WaitForEvent()
+	cmd := waitForAsyncEvent(eventCh, make(chan *PermissionRequest), make(chan diffEmitRequest))
 	if cmd == nil {
 		t.Fatal("expected non-nil cmd")
 	}
@@ -183,17 +194,14 @@ func TestWaitForNextEvent_Chunk(t *testing.T) {
 	}
 }
 
-func TestWaitForNextEvent_Done(t *testing.T) {
+func TestWaitForAsyncEvent_Done(t *testing.T) {
 	eventCh := make(chan llm.StreamEvent, 1)
 	eventCh <- llm.StreamEvent{
 		Type: llm.StreamEventTypeDone,
 	}
 	close(eventCh)
 
-	sh := NewStreamHandler(nil)
-	sh.Start(eventCh, "Loading...")
-
-	cmd := sh.WaitForEvent()
+	cmd := waitForAsyncEvent(eventCh, make(chan *PermissionRequest), make(chan diffEmitRequest))
 	msg := cmd()
 
 	_, ok := msg.(llmDoneMsg)
@@ -202,7 +210,7 @@ func TestWaitForNextEvent_Done(t *testing.T) {
 	}
 }
 
-func TestWaitForNextEvent_Error(t *testing.T) {
+func TestWaitForAsyncEvent_Error(t *testing.T) {
 	testErr := errors.New("stream error")
 	eventCh := make(chan llm.StreamEvent, 1)
 	eventCh <- llm.StreamEvent{
@@ -211,10 +219,7 @@ func TestWaitForNextEvent_Error(t *testing.T) {
 	}
 	close(eventCh)
 
-	sh := NewStreamHandler(nil)
-	sh.Start(eventCh, "Loading...")
-
-	cmd := sh.WaitForEvent()
+	cmd := waitForAsyncEvent(eventCh, make(chan *PermissionRequest), make(chan diffEmitRequest))
 	msg := cmd()
 
 	errMsg, ok := msg.(llmErrorMsg)
@@ -226,14 +231,11 @@ func TestWaitForNextEvent_Error(t *testing.T) {
 	}
 }
 
-func TestWaitForNextEvent_ChannelClosed(t *testing.T) {
+func TestWaitForAsyncEvent_ChannelClosed(t *testing.T) {
 	eventCh := make(chan llm.StreamEvent)
 	close(eventCh)
 
-	sh := NewStreamHandler(nil)
-	sh.Start(eventCh, "Loading...")
-
-	cmd := sh.WaitForEvent()
+	cmd := waitForAsyncEvent(eventCh, make(chan *PermissionRequest), make(chan diffEmitRequest))
 	msg := cmd()
 
 	_, ok := msg.(llmDoneMsg)
@@ -299,32 +301,45 @@ func TestStreamHandler_Start_ResetsPreviousState(t *testing.T) {
 	}
 }
 
-func TestStreamHandler_WaitForEvent_ReturnsDoneOnClosedChannel(t *testing.T) {
-	eventCh := make(chan llm.StreamEvent)
-	close(eventCh)
+func TestWaitForAsyncEvent_Permission(t *testing.T) {
+	permissionCh := make(chan *PermissionRequest, 1)
+	req := makeTestPermissionRequest(false)
+	permissionCh <- req
 
-	sh := NewStreamHandler(nil)
-	sh.Start(eventCh, "Loading...")
-
-	cmd := sh.WaitForEvent()
-	if cmd == nil {
-		t.Fatal("WaitForEvent should return a non-nil tea.Cmd")
-	}
-
+	cmd := waitForAsyncEvent(make(chan llm.StreamEvent), permissionCh, make(chan diffEmitRequest))
 	msg := cmd()
-	if msg == nil {
-		t.Fatal("cmd() should return a non-nil tea.Msg")
-	}
 
-	_, ok := msg.(llmDoneMsg)
+	permissionMsg, ok := msg.(permissionReadyMsg)
 	if !ok {
-		t.Fatalf("expected llmDoneMsg when channel closed, got %T", msg)
+		t.Fatalf("expected permissionReadyMsg, got %T", msg)
+	}
+	if permissionMsg.req != req {
+		t.Fatal("expected permission request payload to round-trip")
+	}
+}
+
+func TestWaitForAsyncEvent_Diff(t *testing.T) {
+	diffCh := make(chan diffEmitRequest, 1)
+	req := diffEmitRequest{done: make(chan struct{})}
+	diffCh <- req
+
+	cmd := waitForAsyncEvent(make(chan llm.StreamEvent), make(chan *PermissionRequest), diffCh)
+	msg := cmd()
+
+	diffMsg, ok := msg.(diffReadyMsg)
+	if !ok {
+		t.Fatalf("expected diffReadyMsg, got %T", msg)
+	}
+	if diffMsg.req.done != req.done {
+		t.Fatal("expected diff request payload to round-trip")
 	}
 }
 
 var _ tea.Msg = llmChunkMsg("")
 var _ tea.Msg = llmDoneMsg{}
 var _ tea.Msg = llmErrorMsg{}
+var _ tea.Msg = permissionReadyMsg{}
+var _ tea.Msg = diffReadyMsg{}
 
 func makeTestPermissionRequest(isDangerous bool) *PermissionRequest {
 	return &PermissionRequest{

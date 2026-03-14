@@ -299,7 +299,7 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
-	return *m, tea.Batch(m.spinner.Tick, m.streamHandler.WaitForEvent())
+	return *m, tea.Batch(m.spinner.Tick, m.waitForAsyncEvent())
 }
 
 func (m *replModel) startStreamContext() context.Context {
@@ -338,6 +338,59 @@ func (m *replModel) updateViewportContent() {
 	m.viewport.SetContent(content.String())
 }
 
+func (m replModel) waitForAsyncEvent() tea.Cmd {
+	if m.streamHandler == nil || !m.streamHandler.IsActive() || m.streamHandler.eventCh == nil {
+		return nil
+	}
+	var permissionCh <-chan *PermissionRequest
+	if m.permissionRequester != nil {
+		permissionCh = m.permissionRequester.GetRequestChan()
+	}
+	var diffCh <-chan diffEmitRequest
+	if m.diffEmitter != nil {
+		diffCh = m.diffEmitter.GetDiffChan()
+	}
+	return waitForAsyncEvent(
+		m.streamHandler.eventCh,
+		permissionCh,
+		diffCh,
+	)
+}
+
+func waitForAsyncEvent(llmCh <-chan llm.StreamEvent, permissionCh <-chan *PermissionRequest, diffCh <-chan diffEmitRequest) tea.Cmd {
+	if llmCh == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		select {
+		case req := <-permissionCh:
+			return permissionReadyMsg{req: req}
+		case req := <-diffCh:
+			return diffReadyMsg{req: req}
+		case event, ok := <-llmCh:
+			if !ok {
+				return llmDoneMsg{}
+			}
+
+			switch event.Type {
+			case llm.StreamEventTypeChunk:
+				return llmChunkMsg(event.Content)
+			case llm.StreamEventTypeDone:
+				return llmDoneMsg{}
+			case llm.StreamEventTypeError:
+				return llmErrorMsg{err: event.Error}
+			case llm.StreamEventTypeToolStart:
+				return llmToolStartMsg{toolCall: event.ToolCall}
+			case llm.StreamEventTypeToolEnd:
+				return llmToolEndMsg{toolCall: event.ToolCall}
+			default:
+				return llmDoneMsg{}
+			}
+		}
+	}
+}
+
 func formatModelSelectionCard(ms *Model) string {
 	boxed := userPromptCardStyle.Render(ms.ViewString())
 	lines := strings.Split(strings.TrimRight(boxed, "\n"), "\n")
@@ -359,14 +412,6 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return updated, cmd
 	}
 
-	if updated, cmd, handled := m.consumeDiffRequest(msg); handled {
-		return updated, cmd
-	}
-
-	if updated, cmd, handled := m.consumePermissionRequest(msg); handled {
-		return updated, cmd
-	}
-
 	if updated, cmd, handled := m.consumeModelSelectionResult(msg); handled {
 		return updated, cmd
 	}
@@ -376,6 +421,20 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case diffReadyMsg:
+		m.streamHandler.HandleDiff(msg.req.lines)
+		close(msg.req.done)
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, m.waitForAsyncEvent()
+
+	case permissionReadyMsg:
+		m.streamHandler.HandlePermissionRequest(msg.req)
+		m.showSpinner = false
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, m.waitForAsyncEvent()
+
 	case spinner.TickMsg:
 		if updated, cmd, handled := m.handleSpinnerTick(msg); handled {
 			return updated, cmd
@@ -411,46 +470,6 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	m.textarea, cmd = m.textarea.Update(msg)
 	m.adjustTextareaHeight()
 	return m, cmd
-}
-
-func (m replModel) consumeDiffRequest(msg tea.Msg) (replModel, tea.Cmd, bool) {
-	switch msg.(type) {
-	case llmChunkMsg, llmDoneMsg, llmErrorMsg:
-		return m, nil, false
-	}
-
-	select {
-	case req := <-m.diffEmitter.GetDiffChan():
-		m.streamHandler.HandleDiff(req.lines)
-		close(req.done)
-		m.updateViewportContent()
-		m.viewport.GotoBottom()
-		return m, nil, true
-	default:
-		return m, nil, false
-	}
-}
-
-func (m replModel) consumePermissionRequest(msg tea.Msg) (replModel, tea.Cmd, bool) {
-	switch msg.(type) {
-	case llmChunkMsg, llmDoneMsg, llmErrorMsg:
-		return m, nil, false
-	}
-
-	select {
-	case req := <-m.permissionRequester.GetRequestChan():
-		var cmd tea.Cmd
-		if tickMsg, ok := msg.(spinner.TickMsg); ok && m.showSpinner {
-			m.spinner, cmd = m.spinner.Update(tickMsg)
-		}
-		m.streamHandler.HandlePermissionRequest(req)
-		m.showSpinner = false
-		m.updateViewportContent()
-		m.viewport.GotoBottom()
-		return m, cmd, true
-	default:
-		return m, nil, false
-	}
 }
 
 func (m replModel) consumeModelSelectionResult(msg tea.Msg) (replModel, tea.Cmd, bool) {

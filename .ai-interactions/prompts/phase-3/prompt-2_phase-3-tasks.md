@@ -77,3 +77,7 @@ How would you implement it?
 48. Which approach is preferable? Explain.
 49. How can we reuse the same WaitForEvent instead of a new source of events?
 50. Create a todo list for this. Share the list with me. After that, let's implement the tasks.
+51. What will happen if bash output is long and its getting generated for a long time (it's not immediate)?
+52. For now, we won't streem bash output. We will show the entire output at once. Implement a running command indicator so that users can se that a command is executing.
+
+53. The constants defined in @message.go (type StreamEventType) are declared in Keen Code. Are there equivalent constants or similar ones in Genkit itself? Having these constants in Keen Code is questionable.

@@ -25,12 +25,12 @@ const (
 
 func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 	m.showSpinner = false
-	cmd := m.streamHandler.HandleChunk(chunk)
+	m.streamHandler.HandleChunk(chunk)
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
 	}
-	return *m, cmd
+	return *m, m.waitForAsyncEvent()
 }
 
 func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
@@ -68,35 +68,38 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 }
 
 func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
-	m.showSpinner = false
-	var cmd tea.Cmd
+	isBash := toolCall.Name == "bash"
 	if toolCall.Name == "bash" {
+		m.showSpinner = true
 		command, _ := toolCall.Input["command"].(string)
 		summary, _ := toolCall.Input["summary"].(string)
-		cmd = m.streamHandler.HandleBashStart(command, summary)
+		m.streamHandler.HandleBashStart(command, summary)
 	} else {
-		cmd = m.streamHandler.HandleToolStart(toolCall)
+		m.showSpinner = false
+		m.streamHandler.HandleToolStart(toolCall)
 	}
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
 	}
-	return *m, cmd
+	if isBash {
+		return *m, tea.Batch(m.waitForAsyncEvent(), m.spinner.Tick)
+	}
+	return *m, m.waitForAsyncEvent()
 }
 
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.showSpinner = true
-	var cmd tea.Cmd
 	if toolCall.Name == "bash" {
-		cmd = m.streamHandler.HandleBashEnd(toolCall)
+		m.streamHandler.HandleBashEnd(toolCall)
 	} else {
-		cmd = m.streamHandler.HandleToolEnd(toolCall)
+		m.streamHandler.HandleToolEnd(toolCall)
 	}
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
 	}
-	return *m, cmd
+	return *m, m.waitForAsyncEvent()
 }
 
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {

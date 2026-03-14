@@ -444,6 +444,36 @@ func TestHandleToolStart(t *testing.T) {
 	}
 }
 
+func TestHandleToolStart_BashKeepsSpinnerActive(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	eventCh := make(chan llm.StreamEvent)
+	sh.Start(eventCh, "Loading...")
+
+	m := replModel{
+		streamHandler: sh,
+		showSpinner:   true,
+		width:         80,
+		output:        NewOutputBuilder(80),
+	}
+
+	toolCall := &llm.ToolCall{
+		Name:  "bash",
+		Input: map[string]any{"command": "npm test", "summary": "running tests"},
+	}
+
+	newM, cmd := m.handleToolStart(toolCall)
+
+	if !newM.showSpinner {
+		t.Error("expected showSpinner to remain true for running bash")
+	}
+	if cmd == nil {
+		t.Error("expected non-nil cmd from handleToolStart")
+	}
+	if len(sh.segments) != 1 || sh.segments[0].kind != segmentBash {
+		t.Fatalf("expected a bash segment to be added")
+	}
+}
+
 func TestHandleToolEnd(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)

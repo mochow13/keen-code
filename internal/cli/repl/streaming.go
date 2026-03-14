@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/user/keen-code/internal/llm"
 	"github.com/user/keen-code/internal/tools"
@@ -74,7 +73,7 @@ func (sh *StreamHandler) HasContent() bool {
 	return len(sh.segments) > 0
 }
 
-func (sh *StreamHandler) HandleChunk(chunk string) tea.Cmd {
+func (sh *StreamHandler) HandleChunk(chunk string) {
 	sh.currentResponse += chunk
 
 	if n := len(sh.segments); n > 0 && sh.segments[n-1].kind == segmentAssistant {
@@ -82,38 +81,25 @@ func (sh *StreamHandler) HandleChunk(chunk string) tea.Cmd {
 	} else {
 		sh.segments = append(sh.segments, streamSegment{kind: segmentAssistant, content: chunk})
 	}
-
-	return sh.waitForNextEvent()
 }
 
-func (sh *StreamHandler) HandleToolStart(toolCall *llm.ToolCall) tea.Cmd {
+func (sh *StreamHandler) HandleToolStart(toolCall *llm.ToolCall) {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentToolStart, toolCall: toolCall})
-	return sh.waitForNextEvent()
 }
 
-func (sh *StreamHandler) HandleToolEnd(toolCall *llm.ToolCall) tea.Cmd {
+func (sh *StreamHandler) HandleToolEnd(toolCall *llm.ToolCall) {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentToolEnd, toolCall: toolCall})
-	return sh.waitForNextEvent()
 }
 
-func (sh *StreamHandler) HandleBashStart(command, summary string) tea.Cmd {
+func (sh *StreamHandler) HandleBashStart(command, summary string) {
 	sh.segments = append(sh.segments, streamSegment{
 		kind:    segmentBash,
 		command: command,
 		summary: summary,
 	})
-	return sh.waitForNextEvent()
 }
 
-func (sh *StreamHandler) HandleBashOutput(chunk string) tea.Cmd {
-	n := len(sh.segments)
-	if n > 0 && sh.segments[n-1].kind == segmentBash {
-		sh.segments[n-1].output += chunk
-	}
-	return sh.waitForNextEvent()
-}
-
-func (sh *StreamHandler) HandleBashEnd(toolCall *llm.ToolCall) tea.Cmd {
+func (sh *StreamHandler) HandleBashEnd(toolCall *llm.ToolCall) {
 	n := len(sh.segments)
 	if n > 0 && sh.segments[n-1].kind == segmentBash {
 		if result, ok := toolCall.Output.(map[string]any); ok {
@@ -129,7 +115,6 @@ func (sh *StreamHandler) HandleBashEnd(toolCall *llm.ToolCall) tea.Cmd {
 		}
 		sh.segments[n-1].toolCall = toolCall
 	}
-	return sh.waitForNextEvent()
 }
 
 func (sh *StreamHandler) HandlePermissionRequest(req *PermissionRequest) {
@@ -245,51 +230,23 @@ func (sh *StreamHandler) resetState() {
 	sh.segments = make([]streamSegment, 0)
 }
 
-func (sh *StreamHandler) WaitForEvent() tea.Cmd {
-	return sh.waitForNextEvent()
-}
-
-func (sh *StreamHandler) waitForNextEvent() tea.Cmd {
-	eventCh := sh.eventCh
-	return func() tea.Msg {
-		event, ok := <-eventCh
-		if !ok {
-			return llmDoneMsg{}
-		}
-
-		switch event.Type {
-		case llm.StreamEventTypeChunk:
-			return llmChunkMsg(event.Content)
-		case llm.StreamEventTypeDone:
-			return llmDoneMsg{}
-		case llm.StreamEventTypeError:
-			return llmErrorMsg{err: event.Error}
-		case llm.StreamEventTypeToolStart:
-			return llmToolStartMsg{toolCall: event.ToolCall}
-		case llm.StreamEventTypeToolEnd:
-			return llmToolEndMsg{toolCall: event.ToolCall}
-		default:
-			return llmDoneMsg{}
-		}
-	}
-}
-
 func (sh *StreamHandler) View(width int, showSpinner bool, spinnerView string) string {
 	var view strings.Builder
+	showInlineBashSpinner := showSpinner && sh.hasRunningBashSegment()
 
-	for _, line := range sh.renderViewLines(width) {
+	for _, line := range sh.renderViewLines(width, showInlineBashSpinner, spinnerView) {
 		view.WriteString("\n")
 		view.WriteString(line)
 	}
 
-	if showSpinner {
+	if showSpinner && !showInlineBashSpinner {
 		view.WriteString("\n  " + spinnerView + " " + sh.loadingText)
 	}
 
 	return view.String()
 }
 
-func (sh *StreamHandler) renderViewLines(width int) []string {
+func (sh *StreamHandler) renderViewLines(width int, showInlineBashSpinner bool, spinnerView string) []string {
 	lines := make([]string, 0)
 
 	lastAssistantIdx := -1
@@ -311,7 +268,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 				lines = append(lines, formatToolEnd(seg.toolCall))
 			}
 		case segmentBash:
-			bashLines := sh.renderBashSegment(seg, width)
+			bashLines := sh.renderBashSegment(seg, width, showInlineBashSpinner, spinnerView)
 			lines = append(lines, bashLines...)
 		case segmentAssistant:
 			if seg.renderedLines == nil || i == lastAssistantIdx {
@@ -345,7 +302,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 				lines = append(lines, formatToolEnd(seg.toolCall))
 			}
 		case segmentBash:
-			bashLines := sh.renderBashSegment(seg, 0)
+			bashLines := sh.renderBashSegment(seg, 0, false, "")
 			lines = append(lines, bashLines...)
 		case segmentAssistant:
 			lines = append(lines, sh.renderAssistantTranscriptLines(seg.content)...)
@@ -422,7 +379,7 @@ func formatResponseLines(response string) []string {
 	return result
 }
 
-func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []string {
+func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int, showInlineSpinner bool, spinnerView string) []string {
 	lines := make([]string, 0)
 
 	lines = append(lines, "")
@@ -430,6 +387,15 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []stri
 
 	if seg.summary != "" {
 		lines = append(lines, bashSummaryStyle.Render("› "+seg.summary))
+	}
+
+	if seg.toolCall == nil {
+		runningLine := "Running command..."
+		if showInlineSpinner && spinnerView != "" {
+			runningLine = "\n" + spinnerView + " " + runningLine
+		}
+		lines = append(lines, bashRunningStyle.Render(runningLine))
+		lines = append(lines, bashHintStyle.Render("\nPress Esc to interrupt"))
 	}
 
 	lines = append(lines, "")
@@ -447,6 +413,15 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []stri
 	}
 
 	return lines
+}
+
+func (sh *StreamHandler) hasRunningBashSegment() bool {
+	for i := len(sh.segments) - 1; i >= 0; i-- {
+		if sh.segments[i].kind == segmentBash {
+			return sh.segments[i].toolCall == nil
+		}
+	}
+	return false
 }
 
 func renderDiffLine(dl tools.EditDiffLine) string {
@@ -576,4 +551,10 @@ type llmToolStartMsg struct {
 }
 type llmToolEndMsg struct {
 	toolCall *llm.ToolCall
+}
+type permissionReadyMsg struct {
+	req *PermissionRequest
+}
+type diffReadyMsg struct {
+	req diffEmitRequest
 }

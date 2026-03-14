@@ -11,6 +11,7 @@ import (
 	"github.com/user/keen-code/configs/providers"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/llm"
+	"github.com/user/keen-code/internal/tools"
 )
 
 func newTestModel() replModel {
@@ -298,6 +299,62 @@ func TestHandleLLMStreamMsg_RoutesChunk(t *testing.T) {
 	}
 	if newM.showSpinner {
 		t.Error("expected showSpinner false after chunk")
+	}
+}
+
+func TestUpdateNormalMode_PermissionReadyRendersImmediately(t *testing.T) {
+	m := newTestModel()
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+	m.showSpinner = true
+
+	req := &PermissionRequest{
+		RequestID:    "1",
+		ToolName:     "read_file",
+		Path:         "../foo.txt",
+		ResolvedPath: "/tmp/foo.txt",
+		Status:       PermissionStatusPending,
+		ResponseChan: make(chan bool, 1),
+	}
+
+	newM, cmd := m.updateNormalMode(permissionReadyMsg{req: req})
+
+	if !newM.streamHandler.HasPendingPermission() {
+		t.Fatal("expected pending permission to be rendered immediately")
+	}
+	if newM.showSpinner {
+		t.Fatal("expected spinner to stop when permission prompt appears")
+	}
+	if cmd == nil {
+		t.Fatal("expected async waiter to be re-armed")
+	}
+}
+
+func TestUpdateNormalMode_DiffReadyRendersImmediately(t *testing.T) {
+	m := newTestModel()
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+
+	done := make(chan struct{})
+	req := diffEmitRequest{
+		lines: []tools.EditDiffLine{
+			{Kind: tools.DiffLineAdded, Content: "hello", NewLineNum: 1},
+		},
+		done: done,
+	}
+
+	newM, cmd := m.updateNormalMode(diffReadyMsg{req: req})
+
+	if len(newM.streamHandler.segments) != 1 || newM.streamHandler.segments[0].kind != segmentDiff {
+		t.Fatal("expected diff segment to be rendered immediately")
+	}
+	select {
+	case <-done:
+	default:
+		t.Fatal("expected diff emitter to be unblocked immediately")
+	}
+	if cmd == nil {
+		t.Fatal("expected async waiter to be re-armed")
 	}
 }
 

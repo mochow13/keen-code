@@ -11,9 +11,9 @@ const (
 
 type EditDiffLine struct {
 	Kind       EditDiffLineKind
-	OldLineNum int    // 0 for added lines and hunk headers
-	NewLineNum int    // 0 for removed lines and hunk headers
-	Content    string // raw line content without +/- prefix
+	OldLineNum int
+	NewLineNum int
+	Content    string
 }
 
 type DiffEmitter interface {

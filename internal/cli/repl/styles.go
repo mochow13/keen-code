@@ -71,16 +71,13 @@ var (
 			Foreground(lipgloss.Color("#FFA500")).
 			Bold(true)
 	interruptedStyle = lipgloss.NewStyle().
-				Foreground(accentColor).
+				Foreground(primaryColor).
 				Bold(true)
 	toolSuccessStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00AA00"))
 	toolErrorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF0000"))
-	normalStyle    = lipgloss.NewStyle()
-	selectionStyle = lipgloss.NewStyle().
-			Foreground(primaryColor).
-			Bold(true)
+	normalStyle         = lipgloss.NewStyle()
 	modelSelectionStyle = lipgloss.NewStyle().
 				Foreground(secondaryColor).
 				Bold(true)
@@ -103,6 +100,12 @@ var (
 		})
 	bashSummaryStyle = lipgloss.NewStyle().
 				Foreground(mutedColor)
+	bashRunningStyle = lipgloss.NewStyle().
+				Foreground(secondaryColor).
+				Bold(true)
+	bashHintStyle = lipgloss.NewStyle().
+			Foreground(mutedColor).
+			Italic(true)
 	diffAddStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
 		Light: lipgloss.Color("#166534"), Dark: lipgloss.Color("#4ADE80"),
 	})
