@@ -26,9 +26,14 @@ func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
 	case config.ProviderAnthropic,
 		config.ProviderOpenAI,
 		config.ProviderGoogleAI,
-		config.ProviderMoonshotAI,
-		config.ProviderDeepSeek:
+		config.ProviderMoonshotAI:
 		return NewGenkitClient(&ClientConfig{
+			Provider: Provider(cfg.Provider),
+			APIKey:   cfg.APIKey,
+			Model:    cfg.Model,
+		})
+	case config.ProviderDeepSeek:
+		return NewOpenAICompatibleClient(&ClientConfig{
 			Provider: Provider(cfg.Provider),
 			APIKey:   cfg.APIKey,
 			Model:    cfg.Model,

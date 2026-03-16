@@ -70,13 +70,6 @@ func NewGenkitClient(cfg *ClientConfig) (*GenkitClient, error) {
 			BaseURL:  "https://api.moonshot.ai/v1/",
 		}))
 		modelName = "moonshotai/" + cfg.Model
-	case config.ProviderDeepSeek:
-		g = genkit.Init(ctx, genkit.WithPlugins(&compat_oai.OpenAICompatible{
-			APIKey:   cfg.APIKey,
-			Provider: "deepseek",
-			BaseURL:  "https://api.deepseek.com/",
-		}))
-		modelName = "deepseek/" + cfg.Model
 	default:
 		return nil, fmt.Errorf("unsupported provider in config: %s", cfg.Provider)
 	}

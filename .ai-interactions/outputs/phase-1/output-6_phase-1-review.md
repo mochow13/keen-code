@@ -28,7 +28,7 @@
 
 ### Task 2: Config System ✅ Complete
 
-**Design doc:** [output-4_config-design.md](file:///Users/mchowdhury2/stuff/ai/keen-cli/.ai-interactions/outputs/phase-1/output-4_config-design.md)
+**Design doc:** output-4_config-design.md
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
@@ -98,7 +98,7 @@
 
 ### Task 5: Basic CLI ✅ Complete
 
-**Design doc:** [output-5_basic-cli.md](file:///Users/mchowdhury2/stuff/ai/keen-cli/.ai-interactions/outputs/phase-1/output-5_basic-cli.md)
+**Design doc:** output-5_basic-cli.md
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|

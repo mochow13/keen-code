@@ -2,7 +2,7 @@
 CLI-based coding agent powered by AI using Firebase Genkit for LLM interactions.
 
 ## Architecture
-- **internal/tools** - LLM tools (read_file, glob)
+- **internal/tools** - LLM tools (read_file, write_file, edit_file, glob, grep, bash)
 - **internal/filesystem** - Guard for safe file access
 - **internal/cli/repl** - Interactive REPL UI
 - **internal/llm** - Genkit-based LLM client
@@ -24,5 +24,4 @@ Guard checks paths before filesystem operations:
 ## Important Guidelines
 - **Minimal comments** - Only when strictly necessary
 - **Test critical paths** - Not aiming for 100% coverage
-- **Inject dependencies** - Use constructors
-- **Guard checks first** - Always validate before filesystem ops
+- **Always run the tests** - After each change

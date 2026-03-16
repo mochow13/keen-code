@@ -156,11 +156,41 @@ func TestProviderConstants(t *testing.T) {
 		{Provider(config.ProviderAnthropic), "anthropic"},
 		{Provider(config.ProviderOpenAI), "openai"},
 		{Provider(config.ProviderGoogleAI), "googleai"},
+		{Provider(config.ProviderDeepSeek), "deepseek"},
 	}
 
 	for _, tt := range tests {
 		if string(tt.provider) != tt.expected {
 			t.Errorf("expected provider %q, got %q", tt.expected, tt.provider)
 		}
+	}
+}
+
+func TestNewClient_DeepSeek(t *testing.T) {
+	cfg := &config.ResolvedConfig{
+		Provider: "deepseek",
+		Model:    "deepseek-chat",
+		APIKey:   "test-api-key",
+	}
+
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+
+	oaiClient, ok := client.(*OpenAICompatibleClient)
+	if !ok {
+		t.Fatalf("expected *OpenAICompatibleClient, got %T", client)
+	}
+
+	if oaiClient.provider != Provider(config.ProviderDeepSeek) {
+		t.Errorf("expected provider deepseek, got %s", oaiClient.provider)
+	}
+	if oaiClient.model != "deepseek-chat" {
+		t.Errorf("expected model deepseek-chat, got %s", oaiClient.model)
 	}
 }
