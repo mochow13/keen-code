@@ -1,5 +1,6 @@
 ## Supporting `deepseek-reasoner`
 
+### Implementing `deepseek-reasoner`
 1. Currently, `deepseek-chat` works as expected but `deepseek-reasoner` doesn't. It fails with this error:
 ```
 Error: stream error: POST "https://api.deepseek.com/chat/completions": 400 Bad Request {"message":"Missing
@@ -20,4 +21,11 @@ Let's figure it out why.
 11. Between reasoning_content and LLM messages, there should be a new line to separate them. Implement it.
 12. What is the purpose of alreadyStreamed variable? Explain it. Also add a concise comment in the code for it.
 13. Currently, the `StreamChat` function in openai.go is long. There are some duplication in code too. Refactor it.
-14. Now, we want to show reasoning text differently from LLM messages. How can we implement it aligning with the existing code? Suggest the most appropriate approach.
+14. Now, we want to show reasoning text differently from LLM messages. How can we implement it aligning with the existing code? Suggest the most appropriate approach and create a todo list.
+15. Okay let's implement.
+
+### UI Improvements
+1. Every tool call is showing the same loading text. Let's change the behaviour.
+2. No need, just reuse the existing loadingTexts.
+3. Review the loadingTexts. They are too vanilla. Change them to some madeup words that give the vibe of working on something.
+4. We show a loding spinner. Let's change its behaviour from a fixed one to a random one.

@@ -27,6 +27,28 @@ func TestStreamHandler_HandleChunk(t *testing.T) {
 	}
 }
 
+func TestStreamHandler_HandleReasoningChunk_DoesNotAffectAssistantResponse(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	sh.HandleReasoningChunk("thinking ")
+	sh.HandleReasoningChunk("more")
+	sh.HandleChunk("answer")
+
+	if got := sh.GetResponse(); got != "answer" {
+		t.Fatalf("expected assistant response 'answer', got %q", got)
+	}
+	if len(sh.segments) != 2 {
+		t.Fatalf("expected 2 segments (reasoning + assistant), got %d", len(sh.segments))
+	}
+	if sh.segments[0].kind != segmentReasoning {
+		t.Fatalf("expected first segment reasoning, got %q", sh.segments[0].kind)
+	}
+	if sh.segments[0].content != "thinking more" {
+		t.Fatalf("unexpected reasoning content %q", sh.segments[0].content)
+	}
+}
+
 func TestStreamHandler_HandleDone(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
@@ -210,6 +232,29 @@ func TestWaitForAsyncEvent_Done(t *testing.T) {
 	}
 }
 
+func TestWaitForAsyncEvent_ReasoningChunk(t *testing.T) {
+	eventCh := make(chan llm.StreamEvent, 1)
+	eventCh <- llm.StreamEvent{
+		Type:    llm.StreamEventTypeReasoningChunk,
+		Content: "thinking",
+	}
+	close(eventCh)
+
+	cmd := waitForAsyncEvent(eventCh, make(chan *PermissionRequest), make(chan diffEmitRequest))
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd")
+	}
+
+	msg := cmd()
+	reasoningMsg, ok := msg.(llmReasoningChunkMsg)
+	if !ok {
+		t.Fatalf("expected llmReasoningChunkMsg, got %T", msg)
+	}
+	if string(reasoningMsg) != "thinking" {
+		t.Fatalf("expected 'thinking', got %q", string(reasoningMsg))
+	}
+}
+
 func TestWaitForAsyncEvent_Error(t *testing.T) {
 	testErr := errors.New("stream error")
 	eventCh := make(chan llm.StreamEvent, 1)
@@ -336,6 +381,7 @@ func TestWaitForAsyncEvent_Diff(t *testing.T) {
 }
 
 var _ tea.Msg = llmChunkMsg("")
+var _ tea.Msg = llmReasoningChunkMsg("")
 var _ tea.Msg = llmDoneMsg{}
 var _ tea.Msg = llmErrorMsg{}
 var _ tea.Msg = permissionReadyMsg{}

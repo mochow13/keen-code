@@ -14,6 +14,7 @@ type StreamHandler struct {
 	currentResponse string
 	eventCh         <-chan llm.StreamEvent
 	loadingText     string
+	lastWidth       int
 	mdRenderer      *MarkdownRenderer
 	segments        []streamSegment
 }
@@ -22,6 +23,7 @@ type streamSegmentType string
 
 const (
 	segmentAssistant  streamSegmentType = "assistant"
+	segmentReasoning  streamSegmentType = "reasoning"
 	segmentToolStart  streamSegmentType = "tool_start"
 	segmentToolEnd    streamSegmentType = "tool_end"
 	segmentBash       streamSegmentType = "bash"
@@ -54,6 +56,7 @@ func (sh *StreamHandler) Start(eventCh <-chan llm.StreamEvent, loadingText strin
 	sh.currentResponse = ""
 	sh.eventCh = eventCh
 	sh.loadingText = loadingText
+	sh.lastWidth = 0
 	sh.segments = make([]streamSegment, 0)
 }
 
@@ -69,6 +72,10 @@ func (sh *StreamHandler) GetLoadingText() string {
 	return sh.loadingText
 }
 
+func (sh *StreamHandler) SetLoadingText(loadingText string) {
+	sh.loadingText = loadingText
+}
+
 func (sh *StreamHandler) HasContent() bool {
 	return len(sh.segments) > 0
 }
@@ -81,6 +88,14 @@ func (sh *StreamHandler) HandleChunk(chunk string) {
 	} else {
 		sh.segments = append(sh.segments, streamSegment{kind: segmentAssistant, content: chunk})
 	}
+}
+
+func (sh *StreamHandler) HandleReasoningChunk(chunk string) {
+	if n := len(sh.segments); n > 0 && sh.segments[n-1].kind == segmentReasoning {
+		sh.segments[n-1].content += chunk
+		return
+	}
+	sh.segments = append(sh.segments, streamSegment{kind: segmentReasoning, content: chunk})
 }
 
 func (sh *StreamHandler) HandleToolStart(toolCall *llm.ToolCall) {
@@ -231,6 +246,8 @@ func (sh *StreamHandler) resetState() {
 }
 
 func (sh *StreamHandler) View(width int, showSpinner bool, spinnerView string) string {
+	sh.lastWidth = width
+
 	var view strings.Builder
 	showInlineBashSpinner := showSpinner && sh.hasRunningBashSegment()
 
@@ -250,9 +267,13 @@ func (sh *StreamHandler) renderViewLines(width int, showInlineBashSpinner bool, 
 	lines := make([]string, 0)
 
 	lastAssistantIdx := -1
+	lastReasoningIdx := -1
 	for i := range sh.segments {
 		if sh.segments[i].kind == segmentAssistant {
 			lastAssistantIdx = i
+		}
+		if sh.segments[i].kind == segmentReasoning {
+			lastReasoningIdx = i
 		}
 	}
 
@@ -273,6 +294,11 @@ func (sh *StreamHandler) renderViewLines(width int, showInlineBashSpinner bool, 
 		case segmentAssistant:
 			if seg.renderedLines == nil || i == lastAssistantIdx {
 				seg.renderedLines = sh.renderAssistantViewLines(seg.content, width)
+			}
+			lines = append(lines, seg.renderedLines...)
+		case segmentReasoning:
+			if seg.renderedLines == nil || i == lastReasoningIdx {
+				seg.renderedLines = sh.renderReasoningViewLines(seg.content, width)
 			}
 			lines = append(lines, seg.renderedLines...)
 		case segmentPermission:
@@ -306,6 +332,8 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 			lines = append(lines, bashLines...)
 		case segmentAssistant:
 			lines = append(lines, sh.renderAssistantTranscriptLines(seg.content)...)
+		case segmentReasoning:
+			lines = append(lines, sh.renderReasoningTranscriptLines(seg.content)...)
 		case segmentPermission:
 			if seg.permissionReq != nil {
 				lines = append(lines, renderPermissionResolved(seg.permissionReq)...)
@@ -368,6 +396,43 @@ func (sh *StreamHandler) renderAssistantTranscriptLines(content string) []string
 	}
 
 	return formatResponseLines(content)
+}
+
+func (sh *StreamHandler) renderReasoningViewLines(content string, width int) []string {
+	if content == "" {
+		return nil
+	}
+
+	responseLines := strings.Split(content, "\n")
+	wrapWidth := width - 4
+	if wrapWidth < 1 {
+		wrapWidth = 1
+	}
+	wrapStyle := lipgloss.NewStyle().Width(wrapWidth)
+	formatted := make([]string, 0, len(responseLines))
+	for _, line := range responseLines {
+		formatted = append(formatted, "  "+wrapStyle.Render(reasoningStyle.Render(line)))
+	}
+	return formatted
+}
+
+func (sh *StreamHandler) renderReasoningTranscriptLines(content string) []string {
+	if content == "" {
+		return nil
+	}
+
+	lines := strings.Split(content, "\n")
+	wrapWidth := sh.lastWidth - 4
+	if wrapWidth < 1 {
+		wrapWidth = 120
+	}
+	wrapStyle := lipgloss.NewStyle().Width(wrapWidth)
+
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		result = append(result, "  "+wrapStyle.Render(reasoningStyle.Render(line)))
+	}
+	return result
 }
 
 func formatResponseLines(response string) []string {
@@ -542,6 +607,7 @@ func renderPermissionResolved(req *PermissionRequest) []string {
 }
 
 type llmChunkMsg string
+type llmReasoningChunkMsg string
 type llmDoneMsg struct{}
 type llmErrorMsg struct {
 	err error

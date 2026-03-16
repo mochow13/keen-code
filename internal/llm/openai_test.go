@@ -170,12 +170,15 @@ func TestOpenAICompatibleClient_StreamChat_InjectsReasoningContentForReasoner(t 
 	var toolStartCount int
 	var toolEndCount int
 	var streamed strings.Builder
+	var reasoning strings.Builder
 	for ev := range eventCh {
 		switch ev.Type {
 		case StreamEventTypeDone:
 			hasDone = true
 		case StreamEventTypeChunk:
 			streamed.WriteString(ev.Content)
+		case StreamEventTypeReasoningChunk:
+			reasoning.WriteString(ev.Content)
 		case StreamEventTypeToolStart:
 			toolStartCount++
 		case StreamEventTypeToolEnd:
@@ -197,7 +200,10 @@ func TestOpenAICompatibleClient_StreamChat_InjectsReasoningContentForReasoner(t 
 	if !strings.Contains(requests[1], `"reasoning_content":"reasoning-step"`) {
 		t.Fatalf("expected reasoning_content in second request, got: %s", requests[1])
 	}
-	if !strings.Contains(streamed.String(), "reasoning-step\n\ndone") {
-		t.Fatalf("expected reasoning/content separator in streamed output, got: %q", streamed.String())
+	if reasoning.String() != "reasoning-step" {
+		t.Fatalf("expected reasoning stream, got: %q", reasoning.String())
+	}
+	if streamed.String() != "done" {
+		t.Fatalf("expected assistant-only chunk stream, got: %q", streamed.String())
 	}
 }

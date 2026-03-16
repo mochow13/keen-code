@@ -167,14 +167,6 @@ func emitChunk(eventCh chan<- StreamEvent, content string) {
 	}
 }
 
-func (c *OpenAICompatibleClient) emitReasoningSeparator(eventCh chan<- StreamEvent, pending *bool) {
-	if !c.isReasonerModel() || !*pending {
-		return
-	}
-	emitChunk(eventCh, "\n\n")
-	*pending = false
-}
-
 func (c *OpenAICompatibleClient) buildAssistantMessage(message openai.ChatCompletionMessage, reasoningContent string) openai.ChatCompletionAssistantMessageParam {
 	assistant := openai.ChatCompletionAssistantMessageParam{}
 	if message.Content != "" {
@@ -204,7 +196,6 @@ func (c *OpenAICompatibleClient) emitMissingFinalContent(
 	eventCh chan<- StreamEvent,
 	fullContent string,
 	streamedContent string,
-	pendingReasoningSeparator *bool,
 ) {
 	if fullContent == "" {
 		return
@@ -215,14 +206,12 @@ func (c *OpenAICompatibleClient) emitMissingFinalContent(
 	// duplicate UI text while still handling providers that send little/no deltas.
 	if strings.HasPrefix(fullContent, streamedContent) {
 		if tail := fullContent[len(streamedContent):]; tail != "" {
-			c.emitReasoningSeparator(eventCh, pendingReasoningSeparator)
 			emitChunk(eventCh, tail)
 		}
 		return
 	}
 
 	if streamedContent == "" {
-		c.emitReasoningSeparator(eventCh, pendingReasoningSeparator)
 		emitChunk(eventCh, fullContent)
 	}
 }
@@ -231,7 +220,6 @@ func (c *OpenAICompatibleClient) collectTurn(
 	ctx context.Context,
 	params openai.ChatCompletionNewParams,
 	eventCh chan<- StreamEvent,
-	pendingReasoningSeparator *bool,
 ) (openai.ChatCompletionMessage, string, string, bool, error) {
 	stream := c.streamImpl(ctx, params)
 	var acc openai.ChatCompletionAccumulator
@@ -248,7 +236,6 @@ func (c *OpenAICompatibleClient) collectTurn(
 
 		delta := chunk.Choices[0].Delta
 		if delta.Content != "" {
-			c.emitReasoningSeparator(eventCh, pendingReasoningSeparator)
 			streamedContent.WriteString(delta.Content)
 			emitChunk(eventCh, delta.Content)
 		}
@@ -258,8 +245,10 @@ func (c *OpenAICompatibleClient) collectTurn(
 		reasoningDelta := extractJSONStringField(delta.JSON.ExtraFields, "reasoning_content")
 		reasoningContent.WriteString(reasoningDelta)
 		if c.isReasonerModel() && reasoningDelta != "" {
-			*pendingReasoningSeparator = true
-			emitChunk(eventCh, reasoningDelta)
+			eventCh <- StreamEvent{
+				Type:    StreamEventTypeReasoningChunk,
+				Content: reasoningDelta,
+			}
 		}
 	}
 	_ = stream.Close()
@@ -286,7 +275,6 @@ func (c *OpenAICompatibleClient) StreamChat(
 
 		oaiMessages := toOpenAIMessages(messages)
 		oaiTools := toOpenAITools(toolRegistry)
-		pendingReasoningSeparator := false
 
 		for range maxToolTurns {
 			params := openai.ChatCompletionNewParams{
@@ -296,7 +284,7 @@ func (c *OpenAICompatibleClient) StreamChat(
 			if len(oaiTools) > 0 {
 				params.Tools = oaiTools
 			}
-			message, reasoningContent, streamedContent, hasChoice, err := c.collectTurn(ctx, params, eventCh, &pendingReasoningSeparator)
+			message, reasoningContent, streamedContent, hasChoice, err := c.collectTurn(ctx, params, eventCh)
 			if err != nil {
 				eventCh <- StreamEvent{
 					Type:  StreamEventTypeError,
@@ -308,7 +296,7 @@ func (c *OpenAICompatibleClient) StreamChat(
 				eventCh <- StreamEvent{Type: StreamEventTypeDone}
 				return
 			}
-			c.emitMissingFinalContent(eventCh, message.Content, streamedContent, &pendingReasoningSeparator)
+			c.emitMissingFinalContent(eventCh, message.Content, streamedContent)
 			assistant := c.buildAssistantMessage(message, reasoningContent)
 
 			if len(message.ToolCalls) == 0 {

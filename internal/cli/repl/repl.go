@@ -18,34 +18,76 @@ import (
 )
 
 const (
-	/* Commands */
 	exitCommand  = "/exit"
 	helpCommand  = "/help"
 	modelCommand = "/model"
 
-	/* UI */
 	defaultWidth = 120
 	maxHeight    = 3
 )
 
 var loadingTexts = []string{
-	"Cooking...",
-	"Building...",
-	"Brewing...",
-	"Figuring out...",
-	"Getting answers...",
-	"Composing...",
-	"Finding out...",
-	"Answering...",
-	"Hmmm...",
-	"Let me check...",
-	"Let me see...",
-	"Let me find out...",
-	"Sizzling...",
-	"Whisking...",
-	"Stirring...",
-	"Whizzing...",
-	"Beep boop...",
+	"Cogitating...",
+	"Schemulating...",
+	"Logicrafting...",
+	"Factweaving...",
+	"Signalparsing...",
+	"Mindmapping...",
+	"Codeforging...",
+	"Tasksplicing...",
+	"Datasifting...",
+	"Pathfinding...",
+	"Threadspinning...",
+	"Plansmithing...",
+	"Synthesizing...",
+	"Constraintcrunching...",
+	"Flowtuning...",
+	"Resultshaping...",
+	"Contextfolding...",
+	"Syntaxstitching...",
+	"Hypothesishammering...",
+	"Signaldistilling...",
+	"Threadaligning...",
+	"Contextlathing...",
+	"Promptcalibrating...",
+	"Intentdecoding...",
+	"Plancompiling...",
+	"Tokenjuggling...",
+	"Edgecasemapping...",
+	"Inferencepolishing...",
+	"Tracemining...",
+	"Branchsculpting...",
+	"Outcomeforging...",
+	"Latencytrimming...",
+	"Modelwhispering...",
+	"Heuristicbraiding...",
+	"Difforbiting...",
+	"Semanticssanding...",
+	"Constraintweaving...",
+	"Decisionlinting...",
+	"Querytempering...",
+	"Contextbuffering...",
+	"Pathuntangling...",
+	"Resulthoning...",
+}
+
+var loadingSpinners = []spinner.Spinner{
+	spinner.Line,
+	spinner.Dot,
+	spinner.MiniDot,
+	spinner.Jump,
+	spinner.Pulse,
+	spinner.Points,
+	spinner.Meter,
+	spinner.Ellipsis,
+}
+
+func nextLoadingText() string {
+	return loadingTexts[rand.Intn(len(loadingTexts))]
+}
+
+func nextLoadingSpinner() spinner.Spinner {
+	return loadingSpinners[rand.Intn(len(loadingSpinners))]
 }
 
 type replContext struct {
@@ -292,7 +334,8 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	}
 
 	m.showSpinner = true
-	m.loadingText = loadingTexts[rand.Intn(len(loadingTexts))]
+	m.spinner.Spinner = nextLoadingSpinner()
+	m.loadingText = nextLoadingText()
 	m.streamHandler.Start(eventCh, m.loadingText)
 	m.textarea.Reset()
 	m.userScrolled = false
@@ -376,6 +419,8 @@ func waitForAsyncEvent(llmCh <-chan llm.StreamEvent, permissionCh <-chan *Permis
 			switch event.Type {
 			case llm.StreamEventTypeChunk:
 				return llmChunkMsg(event.Content)
+			case llm.StreamEventTypeReasoningChunk:
+				return llmReasoningChunkMsg(event.Content)
 			case llm.StreamEventTypeDone:
 				return llmDoneMsg{}
 			case llm.StreamEventTypeError:

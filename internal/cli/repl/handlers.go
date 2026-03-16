@@ -33,6 +33,16 @@ func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 	return *m, m.waitForAsyncEvent()
 }
 
+func (m *replModel) handleLLMReasoningChunk(chunk string) (replModel, tea.Cmd) {
+	m.showSpinner = false
+	m.streamHandler.HandleReasoningChunk(chunk)
+	m.updateViewportContent()
+	if !m.userScrolled {
+		m.viewport.GotoBottom()
+	}
+	return *m, m.waitForAsyncEvent()
+}
+
 func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.showSpinner = false
 	m.clearStreamCancel()
@@ -94,6 +104,8 @@ func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 		m.streamHandler.HandleBashEnd(toolCall)
 	} else {
 		m.streamHandler.HandleToolEnd(toolCall)
+		m.loadingText = nextLoadingText()
+		m.streamHandler.SetLoadingText(m.loadingText)
 	}
 	m.updateViewportContent()
 	if !m.userScrolled {
@@ -243,7 +255,7 @@ func (m *replModel) handlePermissionKeyMsg(msg tea.KeyPressMsg) (replModel, tea.
 func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	if m.streamHandler == nil || !m.streamHandler.IsActive() {
 		switch msg.(type) {
-		case llmChunkMsg, llmDoneMsg, llmErrorMsg, llmToolStartMsg, llmToolEndMsg:
+		case llmChunkMsg, llmReasoningChunkMsg, llmDoneMsg, llmErrorMsg, llmToolStartMsg, llmToolEndMsg:
 			return m, nil, true
 		}
 	}
@@ -251,6 +263,9 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case llmChunkMsg:
 		updated, cmd := m.handleLLMChunk(string(msg))
+		return updated, cmd, true
+	case llmReasoningChunkMsg:
+		updated, cmd := m.handleLLMReasoningChunk(string(msg))
 		return updated, cmd, true
 	case llmDoneMsg:
 		updated, cmd := m.handleLLMDone()

@@ -18,11 +18,12 @@ type Message struct {
 type StreamEventType string
 
 const (
-	StreamEventTypeChunk     StreamEventType = "chunk"
-	StreamEventTypeDone      StreamEventType = "done"
-	StreamEventTypeError     StreamEventType = "error"
-	StreamEventTypeToolStart StreamEventType = "tool_start"
-	StreamEventTypeToolEnd   StreamEventType = "tool_end"
+	StreamEventTypeChunk          StreamEventType = "chunk"
+	StreamEventTypeReasoningChunk StreamEventType = "reasoning_chunk"
+	StreamEventTypeDone           StreamEventType = "done"
+	StreamEventTypeError          StreamEventType = "error"
+	StreamEventTypeToolStart      StreamEventType = "tool_start"
+	StreamEventTypeToolEnd        StreamEventType = "tool_end"
 )
 
 type StreamEvent struct {

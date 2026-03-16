@@ -62,6 +62,13 @@ var (
 			Light: lipgloss.Color("#1F2937"),
 			Dark:  lipgloss.Color("#E5E7EB"),
 		})
+	reasoningStyle = lipgloss.NewStyle().
+			Foreground(compat.AdaptiveColor{
+			Light: lipgloss.Color("#7F8A99"),
+			Dark:  lipgloss.Color("#8A95A5"),
+		}).
+		Italic(true).
+		Faint(true)
 	errorStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
 			Light: lipgloss.Color("#DC2626"),
