@@ -1,6 +1,6 @@
 ## Supporting `deepseek-reasoner`
 
-### Implementing `deepseek-reasoner`
+### Implementation
 1. Currently, `deepseek-chat` works as expected but `deepseek-reasoner` doesn't. It fails with this error:
 ```
 Error: stream error: POST "https://api.deepseek.com/chat/completions": 400 Bad Request {"message":"Missing

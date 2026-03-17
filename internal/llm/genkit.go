@@ -63,13 +63,6 @@ func NewGenkitClient(cfg *ClientConfig) (*GenkitClient, error) {
 			APIKey: cfg.APIKey,
 		}))
 		modelName = "googleai/" + cfg.Model
-	case config.ProviderMoonshotAI:
-		g = genkit.Init(ctx, genkit.WithPlugins(&compat_oai.OpenAICompatible{
-			APIKey:   cfg.APIKey,
-			Provider: "moonshotai",
-			BaseURL:  "https://api.moonshot.ai/v1/",
-		}))
-		modelName = "moonshotai/" + cfg.Model
 	default:
 		return nil, fmt.Errorf("unsupported provider in config: %s", cfg.Provider)
 	}

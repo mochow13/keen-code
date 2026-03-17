@@ -85,6 +85,8 @@ func openAICompatibleBaseURL(provider Provider) (string, error) {
 	switch provider {
 	case Provider(config.ProviderDeepSeek):
 		return "https://api.deepseek.com/", nil
+	case Provider(config.ProviderMoonshotAI):
+		return "https://api.moonshot.ai/v1/", nil
 	default:
 		return "", fmt.Errorf("unsupported OpenAI-compatible provider: %s", provider)
 	}
@@ -184,7 +186,7 @@ func (c *OpenAICompatibleClient) buildAssistantMessage(message openai.ChatComple
 			}
 		}
 	}
-	if c.isReasonerModel() && len(message.ToolCalls) > 0 {
+	if len(message.ToolCalls) > 0 {
 		assistant.SetExtraFields(map[string]any{
 			"reasoning_content": reasoningContent,
 		})
@@ -244,7 +246,7 @@ func (c *OpenAICompatibleClient) collectTurn(
 		// Capture it during streaming because the SDK accumulator does not retain JSON metadata.
 		reasoningDelta := extractJSONStringField(delta.JSON.ExtraFields, "reasoning_content")
 		reasoningContent.WriteString(reasoningDelta)
-		if c.isReasonerModel() && reasoningDelta != "" {
+		if reasoningDelta != "" {
 			eventCh <- StreamEvent{
 				Type:    StreamEventTypeReasoningChunk,
 				Content: reasoningDelta,
