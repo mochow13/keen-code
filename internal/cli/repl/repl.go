@@ -79,7 +79,10 @@ var loadingSpinners = []spinner.Spinner{
 	spinner.Pulse,
 	spinner.Points,
 	spinner.Meter,
-	spinner.Ellipsis,
+	spinner.Hamburger,
+	spinner.Globe,
+	spinner.Moon,
+	spinner.Monkey,
 }
 
 func nextLoadingText() string {

@@ -104,17 +104,17 @@ func TestNewClient_OpenAI(t *testing.T) {
 		t.Error("expected non-nil client")
 	}
 
-	genkitClient, ok := client.(*GenkitClient)
+	responsesClient, ok := client.(*OpenAIResponsesClient)
 	if !ok {
-		t.Error("expected *GenkitClient type")
+		t.Fatalf("expected *OpenAIResponsesClient, got %T", client)
 	}
 
-	if genkitClient.provider != Provider(config.ProviderOpenAI) {
-		t.Errorf("expected provider openai, got %s", genkitClient.provider)
+	if responsesClient.provider != Provider(config.ProviderOpenAI) {
+		t.Errorf("expected provider openai, got %s", responsesClient.provider)
 	}
 
-	if genkitClient.model != "openai/gpt-4" {
-		t.Errorf("expected model openai/gpt-4, got %s", genkitClient.model)
+	if responsesClient.model != "gpt-4" {
+		t.Errorf("expected model gpt-4, got %s", responsesClient.model)
 	}
 }
 

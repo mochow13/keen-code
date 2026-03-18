@@ -124,7 +124,18 @@ func TestNewOpenAICompatibleClient_DeepSeek(t *testing.T) {
 	}
 }
 
-func TestOpenAICompatibleClient_StreamChat_InjectsReasoningContentForReasoner(t *testing.T) {
+func TestNewOpenAICompatibleClient_OpenAIProviderRejected(t *testing.T) {
+	client, err := NewOpenAICompatibleClient(&ClientConfig{
+		Provider: Provider(config.ProviderOpenAI),
+		APIKey:   "test-key",
+		Model:    "gpt-4.1-mini",
+	})
+	if err == nil {
+		t.Fatalf("expected error, got client: %+v", client)
+	}
+}
+
+func TestOpenAICompatibleClient_StreamChat_InjectsReasoningContentAcrossToolTurns(t *testing.T) {
 	client := &OpenAICompatibleClient{
 		provider: Provider(config.ProviderDeepSeek),
 		model:    "deepseek-reasoner",
@@ -205,5 +216,27 @@ func TestOpenAICompatibleClient_StreamChat_InjectsReasoningContentForReasoner(t 
 	}
 	if streamed.String() != "done" {
 		t.Fatalf("expected assistant-only chunk stream, got: %q", streamed.String())
+	}
+}
+
+func TestOpenAICompatibleClient_buildAssistantMessage_AttachesReasoningWithoutToolCalls(t *testing.T) {
+	client := &OpenAICompatibleClient{}
+
+	msg := openai.ChatCompletionMessage{
+		Role:    "assistant",
+		Content: "answer",
+	}
+
+	assistant := client.buildAssistantMessage(msg, "reasoning-step")
+	extra := assistant.ExtraFields()
+	if extra == nil {
+		t.Fatal("expected extra fields to be set")
+	}
+	v, ok := extra["reasoning_content"]
+	if !ok {
+		t.Fatalf("expected reasoning_content in extra fields, got: %#v", extra)
+	}
+	if got, _ := v.(string); got != "reasoning-step" {
+		t.Fatalf("expected reasoning_content=reasoning-step, got %#v", v)
 	}
 }

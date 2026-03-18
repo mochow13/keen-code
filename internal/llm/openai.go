@@ -56,8 +56,6 @@ type OpenAICompatibleClient struct {
 	streamImpl streamFactory
 }
 
-const deepSeekReasonerModel = "deepseek-reasoner"
-
 func NewOpenAICompatibleClient(cfg *ClientConfig) (*OpenAICompatibleClient, error) {
 	baseURL, err := openAICompatibleBaseURL(cfg.Provider)
 	if err != nil {
@@ -155,10 +153,6 @@ func extractJSONStringField(extra map[string]respjson.Field, key string) string 
 	return ""
 }
 
-func (c *OpenAICompatibleClient) isReasonerModel() bool {
-	return c.model == deepSeekReasonerModel
-}
-
 func emitChunk(eventCh chan<- StreamEvent, content string) {
 	if content == "" {
 		return
@@ -186,7 +180,7 @@ func (c *OpenAICompatibleClient) buildAssistantMessage(message openai.ChatComple
 			}
 		}
 	}
-	if len(message.ToolCalls) > 0 {
+	if reasoningContent != "" {
 		assistant.SetExtraFields(map[string]any{
 			"reasoning_content": reasoningContent,
 		})
@@ -194,7 +188,7 @@ func (c *OpenAICompatibleClient) buildAssistantMessage(message openai.ChatComple
 	return assistant
 }
 
-func (c *OpenAICompatibleClient) emitMissingFinalContent(
+func emitMissingFinalContent(
 	eventCh chan<- StreamEvent,
 	fullContent string,
 	streamedContent string,
@@ -242,7 +236,7 @@ func (c *OpenAICompatibleClient) collectTurn(
 			emitChunk(eventCh, delta.Content)
 		}
 
-		// reasoning_content is a DeepSeek extension not modeled by openai-go.
+		// reasoning_content is a DeepSeek/Moonshot AI extension not modeled by openai-go.
 		// Capture it during streaming because the SDK accumulator does not retain JSON metadata.
 		reasoningDelta := extractJSONStringField(delta.JSON.ExtraFields, "reasoning_content")
 		reasoningContent.WriteString(reasoningDelta)
@@ -298,7 +292,7 @@ func (c *OpenAICompatibleClient) StreamChat(
 				eventCh <- StreamEvent{Type: StreamEventTypeDone}
 				return
 			}
-			c.emitMissingFinalContent(eventCh, message.Content, streamedContent)
+			emitMissingFinalContent(eventCh, message.Content, streamedContent)
 			assistant := c.buildAssistantMessage(message, reasoningContent)
 
 			if len(message.ToolCalls) == 0 {
