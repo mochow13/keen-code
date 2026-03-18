@@ -466,14 +466,23 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int, showIn
 	lines = append(lines, "")
 
 	if seg.output != "" {
-		outputLines := strings.SplitSeq(seg.output, "\n")
-		for line := range outputLines {
+		outputLines := strings.Split(seg.output, "\n")
+		total := len(outputLines)
+		visible := outputLines
+		if total > bashOutputMaxLines {
+			visible = outputLines[:bashOutputMaxLines]
+		}
+		for _, line := range visible {
 			if width > 0 {
 				wrapStyle := lipgloss.NewStyle().Width(width - 4)
 				lines = append(lines, "  "+bashOutputStyle.Render(wrapStyle.Render(line)))
 			} else {
 				lines = append(lines, "  "+bashOutputStyle.Render(line))
 			}
+		}
+		if total > bashOutputMaxLines {
+			accentStyle := lipgloss.NewStyle().Foreground(accentColor)
+			lines = append(lines, "  "+accentStyle.Render(fmt.Sprintf("→ %d more lines", total-bashOutputMaxLines)))
 		}
 	}
 
@@ -517,6 +526,7 @@ func renderDiffSegment(seg *streamSegment) []string {
 }
 
 const permissionPreviewMaxLines = 120
+const bashOutputMaxLines = 30
 
 func renderPermissionCard(seg *streamSegment, width int) []string {
 	req := seg.permissionReq
@@ -528,6 +538,25 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 		return renderPermissionResolved(req)
 	}
 
+	cardWidth := width - 2
+	if cardWidth < 20 {
+		cardWidth = 20
+	}
+	cardStyle := userPromptCardStyle.MaxWidth(cardWidth)
+	contentWidth := cardWidth - cardStyle.GetHorizontalFrameSize()
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	labelWidth := lipgloss.Width(infoLabelStyle.Render("Resolved:"))
+	if labelWidth < 1 {
+		labelWidth = 1
+	}
+	valueWidth := contentWidth - labelWidth - 1
+	if valueWidth < 1 {
+		valueWidth = 1
+	}
+
 	var sb strings.Builder
 
 	if req.IsDangerous {
@@ -537,13 +566,13 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 	}
 	sb.WriteString("\n\n")
 
-	sb.WriteString(infoLabelStyle.Render("Tool:") + " " + infoValueStyle.Render(req.ToolName) + "\n")
+	sb.WriteString(formatPermissionKeyValue("Tool:", req.ToolName, labelWidth, valueWidth))
 	if req.IsDangerous {
-		sb.WriteString(infoLabelStyle.Render("Command:") + " " + infoValueStyle.Render(req.Path) + "\n")
+		sb.WriteString(formatPermissionKeyValue("Command:", req.Path, labelWidth, valueWidth))
 	} else {
-		sb.WriteString(infoLabelStyle.Render("Path:") + " " + infoValueStyle.Render(req.Path) + "\n")
+		sb.WriteString(formatPermissionKeyValue("Path:", req.Path, labelWidth, valueWidth))
 		if req.ResolvedPath != "" {
-			sb.WriteString(infoLabelStyle.Render("Resolved:") + " " + infoValueStyle.Render(req.ResolvedPath) + "\n")
+			sb.WriteString(formatPermissionKeyValue("Resolved:", req.ResolvedPath, labelWidth, valueWidth))
 		}
 	}
 
@@ -557,10 +586,12 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 		}
 		sb.WriteString("\n")
 		for _, l := range previewLines {
-			sb.WriteString(previewStyle.Render(l) + "\n")
+			sb.WriteString(wrapTextWithStyle(l, previewStyle, contentWidth))
+			sb.WriteString("\n")
 		}
 		if truncated {
-			sb.WriteString(hintStyle.Render(fmt.Sprintf("... %d more preview lines omitted", total-permissionPreviewMaxLines)) + "\n")
+			sb.WriteString(wrapTextWithStyle(fmt.Sprintf("... %d more preview lines omitted", total-permissionPreviewMaxLines), hintStyle, contentWidth))
+			sb.WriteString("\n")
 		}
 	}
 
@@ -569,17 +600,18 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 	choices := permissionChoices(req.IsDangerous)
 	for i, choice := range choices {
 		if i == seg.permissionCursor {
-			sb.WriteString(userPromptSelectionStyle.Render("> " + choice))
+			sb.WriteString(wrapTextWithStyle("> "+choice, userPromptSelectionStyle, contentWidth))
 			sb.WriteString("\n")
 		} else {
-			sb.WriteString("  " + normalStyle.Render(choice) + "\n")
+			sb.WriteString(wrapTextWithStyle("  "+choice, normalStyle, contentWidth))
+			sb.WriteString("\n")
 		}
 	}
 
 	sb.WriteString("\n")
-	sb.WriteString(hintStyle.Render("[↑/↓ navigate  Enter confirm  Esc deny]"))
+	sb.WriteString(wrapTextWithStyle("[↑/↓ navigate  Enter confirm  Esc deny]", hintStyle, contentWidth))
 
-	boxed := userPromptCardStyle.Render(sb.String())
+	boxed := cardStyle.Render(sb.String())
 	rawLines := strings.Split(strings.TrimRight(boxed, "\n"), "\n")
 	result := make([]string, 0, len(rawLines)+1)
 	result = append(result, "")
@@ -587,6 +619,41 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 		result = append(result, "  "+l)
 	}
 	return result
+}
+
+func wrapTextWithStyle(text string, style lipgloss.Style, width int) string {
+	if width < 1 {
+		width = 1
+	}
+	return lipgloss.NewStyle().Width(width).Render(style.Render(text))
+}
+
+func formatPermissionKeyValue(label, value string, labelWidth, valueWidth int) string {
+	if labelWidth < 1 {
+		labelWidth = 1
+	}
+	if valueWidth < 1 {
+		valueWidth = 1
+	}
+
+	prefix := infoLabelStyle.Width(labelWidth).Render(label)
+	continuation := strings.Repeat(" ", labelWidth+1)
+	if value == "" {
+		return prefix + " \n"
+	}
+
+	wrapped := wrapTextWithStyle(value, infoValueStyle, valueWidth)
+	lines := strings.Split(strings.TrimRight(wrapped, "\n"), "\n")
+	if len(lines) == 0 {
+		return prefix + " \n"
+	}
+
+	var out strings.Builder
+	out.WriteString(prefix + " " + lines[0] + "\n")
+	for _, line := range lines[1:] {
+		out.WriteString(continuation + line + "\n")
+	}
+	return out.String()
 }
 
 func renderPermissionResolved(req *PermissionRequest) []string {

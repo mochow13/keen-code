@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/user/keen-code/internal/llm"
 )
 
@@ -602,6 +603,54 @@ func TestRenderPermissionCard_PreviewTruncation(t *testing.T) {
 
 	if !strings.Contains(view, "more preview lines omitted") {
 		t.Error("expected truncation message in card with long preview")
+	}
+}
+
+func TestRenderPermissionCard_LongPathWrapsWithinWidth(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(false)
+	req.Path = "/very/long/path/" + strings.Repeat("nested-directory/", 12) + "file.go"
+	req.ResolvedPath = "/Users/example/" + strings.Repeat("really-long-segment/", 10) + "file.go"
+	sh.HandlePermissionRequest(req)
+
+	width := 50
+	view := sh.View(width, false, "")
+
+	for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
+		if w := lipgloss.Width(line); w > width {
+			t.Fatalf("line exceeds viewport width (%d > %d): %q", w, width, line)
+		}
+	}
+
+	if !strings.Contains(view, "Path:") {
+		t.Error("expected Path field to be present")
+	}
+	if !strings.Contains(view, "Resolved:") {
+		t.Error("expected Resolved field to be present")
+	}
+}
+
+func TestRenderPermissionCard_LongDangerousCommandWrapsWithinWidth(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+
+	req := makeTestPermissionRequest(true)
+	req.Path = "rm -rf " + strings.Repeat("/tmp/very-long-segment-name/", 12)
+	sh.HandlePermissionRequest(req)
+
+	width := 48
+	view := sh.View(width, false, "")
+
+	for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
+		if w := lipgloss.Width(line); w > width {
+			t.Fatalf("line exceeds viewport width (%d > %d): %q", w, width, line)
+		}
+	}
+
+	if !strings.Contains(view, "Allow Dangerous Command") {
+		t.Error("expected dangerous command title to be present")
 	}
 }
 
