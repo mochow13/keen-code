@@ -25,7 +25,7 @@ func newTestModel() replModel {
 		textarea:            ta,
 		viewport:            vp,
 		ctx:                 &replContext{cfg: &config.ResolvedConfig{}},
-		appState:            NewAppState(nil),
+		appState:            NewAppState(nil, ""),
 		output:              NewOutputBuilder(80),
 		streamHandler:       NewStreamHandler(nil),
 		permissionRequester: NewREPLPermissionRequester(),

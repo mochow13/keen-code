@@ -46,7 +46,7 @@ func TestHandleLLMDone(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		appState:      NewAppState(nil),
+		appState:      NewAppState(nil, t.TempDir()),
 		output:        NewOutputBuilder(80),
 	}
 
@@ -323,7 +323,7 @@ func TestHandleLLMDone_EmptyResponse(t *testing.T) {
 		streamHandler: sh,
 		showSpinner:   true,
 		width:         80,
-		appState:      NewAppState(nil),
+		appState:      NewAppState(nil, t.TempDir()),
 		output:        NewOutputBuilder(80),
 	}
 

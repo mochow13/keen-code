@@ -12,13 +12,15 @@ type AppState struct {
 	messages     []llm.Message
 	llmClient    llm.LLMClient
 	toolRegistry *tools.Registry
+	workingDir   string
 }
 
-func NewAppState(client llm.LLMClient) *AppState {
+func NewAppState(client llm.LLMClient, workingDir string) *AppState {
 	return &AppState{
 		messages:     []llm.Message{},
 		llmClient:    client,
 		toolRegistry: tools.NewRegistry(),
+		workingDir:   workingDir,
 	}
 }
 
@@ -43,7 +45,12 @@ func (s *AppState) StreamChat(ctx context.Context, cfg *config.ResolvedConfig) (
 	if s.llmClient == nil {
 		return nil, nil
 	}
-	return s.llmClient.StreamChat(ctx, s.messages, s.toolRegistry)
+	systemMsg := llm.Message{
+		Role:    llm.RoleSystem,
+		Content: llm.Build(s.workingDir),
+	}
+	messages := append([]llm.Message{systemMsg}, s.GetMessages()...)
+	return s.llmClient.StreamChat(ctx, messages, s.toolRegistry)
 }
 
 func (s *AppState) IsClientReady(cfg *config.ResolvedConfig) bool {
