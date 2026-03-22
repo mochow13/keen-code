@@ -24,7 +24,6 @@ const (
 )
 
 func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
-	m.showSpinner = false
 	m.streamHandler.HandleChunk(chunk)
 	m.updateViewportContent()
 	if !m.userScrolled {
@@ -34,7 +33,6 @@ func (m *replModel) handleLLMChunk(chunk string) (replModel, tea.Cmd) {
 }
 
 func (m *replModel) handleLLMReasoningChunk(chunk string) (replModel, tea.Cmd) {
-	m.showSpinner = false
 	m.streamHandler.HandleReasoningChunk(chunk)
 	m.updateViewportContent()
 	if !m.userScrolled {
@@ -46,6 +44,7 @@ func (m *replModel) handleLLMReasoningChunk(chunk string) (replModel, tea.Cmd) {
 func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.showSpinner = false
 	m.clearStreamCancel()
+	m.adjustTextareaHeight()
 	responseLines, fullResponse := m.streamHandler.HandleDone()
 	m.appState.AddMessage(llm.RoleAssistant, fullResponse)
 	for _, line := range responseLines {
@@ -62,6 +61,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.showSpinner = false
 	m.clearStreamCancel()
+	m.adjustTextareaHeight()
 	pendingLines, errMsg := m.streamHandler.HandleError(err)
 	for _, line := range pendingLines {
 		m.output.AddLine(line)
@@ -78,28 +78,21 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 }
 
 func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
-	isBash := toolCall.Name == "bash"
 	if toolCall.Name == "bash" {
-		m.showSpinner = true
 		command, _ := toolCall.Input["command"].(string)
 		summary, _ := toolCall.Input["summary"].(string)
 		m.streamHandler.HandleBashStart(command, summary)
 	} else {
-		m.showSpinner = false
 		m.streamHandler.HandleToolStart(toolCall)
 	}
 	m.updateViewportContent()
 	if !m.userScrolled {
 		m.viewport.GotoBottom()
 	}
-	if isBash {
-		return *m, tea.Batch(m.waitForAsyncEvent(), m.spinner.Tick)
-	}
 	return *m, m.waitForAsyncEvent()
 }
 
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
-	m.showSpinner = true
 	if toolCall.Name == "bash" {
 		m.streamHandler.HandleBashEnd(toolCall)
 	} else {
@@ -204,6 +197,7 @@ func (m *replModel) interruptStream(message string) {
 	}
 	m.output.AddStyledLine("\n  "+message, interruptedStyle)
 	m.output.AddEmptyLine()
+	m.adjustTextareaHeight()
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 }
@@ -284,9 +278,6 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 		return updated, cmd, true
 	case llmToolEndMsg:
 		updated, cmd := m.handleToolEnd(msg.toolCall)
-		if updated.showSpinner {
-			return updated, tea.Batch(cmd, updated.spinner.Tick), true
-		}
 		return updated, cmd, true
 	default:
 		return m, nil, false

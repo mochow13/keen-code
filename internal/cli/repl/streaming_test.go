@@ -139,17 +139,14 @@ func TestStreamHandler_HandleDone_MixedSegmentsChronological(t *testing.T) {
 	}
 }
 
-func TestStreamHandler_View_WithSpinner(t *testing.T) {
+func TestStreamHandler_View_NoSpinnerInView(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Brewing...")
 
-	view := sh.View(80, true, "⠋")
+	view := sh.View(80)
 
-	if !strings.Contains(view, "⠋") {
-		t.Error("expected view to contain spinner")
-	}
-	if !strings.Contains(view, "Brewing...") {
-		t.Error("expected view to contain loading text")
+	if strings.Contains(view, "Brewing...") {
+		t.Error("expected view to not contain loading text (spinner is rendered outside StreamHandler)")
 	}
 }
 
@@ -158,16 +155,13 @@ func TestStreamHandler_View_WithRunningBashShowsInlineStatus(t *testing.T) {
 	sh.Start(make(<-chan llm.StreamEvent), "Brewing...")
 	sh.HandleBashStart("npm test", "running tests")
 
-	view := sh.View(80, true, "⠋")
+	view := sh.View(80)
 
 	if !strings.Contains(view, "Running command...") {
 		t.Fatal("expected inline running message for bash")
 	}
 	if !strings.Contains(view, "Press Esc to interrupt") {
 		t.Fatal("expected interrupt hint for running bash")
-	}
-	if strings.Contains(view, "Brewing...") {
-		t.Fatal("expected bottom spinner line to be suppressed while bash is running")
 	}
 }
 
@@ -176,7 +170,7 @@ func TestStreamHandler_View_WithContent(t *testing.T) {
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 	sh.HandleChunk("Hello World")
 
-	view := sh.View(80, false, "")
+	view := sh.View(80)
 
 	if !strings.Contains(view, "Hello World") {
 		t.Error("expected view to contain response content")
@@ -187,7 +181,7 @@ func TestStreamHandler_View_NoSpinnerNoContent(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
-	view := sh.View(80, false, "⠋")
+	view := sh.View(80)
 
 	if view != "" {
 		t.Errorf("expected empty view when no spinner and no content, got '%s'", view)
@@ -521,7 +515,7 @@ func TestRenderPermissionCard_Pending(t *testing.T) {
 	req := makeTestPermissionRequest(false)
 	sh.HandlePermissionRequest(req)
 
-	view := sh.View(80, false, "")
+	view := sh.View(80)
 
 	if !strings.Contains(view, "Permission Required") {
 		t.Error("expected 'Permission Required' in pending card")
@@ -544,7 +538,7 @@ func TestRenderPermissionCard_Dangerous(t *testing.T) {
 	req := makeTestPermissionRequest(true)
 	sh.HandlePermissionRequest(req)
 
-	view := sh.View(80, false, "")
+	view := sh.View(80)
 
 	if !strings.Contains(view, "Allow Dangerous Command") {
 		t.Error("expected dangerous warning in card")
@@ -562,7 +556,7 @@ func TestRenderPermissionCard_Resolved_Allowed(t *testing.T) {
 	sh.HandlePermissionRequest(req)
 	sh.ResolvePendingPermission(PermissionStatusAllowed)
 
-	view := sh.View(80, false, "")
+	view := sh.View(80)
 
 	if !strings.Contains(view, "✓") {
 		t.Error("expected checkmark in resolved allowed card")
@@ -580,7 +574,7 @@ func TestRenderPermissionCard_Resolved_Denied(t *testing.T) {
 	sh.HandlePermissionRequest(req)
 	sh.ResolvePendingPermission(PermissionStatusDenied)
 
-	view := sh.View(80, false, "")
+	view := sh.View(80)
 
 	if !strings.Contains(view, "✗") {
 		t.Error("expected X mark in resolved denied card")
@@ -599,7 +593,7 @@ func TestRenderPermissionCard_PreviewTruncation(t *testing.T) {
 	req.Preview = strings.Join(previewLines, "\n")
 	sh.HandlePermissionRequest(req)
 
-	view := sh.View(80, false, "")
+	view := sh.View(80)
 
 	if !strings.Contains(view, "more preview lines omitted") {
 		t.Error("expected truncation message in card with long preview")
@@ -616,7 +610,7 @@ func TestRenderPermissionCard_LongPathWrapsWithinWidth(t *testing.T) {
 	sh.HandlePermissionRequest(req)
 
 	width := 50
-	view := sh.View(width, false, "")
+	view := sh.View(width)
 
 	for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
 		if w := lipgloss.Width(line); w > width {
@@ -641,7 +635,7 @@ func TestRenderPermissionCard_LongDangerousCommandWrapsWithinWidth(t *testing.T)
 	sh.HandlePermissionRequest(req)
 
 	width := 48
-	view := sh.View(width, false, "")
+	view := sh.View(width)
 
 	for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
 		if w := lipgloss.Width(line); w > width {

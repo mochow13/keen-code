@@ -30,7 +30,16 @@ func (t *ReadFileTool) Name() string {
 }
 
 func (t *ReadFileTool) Description() string {
-	return "Read a UTF-8 text file after filesystem policy + user permission checks."
+	return `Read a UTF-8 text file after filesystem policy + user permission checks.
+
+- Use this when you know the exact file path and need its contents
+- Do not use this when you are unsure of the filename — use glob to find it first
+- Do not use this to search for content across files — use grep instead
+
+IMPORTANT:
+- The file must be valid UTF-8 text and under 10 MB. Binary files and files with
+invalid UTF-8 are rejected.
+- There is no pagination; the entire file is returned.`
 }
 
 func (t *ReadFileTool) InputSchema() map[string]any {

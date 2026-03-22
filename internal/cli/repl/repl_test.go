@@ -66,8 +66,8 @@ func TestUpdate_InlinePermission_AllowsToolStartEvent(t *testing.T) {
 		t.Fatalf("expected *replModel, got %T", updatedModel)
 	}
 
-	if updated.showSpinner {
-		t.Error("expected showSpinner to be false after tool start while permission is pending")
+	if !updated.showSpinner {
+		t.Error("expected showSpinner to remain true after tool start while permission is pending")
 	}
 
 	if len(updated.output.GetLines()) != 0 {
@@ -336,8 +336,8 @@ func TestHandleLLMStreamMsg_RoutesChunk(t *testing.T) {
 	if !handled {
 		t.Error("expected chunk msg to be handled")
 	}
-	if newM.showSpinner {
-		t.Error("expected showSpinner false after chunk")
+	if !newM.showSpinner {
+		t.Error("expected showSpinner to remain true after chunk")
 	}
 }
 
@@ -361,8 +361,8 @@ func TestUpdateNormalMode_PermissionReadyRendersImmediately(t *testing.T) {
 	if !newM.streamHandler.HasPendingPermission() {
 		t.Fatal("expected pending permission to be rendered immediately")
 	}
-	if newM.showSpinner {
-		t.Fatal("expected spinner to stop when permission prompt appears")
+	if !newM.showSpinner {
+		t.Fatal("expected spinner to remain active when permission prompt appears")
 	}
 	if cmd == nil {
 		t.Fatal("expected async waiter to be re-armed")

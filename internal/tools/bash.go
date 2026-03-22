@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	bashTimeout   = 60 * time.Second
+	bashTimeout   = 180 * time.Second
 	maxOutputSize = 10 * 1024 * 1024 // 10MB
 )
 
@@ -31,8 +31,24 @@ func (t *BashTool) Name() string {
 }
 
 func (t *BashTool) Description() string {
-	return `Execute bash commands in the terminal. Use isDangerous=true for commands
-		that modify files or system state. Do not use this tool for writing or editing files.`
+	return `Execute bash commands in the terminal. This is a fallback tool — prefer
+dedicated tools when they exist:
+- read_file for reading files
+- write_file for creating files
+- edit_file for modifying files
+- glob for finding files by name
+- grep for searching file contents
+
+Use this for: running tests, installing dependencies, git operations, build commands,
+and other shell-native tasks not covered by dedicated tools.
+
+IMPORTANT:
+- Set isDangerous=true for any command that removes files or changes system state.
+  This will always prompt for user permission.
+- Commands time out after 180 seconds.
+- Quote paths that may contain spaces.
+- Prefer single commands over long chains. For independent commands, use parallel
+  tool calls instead of chaining with &&.`
 }
 
 func (t *BashTool) InputSchema() map[string]any {
@@ -41,11 +57,11 @@ func (t *BashTool) InputSchema() map[string]any {
 		"properties": map[string]any{
 			"command": map[string]any{
 				"type":        "string",
-				"description": "The bash command to execute",
+				"description": "The bash command to execute. Quote paths with spaces. Prefer simple single commands over long chains.",
 			},
 			"isDangerous": map[string]any{
 				"type":        "boolean",
-				"description": "Set to true if the command may modify files or system state. This will always prompt for user permission.",
+				"description": "Set to true if the command may modify files or system state (e.g., rm, mv, git commit, package install). This will always prompt for user permission.",
 			},
 			"summary": map[string]any{
 				"type":        "string",

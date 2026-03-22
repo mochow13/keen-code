@@ -46,7 +46,15 @@ func (t *GrepTool) Name() string {
 }
 
 func (t *GrepTool) Description() string {
-	return "Search for text patterns in files recursively after filesystem policy + user permission checks."
+	return `Search for text patterns in files recursively after filesystem policy + user permission checks.
+
+Use this to find specific text, function definitions, imports, or references across files.
+Do not use this when you already know the file — use read_file instead.
+
+Tips:
+- Escape regex metacharacters when searching for literal strings
+- Narrow your search with path and include to avoid scanning the entire tree 
+- Results are capped at 1000 matches. Use include and path to stay within this limit`
 }
 
 func (t *GrepTool) InputSchema() map[string]any {
@@ -55,20 +63,20 @@ func (t *GrepTool) InputSchema() map[string]any {
 		"properties": map[string]any{
 			"pattern": map[string]any{
 				"type":        "string",
-				"description": "Regular expression pattern to search for in file contents",
+				"description": "Regular expression pattern (Go/RE2 syntax) to search for in file contents. Escape special characters with \\ when searching for literal text (e.g., 'fmt\\.Println').",
 			},
 			"path": map[string]any{
 				"type":        "string",
-				"description": "Optional base directory for the search (defaults to working directory)",
+				"description": "Optional base directory for the search (defaults to working directory). Narrow this to a specific directory when possible.",
 			},
 			"include": map[string]any{
 				"type":        "string",
-				"description": "Optional glob pattern to filter which files to search (e.g., '*.go', '**/*.md')",
+				"description": "Optional glob pattern to filter which files to search (e.g., '*.go', '**/*.md'). Use this to limit search to specific file types.",
 			},
 			"output_mode": map[string]any{
 				"type":        "string",
 				"enum":        []string{"file", "content"},
-				"description": "Output mode: 'file' returns matching file paths, 'content' returns matching lines with file and line number (defaults to 'content')",
+				"description": "Output mode: 'file' returns matching file paths only (good for discovery), 'content' returns matching lines with file and line number (defaults to 'content').",
 			},
 		},
 		"required":             []string{"pattern"},

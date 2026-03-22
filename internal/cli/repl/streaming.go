@@ -245,25 +245,20 @@ func (sh *StreamHandler) resetState() {
 	sh.segments = make([]streamSegment, 0)
 }
 
-func (sh *StreamHandler) View(width int, showSpinner bool, spinnerView string) string {
+func (sh *StreamHandler) View(width int) string {
 	sh.lastWidth = width
 
 	var view strings.Builder
-	showInlineBashSpinner := showSpinner && sh.hasRunningBashSegment()
 
-	for _, line := range sh.renderViewLines(width, showInlineBashSpinner, spinnerView) {
+	for _, line := range sh.renderViewLines(width) {
 		view.WriteString("\n")
 		view.WriteString(line)
-	}
-
-	if showSpinner && !showInlineBashSpinner {
-		view.WriteString("\n  " + spinnerView + " " + sh.loadingText)
 	}
 
 	return view.String()
 }
 
-func (sh *StreamHandler) renderViewLines(width int, showInlineBashSpinner bool, spinnerView string) []string {
+func (sh *StreamHandler) renderViewLines(width int) []string {
 	lines := make([]string, 0)
 
 	lastAssistantIdx := -1
@@ -289,7 +284,7 @@ func (sh *StreamHandler) renderViewLines(width int, showInlineBashSpinner bool, 
 				lines = append(lines, formatToolEnd(seg.toolCall))
 			}
 		case segmentBash:
-			bashLines := sh.renderBashSegment(seg, width, showInlineBashSpinner, spinnerView)
+			bashLines := sh.renderBashSegment(seg, width)
 			lines = append(lines, bashLines...)
 		case segmentAssistant:
 			if seg.renderedLines == nil || i == lastAssistantIdx {
@@ -328,7 +323,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 				lines = append(lines, formatToolEnd(seg.toolCall))
 			}
 		case segmentBash:
-			bashLines := sh.renderBashSegment(seg, 0, false, "")
+			bashLines := sh.renderBashSegment(seg, 0)
 			lines = append(lines, bashLines...)
 		case segmentAssistant:
 			lines = append(lines, sh.renderAssistantTranscriptLines(seg.content)...)
@@ -444,7 +439,7 @@ func formatResponseLines(response string) []string {
 	return result
 }
 
-func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int, showInlineSpinner bool, spinnerView string) []string {
+func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []string {
 	lines := make([]string, 0)
 
 	lines = append(lines, "")
@@ -455,11 +450,7 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int, showIn
 	}
 
 	if seg.toolCall == nil {
-		runningLine := "Running command..."
-		if showInlineSpinner && spinnerView != "" {
-			runningLine = "\n" + spinnerView + " " + runningLine
-		}
-		lines = append(lines, bashRunningStyle.Render(runningLine))
+		lines = append(lines, bashRunningStyle.Render("Running command..."))
 		lines = append(lines, bashHintStyle.Render("\nPress Esc to interrupt"))
 	}
 
@@ -487,15 +478,6 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int, showIn
 	}
 
 	return lines
-}
-
-func (sh *StreamHandler) hasRunningBashSegment() bool {
-	for i := len(sh.segments) - 1; i >= 0; i-- {
-		if sh.segments[i].kind == segmentBash {
-			return sh.segments[i].toolCall == nil
-		}
-	}
-	return false
 }
 
 func renderDiffLine(dl tools.EditDiffLine) string {

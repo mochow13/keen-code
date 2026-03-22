@@ -29,7 +29,16 @@ func (t *GlobTool) Name() string {
 }
 
 func (t *GlobTool) Description() string {
-	return "Search for files matching a glob pattern after filesystem policy + user permission checks."
+	return `Search for files matching a glob pattern after filesystem policy + user permission checks.
+
+Use this to discover files when you don't know the exact path. This tool is fast and
+should be your first step when exploring a codebase.
+
+Tips:
+- Results are capped at 1000 files. Narrow your pattern or path if you hit this limit.
+- Batch multiple patterns in parallel calls when exploring.
+
+Examples: '*.go', '**/*.md', 'src/**/*_test.go', 'cmd/*/main.go'.`
 }
 
 func (t *GlobTool) InputSchema() map[string]any {
@@ -38,11 +47,11 @@ func (t *GlobTool) InputSchema() map[string]any {
 		"properties": map[string]any{
 			"pattern": map[string]any{
 				"type":        "string",
-				"description": "Glob pattern to match files (e.g., '*.go', '**/*.md', '/absolute/path/*.txt')",
+				"description": "Glob pattern to match files (e.g., '*.go', '**/*.md', 'src/**/*_test.go'). Use '**/' for recursive matching. Prefer specific patterns over broad ones like '**/*'.",
 			},
 			"path": map[string]any{
 				"type":        "string",
-				"description": "Optional base directory for the search (defaults to working directory)",
+				"description": "Optional base directory for the search (defaults to working directory). Use this to narrow the search scope.",
 			},
 		},
 		"required":             []string{"pattern"},

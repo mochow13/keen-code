@@ -254,11 +254,19 @@ func (m replModel) Init() tea.Cmd {
 	return textarea.Blink
 }
 
-func (m *replModel) adjustTextareaHeight() {
-	m.textarea.SetHeight(maxHeight)
-	if m.height > 0 {
-		m.viewport.SetHeight(m.height - m.textarea.Height() - 4)
+func (m *replModel) spinnerHeight() int {
+	if m.showSpinner && m.streamHandler != nil && m.streamHandler.IsActive() {
+		return 1
 	}
+	return 0
+}
+
+func (m *replModel) adjustTextareaHeight() {
+	if m.height <= 0 {
+		return
+	}
+	m.textarea.SetHeight(maxHeight)
+	m.viewport.SetHeight(m.height - m.textarea.Height() - 4 - m.spinnerHeight())
 }
 
 func (m replModel) isAtTopOfInput() bool {
@@ -339,6 +347,7 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 	m.streamHandler.Start(eventCh, m.loadingText)
 	m.textarea.Reset()
 	m.userScrolled = false
+	m.adjustTextareaHeight()
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
@@ -376,7 +385,7 @@ func (m *replModel) updateViewportContent() {
 	}
 
 	if m.streamHandler != nil && m.streamHandler.IsActive() {
-		content.WriteString(m.streamHandler.View(contentWidth, m.showSpinner, m.spinner.View()))
+		content.WriteString(m.streamHandler.View(contentWidth))
 	}
 
 	if m.modelSelection != nil {
@@ -460,7 +469,7 @@ func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
 		m.mdRenderer.UpdateWidth(msg.Width)
 	}
 	m.viewport.SetWidth(msg.Width)
-	m.viewport.SetHeight(msg.Height - m.textarea.Height() - 4)
+	m.viewport.SetHeight(msg.Height - m.textarea.Height() - 4 - m.spinnerHeight())
 }
 
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -499,7 +508,6 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 
 	case permissionReadyMsg:
 		m.streamHandler.HandlePermissionRequest(msg.req)
-		m.showSpinner = false
 		m.updateViewportContent()
 		m.viewport.GotoBottom()
 		return m, m.waitForAsyncEvent()
@@ -583,6 +591,17 @@ func (m replModel) View() tea.View {
 
 		view.WriteString(m.viewport.View())
 		view.WriteString("\n")
+
+		if m.showSpinner && m.streamHandler != nil && m.streamHandler.IsActive() {
+			loadingTextStyled := lipgloss.NewStyle().Foreground(mutedColor).Render(m.loadingText)
+			spinnerText := m.spinner.View() + " " + loadingTextStyled
+			padding := m.width - lipgloss.Width(spinnerText)
+			if padding < 0 {
+				padding = 0
+			}
+			view.WriteString(strings.Repeat(" ", padding) + spinnerText)
+			view.WriteString("\n")
+		}
 
 		view.WriteString(inputBorderStyle.Render(m.textarea.View()))
 		view.WriteString("\n")

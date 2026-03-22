@@ -29,7 +29,16 @@ func (t *EditFileTool) Name() string {
 }
 
 func (t *EditFileTool) Description() string {
-	return "Edit a file by replacing occurrences of a string. The file must already exist."
+	return `Edit a file by replacing occurrences of a string. The file must already exist.
+
+Use this for targeted modifications to existing files. Prefer this over write_file
+when you only need to change part of a file.
+
+IMPORTANT:
+- Always read the file first to get the exact current content.
+- oldString must match the file content exactly, including whitespace and indentation.
+- If oldString is not found, the edit fails. Copy text precisely from read_file output.
+- Do not use line numbers in oldString; use the actual text content.`
 }
 
 func (t *EditFileTool) InputSchema() map[string]any {
@@ -42,15 +51,15 @@ func (t *EditFileTool) InputSchema() map[string]any {
 			},
 			"oldString": map[string]any{
 				"type":        "string",
-				"description": "The string to replace",
+				"description": "The exact text to find and replace. Must match file content precisely, including whitespace and indentation. Include enough surrounding context to make the match unique.",
 			},
 			"newString": map[string]any{
 				"type":        "string",
-				"description": "The string to replace with",
+				"description": "The replacement text. Can be empty to delete the matched text.",
 			},
 			"shouldReplaceAll": map[string]any{
 				"type":        "boolean",
-				"description": "Whether to replace all occurrences (default: false, replaces only the first)",
+				"description": "Whether to replace all occurrences (default: false, replaces only the first). Only set to true when every occurrence should be changed.",
 			},
 		},
 		"required":             []string{"path", "oldString", "newString"},

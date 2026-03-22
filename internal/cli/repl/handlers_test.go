@@ -25,8 +25,8 @@ func TestHandleLLMChunk(t *testing.T) {
 
 	newM, cmd := m.handleLLMChunk("hello")
 
-	if newM.showSpinner {
-		t.Error("expected showSpinner to be false after chunk")
+	if !newM.showSpinner {
+		t.Error("expected showSpinner to remain true after chunk")
 	}
 	if sh.GetResponse() != "hello" {
 		t.Errorf("expected response 'hello', got '%s'", sh.GetResponse())
@@ -309,8 +309,8 @@ func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
 		t.Errorf("expected 'Hello World', got '%s'", sh.GetResponse())
 	}
 
-	if m.showSpinner {
-		t.Error("showSpinner should be false after first chunk")
+	if !m.showSpinner {
+		t.Error("showSpinner should remain true during streaming")
 	}
 }
 
@@ -423,8 +423,8 @@ func TestHandleToolStart(t *testing.T) {
 
 	newM, cmd := m.handleToolStart(toolCall)
 
-	if newM.showSpinner {
-		t.Error("expected showSpinner to be false after tool start")
+	if !newM.showSpinner {
+		t.Error("expected showSpinner to remain true after tool start")
 	}
 
 	if len(newM.output.GetLines()) != 0 {
@@ -558,6 +558,7 @@ func TestHandleLLMStreamMsg_ToolEnd_ReturnsSpinnerTick(t *testing.T) {
 
 	m := newTestModel()
 	m.streamHandler = sh
+	m.showSpinner = true
 
 	toolCall := &llm.ToolCall{
 		Name:   "test_tool",
@@ -572,10 +573,10 @@ func TestHandleLLMStreamMsg_ToolEnd_ReturnsSpinnerTick(t *testing.T) {
 	}
 
 	if !updated.showSpinner {
-		t.Error("expected showSpinner to be true after tool end")
+		t.Error("expected showSpinner to remain true after tool end")
 	}
 
 	if cmd == nil {
-		t.Fatal("expected non-nil cmd to include spinner tick")
+		t.Fatal("expected non-nil cmd")
 	}
 }

@@ -28,7 +28,15 @@ func (t *WriteFileTool) Name() string {
 }
 
 func (t *WriteFileTool) Description() string {
-	return "Write content to a file. Creates parent directories if needed. Overwrites existing files."
+	return `Write content to a file. Creates parent directories if needed. Overwrites existing files.
+
+- Use this for creating new files or completely replacing file contents
+- Do not use this for targeted modifications to existing files — use edit_file instead,
+which is safer and preserves surrounding content
+
+IMPORTANT:
+- This tool performs a full overwrite. If the file already exists, all previous
+content is replaced. Always verify the target path before overwriting.`
 }
 
 func (t *WriteFileTool) InputSchema() map[string]any {

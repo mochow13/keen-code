@@ -261,6 +261,83 @@ func TestGenkitClient_StreamChat_EmptyChunkContent(t *testing.T) {
 	}
 }
 
+func TestGenkitClient_StreamChat_ReasoningChunks(t *testing.T) {
+	client := &GenkitClient{
+		g:        &genkit.Genkit{},
+		provider: Provider(config.ProviderAnthropic),
+		model:    "anthropic/claude-opus-4",
+	}
+
+	client.streamImpl = func(ctx context.Context, g *genkit.Genkit, opts ...ai.GenerateOption) iter.Seq2[*ai.ModelStreamValue, error] {
+		return func(yield func(*ai.ModelStreamValue, error) bool) {
+			if !yield(&ai.ModelStreamValue{
+				Chunk: &ai.ModelResponseChunk{
+					Content: []*ai.Part{ai.NewReasoningPart("thinking step 1", nil)},
+				},
+			}, nil) {
+				return
+			}
+			if !yield(&ai.ModelStreamValue{
+				Chunk: &ai.ModelResponseChunk{
+					Content: []*ai.Part{ai.NewReasoningPart("thinking step 2", nil)},
+				},
+			}, nil) {
+				return
+			}
+			if !yield(&ai.ModelStreamValue{
+				Chunk: &ai.ModelResponseChunk{
+					Content: []*ai.Part{ai.NewTextPart("final answer")},
+				},
+			}, nil) {
+				return
+			}
+			yield(&ai.ModelStreamValue{Done: true}, nil)
+		}
+	}
+
+	messages := []Message{{Role: RoleUser, Content: "Think about this"}}
+	eventCh, err := client.StreamChat(context.Background(), messages, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var reasoningChunks []string
+	var textChunks []string
+	var doneReceived bool
+
+	for event := range eventCh {
+		switch event.Type {
+		case StreamEventTypeReasoningChunk:
+			reasoningChunks = append(reasoningChunks, event.Content)
+		case StreamEventTypeChunk:
+			textChunks = append(textChunks, event.Content)
+		case StreamEventTypeDone:
+			doneReceived = true
+		case StreamEventTypeError:
+			t.Fatalf("unexpected error event: %v", event.Error)
+		}
+	}
+
+	if !doneReceived {
+		t.Error("expected done event")
+	}
+	if len(reasoningChunks) != 2 {
+		t.Errorf("expected 2 reasoning chunks, got %d", len(reasoningChunks))
+	}
+	if len(textChunks) != 1 {
+		t.Errorf("expected 1 text chunk, got %d", len(textChunks))
+	}
+	if len(reasoningChunks) >= 1 && reasoningChunks[0] != "thinking step 1" {
+		t.Errorf("reasoning chunk 0: expected %q, got %q", "thinking step 1", reasoningChunks[0])
+	}
+	if len(reasoningChunks) >= 2 && reasoningChunks[1] != "thinking step 2" {
+		t.Errorf("reasoning chunk 1: expected %q, got %q", "thinking step 2", reasoningChunks[1])
+	}
+	if len(textChunks) >= 1 && textChunks[0] != "final answer" {
+		t.Errorf("text chunk 0: expected %q, got %q", "final answer", textChunks[0])
+	}
+}
+
 func TestGenkitClient_executeTools_Success(t *testing.T) {
 	client := &GenkitClient{}
 

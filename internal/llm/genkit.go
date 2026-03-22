@@ -157,11 +157,17 @@ func (c *GenkitClient) StreamChat(
 				}
 
 				if result.Chunk != nil && len(result.Chunk.Content) > 0 {
-					text := result.Chunk.Text()
-					if text != "" {
-						eventCh <- StreamEvent{
-							Type:    StreamEventTypeChunk,
-							Content: text,
+					for _, part := range result.Chunk.Content {
+						if part.IsReasoning() && part.Text != "" {
+							eventCh <- StreamEvent{
+								Type:    StreamEventTypeReasoningChunk,
+								Content: part.Text,
+							}
+						} else if (part.IsText() || part.IsData()) && part.Text != "" {
+							eventCh <- StreamEvent{
+								Type:    StreamEventTypeChunk,
+								Content: part.Text,
+							}
 						}
 					}
 				}
