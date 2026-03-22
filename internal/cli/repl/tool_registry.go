@@ -24,7 +24,7 @@ func setupToolRegistry(
 	grepTool := tools.NewGrepTool(guard, permissionRequester)
 	appState.RegisterTool(grepTool)
 
-	writeFileTool := tools.NewWriteFileTool(guard, permissionRequester)
+	writeFileTool := tools.NewWriteFileTool(guard, diffEmitter, permissionRequester)
 	appState.RegisterTool(writeFileTool)
 
 	editFileTool := tools.NewEditFileTool(guard, diffEmitter, permissionRequester)

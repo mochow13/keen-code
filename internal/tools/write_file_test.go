@@ -11,21 +11,21 @@ import (
 )
 
 func TestWriteFileTool_Name(t *testing.T) {
-	tool := NewWriteFileTool(nil, nil)
+	tool := NewWriteFileTool(nil, nil, nil)
 	if tool.Name() != "write_file" {
 		t.Errorf("expected name 'write_file', got %q", tool.Name())
 	}
 }
 
 func TestWriteFileTool_Description(t *testing.T) {
-	tool := NewWriteFileTool(nil, nil)
+	tool := NewWriteFileTool(nil, nil, nil)
 	if tool.Description() == "" {
 		t.Error("description should not be empty")
 	}
 }
 
 func TestWriteFileTool_InputSchema(t *testing.T) {
-	tool := NewWriteFileTool(nil, nil)
+	tool := NewWriteFileTool(nil, nil, nil)
 	schema := tool.InputSchema()
 
 	if schema["type"] != "object" {
@@ -76,7 +76,7 @@ func TestWriteFileTool_InputSchema(t *testing.T) {
 }
 
 func TestWriteFileTool_Execute_InvalidInput(t *testing.T) {
-	tool := NewWriteFileTool(nil, nil)
+	tool := NewWriteFileTool(nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -110,7 +110,7 @@ func TestWriteFileTool_Execute_GrantedWrite(t *testing.T) {
 
 	guard := filesystem.NewGuard(tmpDir, nil)
 	mockPR := &mockPermissionRequester{allow: true}
-	tool := NewWriteFileTool(guard, mockPR)
+	tool := NewWriteFileTool(guard, nil, mockPR)
 	ctx := context.Background()
 
 	input := map[string]any{"path": testFile, "content": content}
@@ -154,7 +154,7 @@ func TestWriteFileTool_Execute_PendingWrite_Allow(t *testing.T) {
 
 	guard := filesystem.NewGuard(tmpDir, nil)
 	mockPR := &mockPermissionRequester{allow: true}
-	tool := NewWriteFileTool(guard, mockPR)
+	tool := NewWriteFileTool(guard, nil, mockPR)
 	ctx := context.Background()
 
 	input := map[string]any{"path": testFile, "content": content}
@@ -194,7 +194,7 @@ func TestWriteFileTool_Execute_PendingWrite_Deny(t *testing.T) {
 
 	guard := filesystem.NewGuard(tmpDir, nil)
 	mockPR := &mockPermissionRequester{allow: false}
-	tool := NewWriteFileTool(guard, mockPR)
+	tool := NewWriteFileTool(guard, nil, mockPR)
 	ctx := context.Background()
 
 	input := map[string]any{"path": testFile, "content": content}
@@ -215,7 +215,7 @@ func TestWriteFileTool_Execute_PendingWrite_Deny(t *testing.T) {
 func TestWriteFileTool_Execute_PermissionDenied(t *testing.T) {
 	tmpDir := t.TempDir()
 	guard := filesystem.NewGuard(tmpDir, nil)
-	tool := NewWriteFileTool(guard, nil)
+	tool := NewWriteFileTool(guard, nil, nil)
 	ctx := context.Background()
 
 	input := map[string]any{"path": "/etc/test.txt", "content": "test"}
@@ -236,7 +236,7 @@ func TestWriteFileTool_Execute_CreateParentDirs(t *testing.T) {
 
 	guard := filesystem.NewGuard(tmpDir, nil)
 	mockPR := &mockPermissionRequester{allow: true}
-	tool := NewWriteFileTool(guard, mockPR)
+	tool := NewWriteFileTool(guard, nil, mockPR)
 	ctx := context.Background()
 
 	input := map[string]any{"path": testFile, "content": content}
@@ -276,7 +276,7 @@ func TestWriteFileTool_Execute_OverwriteExisting(t *testing.T) {
 
 	guard := filesystem.NewGuard(tmpDir, nil)
 	mockPR := &mockPermissionRequester{allow: true}
-	tool := NewWriteFileTool(guard, mockPR)
+	tool := NewWriteFileTool(guard, nil, mockPR)
 	ctx := context.Background()
 
 	input := map[string]any{"path": testFile, "content": newContent}
@@ -311,7 +311,7 @@ func TestWriteFileTool_Execute_RelativePath(t *testing.T) {
 
 	guard := filesystem.NewGuard(tmpDir, nil)
 	mockPR := &mockPermissionRequester{allow: true}
-	tool := NewWriteFileTool(guard, mockPR)
+	tool := NewWriteFileTool(guard, nil, mockPR)
 	ctx := context.Background()
 
 	input := map[string]any{"path": testFile, "content": content}
@@ -347,7 +347,7 @@ func TestWriteFileTool_Execute_EmptyContent(t *testing.T) {
 
 	guard := filesystem.NewGuard(tmpDir, nil)
 	mockPR := &mockPermissionRequester{allow: true}
-	tool := NewWriteFileTool(guard, mockPR)
+	tool := NewWriteFileTool(guard, nil, mockPR)
 	ctx := context.Background()
 
 	input := map[string]any{"path": testFile, "content": content}

@@ -538,7 +538,7 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 		return renderPermissionResolved(req)
 	}
 
-	cardWidth := width - 2
+	cardWidth := width - 4
 	if cardWidth < 20 {
 		cardWidth = 20
 	}

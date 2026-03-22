@@ -7,20 +7,20 @@ import (
 
 var (
 	primaryColor = compat.AdaptiveColor{
-		Light: lipgloss.Color("#7C3AED"),
-		Dark:  lipgloss.Color("#7C3AED"),
+		Light: lipgloss.Color("#3F51B5"),
+		Dark:  lipgloss.Color("#5C6BC0"),
 	}
 	secondaryColor = compat.AdaptiveColor{
-		Light: lipgloss.Color("#059669"),
-		Dark:  lipgloss.Color("#10B981"),
+		Light: lipgloss.Color("#00897B"),
+		Dark:  lipgloss.Color("#4DB6AC"),
 	}
 	mutedColor = compat.AdaptiveColor{
-		Light: lipgloss.Color("#6B7280"),
-		Dark:  lipgloss.Color("#9CA3AF"),
+		Light: lipgloss.Color("#757575"),
+		Dark:  lipgloss.Color("#BDBDBD"),
 	}
 	accentColor = compat.AdaptiveColor{
-		Light: lipgloss.Color("#D97706"),
-		Dark:  lipgloss.Color("#F59E0B"),
+		Light: lipgloss.Color("#FF8F00"),
+		Dark:  lipgloss.Color("#FFB300"),
 	}
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -30,8 +30,8 @@ var (
 			Width(18)
 	infoValueStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
-			Light: lipgloss.Color("#374151"),
-			Dark:  lipgloss.Color("#E5E7EB"),
+			Light: lipgloss.Color("#424242"),
+			Dark:  lipgloss.Color("#BDBDBD"),
 		})
 	highlightStyle = lipgloss.NewStyle().
 			Foreground(secondaryColor).
@@ -54,36 +54,36 @@ var (
 			Width(12)
 	helpDescStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
-			Light: lipgloss.Color("#374151"),
-			Dark:  lipgloss.Color("#E5E7EB"),
+			Light: lipgloss.Color("#424242"),
+			Dark:  lipgloss.Color("#BDBDBD"),
 		})
 	assistantStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
-			Light: lipgloss.Color("#1F2937"),
-			Dark:  lipgloss.Color("#E5E7EB"),
+			Light: lipgloss.Color("#212121"),
+			Dark:  lipgloss.Color("#EEEEEE"),
 		})
 	reasoningStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
-			Light: lipgloss.Color("#7F8A99"),
-			Dark:  lipgloss.Color("#8A95A5"),
+			Light: lipgloss.Color("#9E9E9E"),
+			Dark:  lipgloss.Color("#757575"),
 		}).
 		Italic(true).
 		Faint(true)
 	errorStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
-			Light: lipgloss.Color("#DC2626"),
-			Dark:  lipgloss.Color("#EF4444"),
+			Light: lipgloss.Color("#D32F2F"),
+			Dark:  lipgloss.Color("#EF5350"),
 		})
 	toolStartStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFA500")).
+			Foreground(lipgloss.Color("#F57C00")).
 			Bold(true)
 	interruptedStyle = lipgloss.NewStyle().
 				Foreground(primaryColor).
 				Bold(true)
 	toolSuccessStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#00AA00"))
+				Foreground(lipgloss.Color("#388E3C"))
 	toolErrorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF0000"))
+			Foreground(lipgloss.Color("#D32F2F"))
 	normalStyle         = lipgloss.NewStyle()
 	modelSelectionStyle = lipgloss.NewStyle().
 				Foreground(secondaryColor).
@@ -96,14 +96,14 @@ var (
 				BorderForeground(primaryColor)
 	warningTitleStyle = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(lipgloss.Color("#DC2626"))
+				Foreground(lipgloss.Color("#D32F2F"))
 	bashCommandStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(secondaryColor)
 	bashOutputStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
-			Light: lipgloss.Color("#374151"),
-			Dark:  lipgloss.Color("#E5E7EB"),
+			Light: lipgloss.Color("#424242"),
+			Dark:  lipgloss.Color("#BDBDBD"),
 		})
 	bashSummaryStyle = lipgloss.NewStyle().
 				Foreground(mutedColor)
@@ -114,17 +114,17 @@ var (
 			Foreground(mutedColor).
 			Italic(true)
 	diffAddStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
-		Light: lipgloss.Color("#166534"), Dark: lipgloss.Color("#4ADE80"),
+		Light: lipgloss.Color("#2E7D32"), Dark: lipgloss.Color("#66BB6A"),
 	})
 	diffRemoveStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
-		Light: lipgloss.Color("#991B1B"), Dark: lipgloss.Color("#F87171"),
+		Light: lipgloss.Color("#C62828"), Dark: lipgloss.Color("#EF5350"),
 	})
 	diffContextStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
-		Light: lipgloss.Color("#374151"), Dark: lipgloss.Color("#9CA3AF"),
+		Light: lipgloss.Color("#616161"), Dark: lipgloss.Color("#9E9E9E"),
 	})
 	diffHunkStyle = lipgloss.NewStyle().
 			Foreground(compat.AdaptiveColor{
-			Light: lipgloss.Color("#1D4ED8"), Dark: lipgloss.Color("#60A5FA"),
+			Light: lipgloss.Color("#1565C0"), Dark: lipgloss.Color("#42A5F5"),
 		}).Bold(true)
 	diffLineNumStyle    = lipgloss.NewStyle().Foreground(mutedColor)
 	userPromptCardStyle = lipgloss.NewStyle().

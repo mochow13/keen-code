@@ -11,12 +11,14 @@ import (
 
 type WriteFileTool struct {
 	guard               *filesystem.Guard
+	diffEmitter         DiffEmitter
 	permissionRequester PermissionRequester
 }
 
-func NewWriteFileTool(guard *filesystem.Guard, permissionRequester PermissionRequester) *WriteFileTool {
+func NewWriteFileTool(guard *filesystem.Guard, diffEmitter DiffEmitter, permissionRequester PermissionRequester) *WriteFileTool {
 	return &WriteFileTool{
 		guard:               guard,
+		diffEmitter:         diffEmitter,
 		permissionRequester: permissionRequester,
 	}
 }
@@ -77,6 +79,13 @@ func (t *WriteFileTool) Execute(ctx context.Context, input any) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("path resolution failed: %w", err)
 	}
+
+	var oldContent string
+	if data, err := os.ReadFile(resolvedPath); err == nil {
+		oldContent = string(data)
+	}
+
+	t.diffEmitter.EmitDiff(computeEditDiff(oldContent, content))
 
 	permission := t.guard.CheckPath(path, "write")
 

@@ -193,6 +193,12 @@ func (m *replModel) interruptStream(message string) {
 	}
 
 	m.showSpinner = false
+
+	partialResponse := m.streamHandler.GetResponse()
+	if partialResponse != "" {
+		m.appState.AddMessage(llm.RoleAssistant, partialResponse+"\n\n[Response interrupted by user]")
+	}
+
 	for _, line := range m.streamHandler.HandleInterrupt() {
 		m.output.AddLine(line)
 	}
