@@ -364,6 +364,11 @@ func (m *replModel) updateViewportContent() {
 		return
 	}
 
+	contentWidth := m.width
+	if contentWidth <= 0 {
+		contentWidth = m.viewport.Width()
+	}
+
 	var content strings.Builder
 
 	if m.output != nil && !m.output.IsEmpty() {
@@ -371,7 +376,7 @@ func (m *replModel) updateViewportContent() {
 	}
 
 	if m.streamHandler != nil && m.streamHandler.IsActive() {
-		content.WriteString(m.streamHandler.View(m.width, m.showSpinner, m.spinner.View()))
+		content.WriteString(m.streamHandler.View(contentWidth, m.showSpinner, m.spinner.View()))
 	}
 
 	if m.modelSelection != nil {
@@ -447,6 +452,17 @@ func formatModelSelectionCard(ms *Model) string {
 	return sb.String()
 }
 
+func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
+	m.width = msg.Width
+	m.height = msg.Height
+	m.textarea.SetWidth(msg.Width - 3)
+	if m.mdRenderer != nil {
+		m.mdRenderer.UpdateWidth(msg.Width)
+	}
+	m.viewport.SetWidth(msg.Width)
+	m.viewport.SetHeight(msg.Height - m.textarea.Height() - 4)
+}
+
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	updatedModel, cmd := m.updateNormalMode(msg)
 	return &updatedModel, cmd
@@ -459,6 +475,14 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 
 	if updated, cmd, handled := m.consumeModelSelectionResult(msg); handled {
 		return updated, cmd
+	}
+
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.applyWindowSize(sizeMsg)
+		if m.modelSelection != nil {
+			m.updateViewportContent()
+		}
+		return m, nil
 	}
 
 	if m.modelSelection != nil {
@@ -486,14 +510,7 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.textarea.SetWidth(msg.Width - 3)
-		if m.mdRenderer != nil {
-			m.mdRenderer.UpdateWidth(msg.Width)
-		}
-		m.viewport.SetWidth(msg.Width)
-		m.viewport.SetHeight(msg.Height - m.textarea.Height() - 4)
+		m.applyWindowSize(msg)
 		return m, nil
 
 	case tea.KeyPressMsg:

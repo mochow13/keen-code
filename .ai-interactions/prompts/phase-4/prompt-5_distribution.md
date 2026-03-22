@@ -19,3 +19,15 @@
         npm install -g @anthropic-ai/claude-code 
 3. Check the plan in @.ai-interactions/outputs/phase-4/output-5_distribution-plan.md. As a first step, we want to implement the support for npm-based installation. Let's implement this. First, explain how this will be implemented step by step.
 4. Ok let's implement the changes. First, create a todo list for yourself and then implement one by one.
+5. I have pushed the tag but pipeline failed due to test issues. Fixed them and pushed the latest commit to master. Now what?
+6. I face this issue while trying to publish keen code on npm:
+    ```
+    npm ERR! code ENEEDAUTH
+    npm ERR! need auth auth required for publishing
+    npm ERR! A complete log of this run can be found in:
+    npm ERR!     /Users/mochow/.npm/_logs/2026-03-22T12_25_51_461Z-debug-log.txt
+    ```
+    What should I do to fix this?
+
+7. Ok now, let's create a new tag on Github, push it, and publish it as npm package.
+8. When a tag is created and pushed, npm package should be published directly from Github Actions. How to achieve that?

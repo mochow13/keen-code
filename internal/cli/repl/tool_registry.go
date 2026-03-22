@@ -1,6 +1,8 @@
 package repl
 
 import (
+	"path/filepath"
+
 	"github.com/user/keen-code/internal/filesystem"
 	"github.com/user/keen-code/internal/tools"
 )
@@ -12,7 +14,7 @@ func setupToolRegistry(
 	diffEmitter *REPLDiffEmitter,
 ) {
 	gitAwareness := filesystem.NewGitAwareness()
-	_ = gitAwareness.LoadGitignoreRecursive(workingDir)
+	_ = gitAwareness.LoadGitignore(filepath.Join(workingDir, ".gitignore"))
 	guard := filesystem.NewGuard(workingDir, gitAwareness)
 
 	readFileTool := tools.NewReadFileTool(guard, permissionRequester)

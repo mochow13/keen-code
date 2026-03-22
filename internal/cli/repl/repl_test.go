@@ -238,6 +238,45 @@ func TestUpdateNormalMode_WindowResize(t *testing.T) {
 	}
 }
 
+func TestUpdateNormalMode_WindowResizeWhileModelSelectionActive(t *testing.T) {
+	m := newTestModel()
+	m.modelSelection = &Model{}
+
+	resizeMsg := tea.WindowSizeMsg{Width: 100, Height: 40}
+	newM, cmd := m.updateNormalMode(resizeMsg)
+
+	if newM.width != 100 {
+		t.Errorf("expected width 100, got %d", newM.width)
+	}
+	if newM.height != 40 {
+		t.Errorf("expected height 40, got %d", newM.height)
+	}
+	if newM.viewport.Height() != 33 {
+		t.Errorf("expected viewport height 33, got %d", newM.viewport.Height())
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd for window resize")
+	}
+}
+
+func TestUpdateViewportContent_UsesViewportWidthWhenModelStartsWithoutResize(t *testing.T) {
+	m := newTestModel()
+	m.width = 0
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+	m.streamHandler.HandleReasoningChunk("thinking")
+
+	m.updateViewportContent()
+
+	content := m.viewport.View()
+	if strings.Contains(content, "  t\n  h\n  i") {
+		t.Fatalf("expected reasoning to use viewport width fallback, got %q", content)
+	}
+	if !strings.Contains(content, "thinking") {
+		t.Fatalf("expected reasoning content to be rendered, got %q", content)
+	}
+}
+
 func TestUpdate_RoutesToNormalMode(t *testing.T) {
 	m := newTestModel()
 
