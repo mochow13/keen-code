@@ -85,7 +85,9 @@ func (t *WriteFileTool) Execute(ctx context.Context, input any) (any, error) {
 		oldContent = string(data)
 	}
 
-	t.diffEmitter.EmitDiff(computeEditDiff(oldContent, content))
+	if t.diffEmitter != nil {
+		t.diffEmitter.EmitDiff(computeEditDiff(oldContent, content))
+	}
 
 	permission := t.guard.CheckPath(path, "write")
 
