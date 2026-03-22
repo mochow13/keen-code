@@ -39,6 +39,7 @@ jobs:
     needs: release
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -61,5 +62,3 @@ jobs:
       - name: Publish npm package
         working-directory: npm
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
