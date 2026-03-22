@@ -24,7 +24,7 @@ builds:
 
 archives:
   - id: keen
-    builds:
+    ids:
       - keen
     name_template: "keen_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:

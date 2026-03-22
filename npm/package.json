@@ -1,16 +1,15 @@
 {
-  "name": "@keen-code/cli",
-  "version": "0.1.0",
+  "name": "keen-code",
+  "version": "0.1.1",
   "description": "CLI coding agent powered by AI (npm compatibility wrapper)",
-  "deprecated": "Prefer installing via the install script or Homebrew. See https://github.com/keen-code/keen-code#installation",
   "bin": {
-    "keen": "./bin/keen.js"
+    "keen": "bin/keen.js"
   },
   "scripts": {
     "postinstall": "node postinstall.js"
   },
   "files": [
-    "bin/",
+    "bin/keen.js",
     "postinstall.js"
   ],
   "engines": {
@@ -18,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/keen-code/keen-code.git"
+    "url": "git+https://github.com/mochow13/keen-code.git"
   },
   "license": "MIT"
 }

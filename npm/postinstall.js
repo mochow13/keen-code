@@ -7,8 +7,9 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 
-const REPO = "keen-code/keen-code";
-const VERSION = require("./package.json").version;
+const REPO = "mochow13/keen-code";
+const pkg = require("./package.json");
+const VERSION = pkg.version;
 
 const PLATFORM_MAP = {
   darwin: "darwin",
