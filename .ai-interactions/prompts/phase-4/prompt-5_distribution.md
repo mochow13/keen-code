@@ -31,3 +31,6 @@
 
 7. Ok now, let's create a new tag on Github, push it, and publish it as npm package.
 8. When a tag is created and pushed, npm package should be published directly from Github Actions. How to achieve that?
+9. We shouldn't actually use NPM_TOKEN for publishing npm package. We will use Trusted Publisher for it. Let's update the workflow to use Trusted Publisher.
+10. The README.md doesn't appear on npm. How to fix that?
+11. We want to support script-based install as outlined in @.ai-interactions/outputs/phase-4/output-2_distribution-plan.md. How to do it?

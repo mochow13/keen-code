@@ -21,7 +21,25 @@ Guard checks paths before filesystem operations:
 - `PermissionPending` - User approval required (outside working dir)
 - `PermissionDenied` - Blocked (system paths, .gitignore files)
 
+## Releasing
+1. Bump versions together:
+   - `cmd/agent/main.go`
+   - `npm/package.json`
+2. Run the tests:
+   - `go test ./...`
+3. Verify the npm wrapper package:
+   - `cd npm && npm pack --dry-run`
+4. Commit the version bump.
+5. Create and push a tag in the form `vX.Y.Z`.
+6. Push `main` and the tag to GitHub.
+7. GitHub Actions will:
+   - run GoReleaser for the tagged release
+   - publish the npm package from `npm/` after the release job succeeds
+8. The Git tag must match `npm/package.json` version exactly.
+9. GitHub repository secrets must include `NPM_TOKEN` for npm publishing to work.
+
 ## Important Guidelines
-- **Minimal comments** - Only when strictly necessary
-- **Test critical paths** - Not aiming for 100% coverage
-- **Always run the tests** - After each change
+- Minimal comments only when strictly necessary
+- Test critical paths, not aiming for 100% coverage
+- Always run the tests after each change
+- Commit messages should be concise and focus on the key changes with bullet points
