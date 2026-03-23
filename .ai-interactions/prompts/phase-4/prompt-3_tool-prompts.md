@@ -6,4 +6,4 @@
     - Check for the similar tools in ../opencode and ../kimi-cli and their descriptions and input schemas.
     - Based on the above, create a plan on how we can improve the tools for Keen Code.
     - Save the plan as output-5_tool-prompts.md in the .ai-interactions/outputs/phase-4 directory.
-2. 
+2. We have a plan for tool prompts in @.ai-interactions/outputs/phase-4/output-3_tool-prompts.md. We will implement this but first focus on the updates in tool prompts for the tools without changing the schemas or implementation.

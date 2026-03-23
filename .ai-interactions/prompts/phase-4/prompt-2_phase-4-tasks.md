@@ -3,6 +3,7 @@
 ### UI Improvements
 
 1. Currently, we use quite bright colors for keen code UI. Check the styles in @internal/cli/repl/styles.go. Based on that, update the syles with proper material UI colors.
+2. Fix thinking for genkit clients so that thinking tokens are visually handle they are done for openai compatible models.
 
 ### Interruption
 
