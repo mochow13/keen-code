@@ -48,6 +48,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.adjustTextareaHeight()
 	responseLines, fullResponse := m.streamHandler.HandleDone()
 	m.appState.AddMessage(llm.RoleAssistant, fullResponse)
+	m.refreshContextStatus(false)
 	for _, line := range responseLines {
 		m.output.AddLine(line)
 	}

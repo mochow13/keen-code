@@ -17,3 +17,8 @@ In Keen Code, we don't have any context management in place. We need to implemen
   - To figure out the context size of a model, use web search
   - To determine the current context size, we need can use a simple assumption: 1 token is approximately 4 characters. So if there are 1000 words in the current conversation, then the current context size is 1000/0.75 = 1333 tokens.
   - Based on the requirements, create a plan for the implementation with granular todo items. Save the plan in @.ai-interactions/outputs/phase-4/output-6_context-status-ui.md.
+2. Why are we rebuilding the conversation in @context_status.go using the currentContextStatus function? Why don't we just use the conversation history?
+3. Actually, recalculating the context on every token is too much. Let's only update the status after each LLM message is done. So when LLM response finishes, we can update the status. It will reduce the number of times we rebuild the current context size.
+4. Instead of coloring the bar for various percentages, we can color the percentage. So the bar will have one color.
+5. Let's support context percentage up to 2 decimal points.
+6. 

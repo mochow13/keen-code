@@ -36,6 +36,46 @@ func TestHandleLLMChunk(t *testing.T) {
 	}
 }
 
+func TestContextStatus_UpdatesOnlyOnDone(t *testing.T) {
+	m := newTestModel()
+	m.ctx = &replContext{
+		workingDir: "",
+		cfg: &config.ResolvedConfig{
+			Provider: "openai",
+			Model:    "gpt-5.4",
+		},
+		registry: &providers.Registry{
+			Providers: []providers.Provider{
+				{
+					ID: "openai",
+					Models: []providers.Model{
+						{ID: "gpt-5.4", ContextWindow: 2000},
+					},
+				},
+			},
+		},
+	}
+	m.appState = NewAppState(nil, t.TempDir())
+	m.appState.AddMessage(llm.RoleUser, strings.Repeat("word ", 750))
+	m.refreshContextStatus(false)
+	initialPercent := m.contextStatus.Percent
+
+	eventCh := make(chan llm.StreamEvent)
+	m.streamHandler.Start(eventCh, "Loading...")
+	m.showSpinner = true
+
+	chunk := strings.Repeat("word ", 750)
+	updatedAfterChunk, _ := m.handleLLMChunk(chunk)
+	if updatedAfterChunk.contextStatus.Percent != initialPercent {
+		t.Fatalf("expected context percent to remain %.2f during chunk, got %.2f", initialPercent, updatedAfterChunk.contextStatus.Percent)
+	}
+
+	updatedAfterDone, _ := updatedAfterChunk.handleLLMDone()
+	if updatedAfterDone.contextStatus.Percent <= initialPercent {
+		t.Fatalf("expected context percent to increase after done, got %.2f (initial %.2f)", updatedAfterDone.contextStatus.Percent, initialPercent)
+	}
+}
+
 func TestHandleLLMDone(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)

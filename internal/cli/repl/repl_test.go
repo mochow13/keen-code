@@ -410,3 +410,70 @@ func TestGetHelpText(t *testing.T) {
 		t.Error("expected /exit in help text")
 	}
 }
+
+func TestInputMetaView_ShowsContextPercent(t *testing.T) {
+	m := newTestModel()
+	m.width = 120
+	m.ctx = &replContext{
+		workingDir: "",
+		cfg: &config.ResolvedConfig{
+			Provider: "openai",
+			Model:    "gpt-5.4",
+		},
+		registry: &providers.Registry{
+			Providers: []providers.Provider{
+				{
+					ID: "openai",
+					Models: []providers.Model{
+						{ID: "gpt-5.4", ContextWindow: 2000},
+					},
+				},
+			},
+		},
+	}
+	m.appState = NewAppState(nil, "")
+	m.appState.AddMessage(llm.RoleUser, strings.Repeat("word ", 750))
+	m.refreshContextStatus(false)
+
+	meta := m.inputMetaView()
+	if !strings.Contains(meta, "Provider:") {
+		t.Fatalf("expected provider text, got %q", meta)
+	}
+	if !strings.Contains(meta, "Model:") {
+		t.Fatalf("expected model text, got %q", meta)
+	}
+	if !strings.Contains(meta, "✎ᝰ") {
+		t.Fatalf("expected context status label, got %q", meta)
+	}
+	if !strings.Contains(meta, "50%") {
+		t.Fatalf("expected 50%% context usage, got %q", meta)
+	}
+}
+
+func TestInputMetaView_UnknownContextWindowShowsNA(t *testing.T) {
+	m := newTestModel()
+	m.width = 120
+	m.ctx = &replContext{
+		workingDir: "",
+		cfg: &config.ResolvedConfig{
+			Provider: "openai",
+			Model:    "unknown-model",
+		},
+		registry: &providers.Registry{
+			Providers: []providers.Provider{
+				{
+					ID: "openai",
+					Models: []providers.Model{
+						{ID: "gpt-5.4", ContextWindow: 2000},
+					},
+				},
+			},
+		},
+	}
+
+	m.refreshContextStatus(false)
+	meta := m.inputMetaView()
+	if !strings.Contains(meta, "N/A") {
+		t.Fatalf("expected N/A for unknown context window, got %q", meta)
+	}
+}

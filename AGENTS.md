@@ -40,7 +40,6 @@ Guard checks paths before filesystem operations:
    - run GoReleaser for the tagged release
    - publish the npm package from `npm/` after the release job succeeds
 8. The Git tag must match `npm/package.json` version exactly.
-9. GitHub repository secrets must include `NPM_TOKEN` for npm publishing to work.
 
 ## Important Guidelines
 - Minimal comments only when strictly necessary
@@ -48,3 +47,4 @@ Guard checks paths before filesystem operations:
 - Always run the tests after each change
 - Always run `go mod tidy` after each change
 - Commit messages should be concise and focus on the key changes with bullet points
+- Never add co-authors to commit messages

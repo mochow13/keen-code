@@ -64,13 +64,9 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	case StepProvider:
 		switch msg.String() {
 		case "up", "k":
-			if m.ProviderCursor > 0 {
-				m.ProviderCursor--
-			}
+			m.ProviderCursor = (m.ProviderCursor - 1 + len(m.ProviderList)) % len(m.ProviderList)
 		case "down", "j":
-			if m.ProviderCursor < len(m.ProviderList)-1 {
-				m.ProviderCursor++
-			}
+			m.ProviderCursor = (m.ProviderCursor + 1) % len(m.ProviderList)
 		case "enter":
 			m.SelectedProvider = m.ProviderList[m.ProviderCursor].ID
 			provider, _ := m.registry.GetProvider(m.SelectedProvider)
@@ -84,13 +80,9 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	case StepModel:
 		switch msg.String() {
 		case "up", "k":
-			if m.ModelCursor > 0 {
-				m.ModelCursor--
-			}
+			m.ModelCursor = (m.ModelCursor - 1 + len(m.ModelList)) % len(m.ModelList)
 		case "down", "j":
-			if m.ModelCursor < len(m.ModelList)-1 {
-				m.ModelCursor++
-			}
+			m.ModelCursor = (m.ModelCursor + 1) % len(m.ModelList)
 		case "enter":
 			m.SelectedModel = m.ModelList[m.ModelCursor].ID
 			m.Step = StepAPIKey

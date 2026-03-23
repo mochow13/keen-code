@@ -4,6 +4,8 @@
 
 1. Currently, we use quite bright colors for keen code UI. Check the styles in @internal/cli/repl/styles.go. Based on that, update the syles with proper material UI colors.
 2. Fix thinking for genkit clients so that thinking tokens are visually handle they are done for openai compatible models.
+3. Currently, model selection using up-down arrows don't wrap around. Let's fix that.
+4. Review the styles in @internal/cli/repl/styles.go. Currently, the colors are all over the place. Without changing anything in the UI, organise the colors.
 
 ### Interruption
 

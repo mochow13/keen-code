@@ -122,6 +122,7 @@ type replModel struct {
 	loadingText         string
 	userScrolled        bool
 	streamCancel        context.CancelFunc
+	contextStatus       contextStatus
 }
 
 func abbreviateHome(path string) string {
@@ -196,6 +197,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		diffEmitter:         diffEmitter,
 		suggestion:          newSuggestionModel(),
 	}
+	model.refreshContextStatus(false)
 
 	if needsSetup {
 		welcomeStyle := lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
@@ -229,7 +231,7 @@ func buildInitialScreen(ctx *replContext) []string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, "  "+titleStyle.Render("Keen v"+ctx.version))
+	lines = append(lines, "  "+titleStyle.Render("✦︎ Keen v"+ctx.version+" .✦ ݁˖"))
 	lines = append(lines, "")
 
 	displayDir := abbreviateHome(ctx.workingDir)
@@ -554,6 +556,7 @@ func (m replModel) consumeModelSelectionResult(msg tea.Msg) (replModel, tea.Cmd,
 		m.output.AddStyledLine("  "+successMsg, highlightStyle)
 		m.output.AddEmptyLine()
 		m.modelSelection = nil
+		m.refreshContextStatus(false)
 		m.updateViewportContent()
 		m.viewport.GotoBottom()
 		return m, nil, true
@@ -637,8 +640,32 @@ func (m replModel) inputMetaView() string {
 	metaLabelStyle := lipgloss.NewStyle().Foreground(mutedColor)
 	providerText := metaLabelStyle.Render("Provider:") + " " + highlightStyle.Render(provider)
 	modelText := metaLabelStyle.Render("Model:") + " " + infoValueStyle.Render(model)
+	left := providerText + "   " + modelText
+	right := renderContextStatus(m.contextStatus)
 
-	return "  " + providerText + "   " + modelText
+	const leftPad = "  "
+	if m.width <= 0 {
+		return leftPad + left + "   " + right
+	}
+
+	available := m.width - lipgloss.Width(leftPad)
+	if available <= lipgloss.Width(right)+1 {
+		return leftPad + right
+	}
+
+	space := available - lipgloss.Width(left) - lipgloss.Width(right)
+	if space >= 1 {
+		return leftPad + left + strings.Repeat(" ", space) + right
+	}
+
+	compactLeft := metaLabelStyle.Render("P:") + " " + highlightStyle.Render(provider) +
+		"  " + metaLabelStyle.Render("M:") + " " + infoValueStyle.Render(model)
+	space = available - lipgloss.Width(compactLeft) - lipgloss.Width(right)
+	if space >= 1 {
+		return leftPad + compactLeft + strings.Repeat(" ", space) + right
+	}
+
+	return leftPad + right
 }
 
 func getHelpText() string {
