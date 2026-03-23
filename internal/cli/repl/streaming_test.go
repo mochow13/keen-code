@@ -150,18 +150,18 @@ func TestStreamHandler_View_NoSpinnerInView(t *testing.T) {
 	}
 }
 
-func TestStreamHandler_View_WithRunningBashShowsInlineStatus(t *testing.T) {
+func TestStreamHandler_View_WithRunningBashShowsCommand(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Brewing...")
 	sh.HandleBashStart("npm test", "running tests")
 
 	view := sh.View(80)
 
-	if !strings.Contains(view, "Running command...") {
-		t.Fatal("expected inline running message for bash")
+	if !strings.Contains(view, "npm test") {
+		t.Fatal("expected bash command in view")
 	}
-	if !strings.Contains(view, "Press Esc to interrupt") {
-		t.Fatal("expected interrupt hint for running bash")
+	if !strings.Contains(view, "running tests") {
+		t.Fatal("expected bash summary in view")
 	}
 }
 
