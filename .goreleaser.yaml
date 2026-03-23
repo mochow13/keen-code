@@ -8,7 +8,7 @@ before:
 
 builds:
   - id: keen
-    main: ./cmd/agent
+    main: ./cmd
     binary: keen
     env:
       - CGO_ENABLED=0

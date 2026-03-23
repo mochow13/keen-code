@@ -5,9 +5,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/user/keen-code/configs/providers"
 	"github.com/user/keen-code/internal/cli/repl"
 	"github.com/user/keen-code/internal/config"
+	"github.com/user/keen-code/providers"
 )
 
 func NewRootCommand(version string) *cobra.Command {

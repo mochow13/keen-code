@@ -8,10 +8,10 @@ import (
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"github.com/user/keen-code/configs/providers"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/llm"
 	"github.com/user/keen-code/internal/tools"
+	"github.com/user/keen-code/providers"
 )
 
 func newTestModel() replModel {

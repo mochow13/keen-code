@@ -8,9 +8,9 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	"github.com/user/keen-code/configs/providers"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/llm"
+	"github.com/user/keen-code/providers"
 )
 
 func TestHandleLLMChunk(t *testing.T) {

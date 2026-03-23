@@ -449,11 +449,6 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []stri
 		lines = append(lines, bashSummaryStyle.Render("› "+seg.summary))
 	}
 
-	if seg.toolCall == nil {
-		lines = append(lines, bashRunningStyle.Render("Running command..."))
-		lines = append(lines, bashHintStyle.Render("\nPress Esc to interrupt"))
-	}
-
 	lines = append(lines, "")
 
 	if seg.output != "" {

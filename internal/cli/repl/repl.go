@@ -12,9 +12,9 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/user/keen-code/configs/providers"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/llm"
+	"github.com/user/keen-code/providers"
 )
 
 const (
@@ -593,9 +593,8 @@ func (m replModel) View() tea.View {
 		view.WriteString("\n")
 
 		if m.showSpinner && m.streamHandler != nil && m.streamHandler.IsActive() {
-			loadingTextStyled := lipgloss.NewStyle().Foreground(mutedColor).Render(m.loadingText)
-			spinnerText := m.spinner.View() + " " + loadingTextStyled
-			padding := m.width - lipgloss.Width(spinnerText)
+			spinnerText := m.spinner.View() + " " + loadingTextStyled.Render(m.loadingText)
+			padding := m.width - lipgloss.Width(spinnerText) - 1
 			if padding < 0 {
 				padding = 0
 			}

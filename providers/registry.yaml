@@ -20,7 +20,7 @@ providers:
         name: GPT-5.3 Codex
       - id: gpt-5.2-codex
         name: GPT-5.2 Codex
-  
+
   - id: googleai
     name: Google AI
     models:
@@ -53,4 +53,3 @@ providers:
         name: DeepSeek V3.2
       - id: deepseek-reasoner
         name: DeepSeek-V3.2 (Thinking)
-

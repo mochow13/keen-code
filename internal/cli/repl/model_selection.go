@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/user/keen-code/configs/providers"
 	"github.com/user/keen-code/internal/config"
+	"github.com/user/keen-code/providers"
 )
 
 type Step int

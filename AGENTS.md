@@ -23,14 +23,18 @@ Guard checks paths before filesystem operations:
 
 ## Releasing
 1. Bump versions together:
-   - `cmd/agent/main.go`
+   - `cmd/main.go`
    - `npm/package.json`
-2. Run the tests:
+2. Update `CHANGELOG.md`:
+   - Move `[Unreleased]` entries under a new `[X.Y.Z] - YYYY-MM-DD` heading
+   - Add a new empty `[Unreleased]` section at the top
+   - Update the comparison links at the bottom of the file
+3. Run the tests:
    - `go test ./...`
-3. Verify the npm wrapper package:
+4. Verify the npm wrapper package:
    - `cd npm && npm pack --dry-run`
-4. Commit the version bump.
-5. Create and push a tag in the form `vX.Y.Z`.
+5. Commit the version bump.
+6. Create and push a tag in the form `vX.Y.Z`.
 6. Push `main` and the tag to GitHub.
 7. GitHub Actions will:
    - run GoReleaser for the tagged release

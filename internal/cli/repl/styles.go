@@ -107,12 +107,6 @@ var (
 		})
 	bashSummaryStyle = lipgloss.NewStyle().
 				Foreground(mutedColor)
-	bashRunningStyle = lipgloss.NewStyle().
-				Foreground(secondaryColor).
-				Bold(true)
-	bashHintStyle = lipgloss.NewStyle().
-			Foreground(mutedColor).
-			Italic(true)
 	diffAddStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
 		Light: lipgloss.Color("#2E7D32"), Dark: lipgloss.Color("#66BB6A"),
 	})
@@ -137,4 +131,5 @@ var (
 	userPromptSelectionStyle = lipgloss.NewStyle().
 					Foreground(secondaryColor).
 					Bold(true)
+	loadingTextStyled = lipgloss.NewStyle().Foreground(accentColor).Bold(true)
 )
