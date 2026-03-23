@@ -13,6 +13,7 @@ const (
 	keyCtrlC     = "ctrl+c"
 	keyCtrlD     = "ctrl+d"
 	keyEsc       = "esc"
+	keyTab       = "tab"
 	keyUp        = "up"
 	keyDown      = "down"
 	keyPageUp    = "pgup"
@@ -127,6 +128,37 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		}
 	}
 
+	if m.suggestion.visible {
+		switch keyMsg.String() {
+		case keyEnter, keyTab:
+			if cur := m.suggestion.current(); cur != nil {
+				m.textarea.SetValue(cur.Name)
+			} else if len(m.suggestion.items) > 0 {
+				m.textarea.SetValue(m.suggestion.items[0].Name)
+			}
+			if keyMsg.String() == keyEnter {
+				m.suggestion.refresh("")
+			} else {
+				m.suggestion.refresh(m.textarea.Value())
+			}
+			m.adjustTextareaHeight()
+			return *m, nil
+		case keyUp, keyShiftUp:
+			m.suggestion.moveUp()
+			return *m, nil
+		case keyDown, keyShiftDown:
+			m.suggestion.moveDown()
+			return *m, nil
+		case keyEsc:
+			if m.streamHandler == nil || !m.streamHandler.IsActive() {
+				m.suggestion.refresh("")
+				return *m, nil
+			}
+		}
+	} else if keyMsg.String() == keyTab {
+		return *m, nil
+	}
+
 	switch keyMsg.String() {
 	case keyEnter:
 		return m.handleEnterKey()
@@ -175,6 +207,7 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 
 	var cmd tea.Cmd
 	m.textarea, cmd = m.textarea.Update(keyMsg)
+	m.suggestion.refresh(m.textarea.Value())
 	m.adjustTextareaHeight()
 	return *m, cmd
 }

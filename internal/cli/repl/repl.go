@@ -111,6 +111,7 @@ type replModel struct {
 	modelSelection      *Model
 	permissionRequester *REPLPermissionRequester
 	diffEmitter         *REPLDiffEmitter
+	suggestion          suggestionModel
 	quitting            bool
 	streamHandler       *StreamHandler
 	mdRenderer          *MarkdownRenderer
@@ -193,6 +194,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		mdRenderer:          mdRenderer,
 		permissionRequester: permissionRequester,
 		diffEmitter:         diffEmitter,
+		suggestion:          newSuggestionModel(),
 	}
 
 	if needsSetup {
@@ -240,7 +242,7 @@ func buildInitialScreen(ctx *replContext) []string {
 		"Type /help  for available commands",
 		"Type /exit  to quit",
 		"Type /model to change provider or model",
-		"Press Enter to send, Ctrl+J for new line",
+		"Press Enter to send, Ctrl+Enter for new line",
 		"Shift+click to select and copy text",
 	}
 	tipsBox := boxStyle.Render(tipStyle.Render(strings.Join(tips, "\n")))
@@ -266,7 +268,7 @@ func (m *replModel) adjustTextareaHeight() {
 		return
 	}
 	m.textarea.SetHeight(maxHeight)
-	m.viewport.SetHeight(m.height - m.textarea.Height() - 4 - m.spinnerHeight())
+	m.viewport.SetHeight(m.height - m.textarea.Height() - 4 - m.spinnerHeight() - m.suggestion.height())
 }
 
 func (m replModel) isAtTopOfInput() bool {
@@ -469,7 +471,7 @@ func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
 		m.mdRenderer.UpdateWidth(msg.Width)
 	}
 	m.viewport.SetWidth(msg.Width)
-	m.viewport.SetHeight(msg.Height - m.textarea.Height() - 4 - m.spinnerHeight())
+	m.viewport.SetHeight(msg.Height - m.textarea.Height() - 4 - m.spinnerHeight() - m.suggestion.height())
 }
 
 func (m replModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -604,6 +606,10 @@ func (m replModel) View() tea.View {
 
 		view.WriteString(inputBorderStyle.Render(m.textarea.View()))
 		view.WriteString("\n")
+		if m.suggestion.visible {
+			view.WriteString(m.suggestion.view(m.width))
+			view.WriteString("\n")
+		}
 		view.WriteString(m.inputMetaView())
 
 		content = view.String()

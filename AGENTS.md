@@ -46,4 +46,5 @@ Guard checks paths before filesystem operations:
 - Minimal comments only when strictly necessary
 - Test critical paths, not aiming for 100% coverage
 - Always run the tests after each change
+- Always run `go mod tidy` after each change
 - Commit messages should be concise and focus on the key changes with bullet points

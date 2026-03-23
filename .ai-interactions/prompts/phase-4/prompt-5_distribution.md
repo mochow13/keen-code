@@ -34,3 +34,5 @@
 9. We shouldn't actually use NPM_TOKEN for publishing npm package. We will use Trusted Publisher for it. Let's update the workflow to use Trusted Publisher.
 10. The README.md doesn't appear on npm. How to fix that?
 11. We want to support script-based install as outlined in @.ai-interactions/outputs/phase-4/output-2_distribution-plan.md. Let's implement this.
+12. Currently, this project doesn't have any changelog. What's the best approach for creating and maintaining a changelog? We want this changelog to be updated after each release.
+13. Ok let's go with manual CHANGELOG.md.

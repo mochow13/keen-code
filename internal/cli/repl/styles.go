@@ -132,4 +132,22 @@ var (
 					Foreground(secondaryColor).
 					Bold(true)
 	loadingTextStyled = lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+
+	suggestionContainerStyle = lipgloss.NewStyle().
+					BorderStyle(lipgloss.RoundedBorder()).
+					BorderForeground(mutedColor).
+					Padding(0, 1)
+	suggestionCmdStyle = lipgloss.NewStyle().
+				Foreground(secondaryColor)
+	suggestionDescStyle = lipgloss.NewStyle().
+				Foreground(mutedColor).
+				PaddingLeft(2)
+	suggestionSelectedCmdStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#FFFFFF")).
+					Background(primaryColor).
+					Bold(true)
+	suggestionSelectedDescStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#FFFFFF")).
+					Background(primaryColor).
+					PaddingLeft(2)
 )
