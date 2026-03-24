@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-03-24
+
+### Added
+- REPL context status indicator with progress bar and percentage based on model context window
+- Slash command autosuggestion dropdown for `/help`, `/model`, and `/exit`
+
+### Changed
+- Consolidated REPL styling for context status and suggestion UI
+
 ## [0.1.6] - 2026-03-22
 
 ### Changed
@@ -60,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/mochow13/keen-code/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/mochow13/keen-code/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/mochow13/keen-code/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mochow13/keen-code/compare/v0.1.3...v0.1.4
