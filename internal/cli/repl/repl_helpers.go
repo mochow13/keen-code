@@ -454,63 +454,52 @@ func buildInitialScreen(ctx *replContext, lastSession *session.Summary, width in
 	}
 	var lines []string
 
-	asciiArt := []string{
+	lines = append(lines, "")
+	metadataStyle := repltheme.InitialScreenMetadataStyle
+	artStyles := repltheme.InitialScreenArtStyles
+	header := repltheme.InitialScreenWordmarkStyle.Render("✦ keen v" + ctx.version + " .✦ ݁˖")
+	art := []string{
 		"░█░█░█▀▀░█▀▀░█▀█░░░█▀▀░█▀█░█▀▄░█▀▀",
 		"░█▀▄░█▀▀░█▀▀░█░█░░░█░░░█░█░█░█░█▀▀",
 		"░▀░▀░▀▀▀░▀▀▀░▀░▀░░░▀▀▀░▀▀▀░▀▀░░▀▀▀",
 	}
-
-	colors := []string{
-		"#9FA8DA", "#7986CB", "#5C6BC0", "#3F51B5", "#3949AB", "#303F9F", "#283593",
-	}
-
-	lines = append(lines, "")
-	for i, line := range asciiArt {
-		color := colors[i%len(colors)]
-		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(line))
-	}
-
-	lines = append(lines, "")
-	lines = append(lines, "  "+repltheme.PrimaryBoldStyle.Render("✦︎ Keen v"+ctx.version+" .✦ ݁˖"))
-	lines = append(lines, "")
-
-	displayDir := abbreviateHome(ctx.workingDir)
-	modelName := displayModelName(ctx.cfg.Provider, ctx.cfg.Model)
-	lines = append(lines, "  "+repltheme.InfoLabelStyle.Render("Directory:")+" "+repltheme.InfoValueStyle.Render(displayDir))
-	lines = append(lines, "  "+repltheme.InfoLabelStyle.Render("Provider:")+" "+repltheme.InfoValueStyle.Render(ctx.cfg.Provider))
-	lines = append(lines, "  "+repltheme.InfoLabelStyle.Render("Model:")+" "+repltheme.ModelChipStyle.Render(modelName))
-	if ctx.cfg.ThinkingEffort != "" && ctx.registry != nil {
-		if modelMeta, ok := ctx.registry.GetModel(ctx.cfg.Provider, ctx.cfg.Model); ok && modelMeta.SupportsThinkingEffort() {
-			lines = append(lines, "  "+repltheme.InfoLabelStyle.Render("Thinking:")+" "+repltheme.InfoValueStyle.Render(ctx.cfg.ThinkingEffort))
+	for lineIndex, line := range art {
+		runes := []rune(line)
+		var artLine strings.Builder
+		for i, style := range artStyles {
+			start := i * len(runes) / len(artStyles)
+			end := (i + 1) * len(runes) / len(artStyles)
+			artLine.WriteString(style.Render(string(runes[start:end])))
 		}
+		renderedLine := "  " + artLine.String()
+		if lineIndex == len(art)-1 {
+			renderedLine += " " + header
+		}
+		lines = append(lines, renderedLine)
 	}
 	lines = append(lines, "")
 
 	if lastSession != nil && lastSession.LastUserMessage != "" {
-		preview := lastSession.LastUserMessage
-		if len([]rune(preview)) > 20 {
-			preview = string([]rune(preview)[:20]) + "…"
+		preview := strings.Join(strings.Fields(lastSession.LastUserMessage), " ")
+		previewWidth := max(width-24, 12)
+		if len([]rune(preview)) > previewWidth {
+			preview = string([]rune(preview)[:previewWidth-1]) + "…"
 		}
-		ago := formatTimeAgo(lastSession.UpdatedAt)
-		resumeLine := "  " +
-			repltheme.MutedStyle.Render("Last session:") + " " +
-			repltheme.PrimaryBoldStyle.Render("'"+preview+"'") + "  " +
-			repltheme.MutedStyle.Render("•") + "  " +
-			repltheme.InfoValueStyle.Render(ago) + "  " +
-			repltheme.MutedStyle.Render("•") + "  " +
-			repltheme.AccentStyle.Render("/resume")
-		lines = append(lines, wrapTextWithStyle(resumeLine, lipgloss.NewStyle(), width))
+
+		rail := metadataStyle.Render("┃")
+		lines = append(lines, "  "+rail+"  "+metadataStyle.Render("Last session")+" "+metadataStyle.Render("·")+" "+repltheme.InitialScreenWordmarkStyle.Render("“"+preview+"”"))
+		lines = append(lines, "  "+rail+"  "+metadataStyle.Render(formatTimeAgo(lastSession.UpdatedAt))+" "+metadataStyle.Render("·")+" "+metadataStyle.Render("/resume to begin where you left off"))
 		lines = append(lines, "")
 	}
 
-	rule := repltheme.HighlightStyle.Render(strings.Repeat("─", width))
-	label := "  " + repltheme.HighlightStyle.Bold(true).Render("✦ Tip of the session")
+	rule := repltheme.InitialScreenRuleStyle.Render(strings.Repeat("─", width))
+	label := "  " + repltheme.InitialScreenTipLabelStyle.Render("✦ Tip of the session")
 	indent := "  "
 	tipText := indent + strings.ReplaceAll(renderTipText(randomTip(), width-len(indent)), "\n", "\n"+indent)
-	lines = append(lines, rule+"\n")
+	lines = append(lines, rule)
 	lines = append(lines, label)
 	lines = append(lines, tipText)
-	lines = append(lines, "\n"+rule)
+	lines = append(lines, rule)
 	lines = append(lines, "")
 
 	return lines
@@ -596,13 +585,13 @@ func renderInputArea(content string, width int, focused bool, shellMode bool, bt
 	if !focused {
 		ruleStyle = repltheme.InputRuleBlurredStyle
 	} else if shellMode {
-		ruleStyle = repltheme.AccentStyle
+		ruleStyle = repltheme.ShellInputRuleStyle
 	} else if btwMode {
-		ruleStyle = repltheme.BtwBorderStyle
+		ruleStyle = repltheme.BtwInputRuleStyle
 	} else if adversaryMode {
-		ruleStyle = repltheme.AdversaryBorderStyle
+		ruleStyle = repltheme.AdversaryInputRuleStyle
 	} else if mode == llm.ModePlan {
-		ruleStyle = repltheme.InputRulePlanStyle
+		ruleStyle = repltheme.PlanInputRuleStyle
 	}
 
 	switch {

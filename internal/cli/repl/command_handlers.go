@@ -1097,7 +1097,7 @@ func (m *replModel) handleClearCommand() replModel {
 	m.adjustTextareaHeight()
 
 	newOutput := reploutput.NewOutputBuilder(m.width, m.ctx.workingDir)
-	initialLines := buildInitialScreen(m.ctx, nil, m.width)
+	initialLines := buildInitialScreen(m.ctx, m.lastSession, m.width)
 	for _, line := range initialLines {
 		newOutput.AddLine(line)
 	}

@@ -27,6 +27,14 @@ import (
 	"github.com/user/keen-code/internal/tools"
 )
 
+func styleColorPrefix(style lipgloss.Style) string {
+	rendered := style.Render("x")
+	if idx := strings.Index(rendered, "x"); idx > 0 {
+		return rendered[:idx]
+	}
+	return rendered
+}
+
 func newTestModel() replModel {
 	ta := textarea.New()
 	ta.Focus()
@@ -280,27 +288,6 @@ func TestUpdateViewportContent_UsesViewportWidthWhenModelStartsWithoutResize(t *
 	}
 }
 
-func TestBuildInitialScreen_HighlightsModelOnly(t *testing.T) {
-	ctx := &replContext{
-		version:    "0.20.1",
-		workingDir: "/tmp/project",
-		cfg: &config.ResolvedConfig{
-			Provider: "openai",
-			Model:    "gpt-5.4",
-		},
-	}
-
-	lines := buildInitialScreen(ctx, nil, 0)
-	rendered := strings.Join(lines, "\n")
-
-	if strings.Contains(rendered, repltheme.HighlightStyle.Render("openai")) {
-		t.Fatalf("expected provider in initial screen to not use highlight style, got %q", rendered)
-	}
-	if !strings.Contains(rendered, repltheme.ModelChipStyle.Render("gpt-5.4")) {
-		t.Fatalf("expected model in initial screen to use model chip style, got %q", rendered)
-	}
-}
-
 func TestInitialModel_DimsBlurredPromptGlyph(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	m := initialModel(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}}, nil, false)
@@ -318,8 +305,10 @@ func TestInitialModel_PlanModeSetsPromptStyle(t *testing.T) {
 	m := initialModel(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}}, nil, false)
 	m.setMode(llm.ModePlan)
 	view := m.View().Content
-	secondarySeq := "\x1b[1;38;2;77;182;172m"
-	if !strings.Contains(view, secondarySeq) {
+	if !strings.Contains(view, repltheme.ModePlanChipStyle.Render("plan")) {
+		t.Fatalf("expected plan mode chip in view, got %q", view)
+	}
+	if !strings.Contains(view, styleColorPrefix(repltheme.InputRulePlanStyle)) {
 		t.Fatalf("expected plan mode prompt to use secondary color, got %q", view)
 	}
 }
@@ -667,8 +656,7 @@ func TestRenderInputArea_UsesSecondaryStyleForPlanMode(t *testing.T) {
 	if !strings.Contains(lines[0], repltheme.ModePlanChipStyle.Render("plan")) {
 		t.Fatalf("expected plan mode chip in top rule, got %q", lines[0])
 	}
-	secondarySeq := "\x1b[38;2;77;182;172m"
-	if !strings.Contains(lines[0], secondarySeq) {
+	if !strings.Contains(lines[0], styleColorPrefix(repltheme.PlanInputRuleStyle)) {
 		t.Fatalf("expected plan mode rule to use secondary color, got %q", lines[0])
 	}
 }
@@ -693,9 +681,8 @@ func TestRenderInputArea_UsesAccentStyleForBtw(t *testing.T) {
 	if !strings.Contains(lines[0], repltheme.BtwChipStyle.Render("btw")) {
 		t.Fatalf("expected btw chip in top rule, got %q", lines[0])
 	}
-	accentSeq := "\x1b[38;2;255;179;0m"
-	if !strings.Contains(lines[0], accentSeq) {
-		t.Fatalf("expected btw rule to use accent color, got %q", lines[0])
+	if !strings.Contains(lines[0], styleColorPrefix(repltheme.BtwInputRuleStyle)) {
+		t.Fatalf("expected btw rule to use btw color, got %q", lines[0])
 	}
 }
 
@@ -708,9 +695,8 @@ func TestRenderInputArea_UsesSecondaryStyleForAdversary(t *testing.T) {
 	if !strings.Contains(lines[0], repltheme.AdversaryChipStyle.Render("adversary")) {
 		t.Fatalf("expected adversary chip in top rule, got %q", lines[0])
 	}
-	secondarySeq := "\x1b[38;2;77;182;172m"
-	if !strings.Contains(lines[0], secondarySeq) {
-		t.Fatalf("expected adversary rule to use secondary color, got %q", lines[0])
+	if !strings.Contains(lines[0], styleColorPrefix(repltheme.AdversaryInputRuleStyle)) {
+		t.Fatalf("expected adversary rule to use adversary color, got %q", lines[0])
 	}
 }
 

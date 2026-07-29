@@ -15,8 +15,8 @@ var (
 		Dark:  lipgloss.Color("#7986CB"),
 	}
 	SecondaryColor = compat.AdaptiveColor{
-		Light: lipgloss.Color("#00897B"),
-		Dark:  lipgloss.Color("#4DB6AC"),
+		Light: lipgloss.Color("#287A8A"),
+		Dark:  lipgloss.Color("#649FA9"),
 	}
 	MutedColor = compat.AdaptiveColor{
 		Light: lipgloss.Color("#757575"),
@@ -101,6 +101,17 @@ var (
 	PrimaryBoldStyle = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
 	AccentStyle      = lipgloss.NewStyle().Foreground(AccentColor)
 
+	InitialScreenMetadataStyle = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	InitialScreenWordmarkStyle = lipgloss.NewStyle().Foreground(SecondaryColor)
+	InitialScreenTipLabelStyle = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true).Bold(true)
+	InitialScreenRuleStyle     = lipgloss.NewStyle().Foreground(RuleColor).Faint(true)
+	InitialScreenArtStyles     = []lipgloss.Style{
+		lipgloss.NewStyle().Foreground(PrimaryLightColor).Bold(true),
+		lipgloss.NewStyle().Foreground(PrimaryLightColor),
+		PrimaryBoldStyle,
+		lipgloss.NewStyle().Foreground(PrimaryColor),
+	}
+
 	PromptStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(PrimaryColor).
@@ -117,9 +128,13 @@ var (
 				Bold(true).
 				Foreground(SecondaryColor).
 				MarginTop(2)
-	InputRuleStyle        = lipgloss.NewStyle().Foreground(PrimaryColor)
-	InputRuleBlurredStyle = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
-	UserInputBlockStyle   = lipgloss.NewStyle().
+	InputRuleStyle          = lipgloss.NewStyle().Foreground(PrimaryColor).Faint(true)
+	InputRuleBlurredStyle   = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	ShellInputRuleStyle     = lipgloss.NewStyle().Foreground(AccentColor).Faint(true)
+	BtwInputRuleStyle       = lipgloss.NewStyle().Foreground(AccentColor).Faint(true)
+	AdversaryInputRuleStyle = lipgloss.NewStyle().Foreground(SecondaryColor).Faint(true)
+	PlanInputRuleStyle      = lipgloss.NewStyle().Foreground(SecondaryColor).Faint(true)
+	UserInputBlockStyle     = lipgloss.NewStyle().
 				Background(UserInputBlockBackground).
 				Padding(1, 1)
 
