@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
 	"github.com/user/keen-code/internal/llm"
 )
 
@@ -394,8 +395,9 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 			start := &llm.ToolCall{Name: tt.tool, Input: tt.input}
 			end := &llm.ToolCall{Name: tt.tool, Output: tt.output, Duration: 8 * 1e6}
 			got := FormatToolDone(start, end, "/tmp/project")
+			plain := ansi.Strip(got)
 			for _, want := range tt.contains {
-				if !strings.Contains(got, want) {
+				if !strings.Contains(plain, want) {
 					t.Fatalf("FormatToolDone() = %q, want it to contain %q", got, want)
 				}
 			}
@@ -479,8 +481,11 @@ func TestFormatToolStart_UsesFriendlyLabel(t *testing.T) {
 	if !strings.Contains(got, "●") || !strings.Contains(got, "Search") {
 		t.Fatalf("expected friendly running label, got %q", got)
 	}
-	if !strings.Contains(got, "→") || !strings.Contains(got, `foo in internal`) {
+	if !strings.Contains(got, "→") || !strings.Contains(ansi.Strip(got), `foo in internal`) {
 		t.Fatalf("expected detail after arrow, got %q", got)
+	}
+	if !strings.Contains(got, repltheme.ToolMetaStyle.Render(" in ")) {
+		t.Fatalf("expected search path separator to use metadata style, got %q", got)
 	}
 }
 

@@ -162,7 +162,7 @@ func toolDisplayName(name string) string {
 
 func FormatToolStart(toolCall *llm.ToolCall, workingDir string) string {
 	detail := formatToolInputDetail(toolCall.Name, toolCall.Input, workingDir)
-	return "  " + renderToolStatus("●", toolDisplayName(toolCall.Name), detail, nil, nil, false) + repltheme.ToolMetaStyle.Render("...")
+	return "  " + renderToolStatus("●", toolCall.Name, toolDisplayName(toolCall.Name), detail, nil, nil, false) + repltheme.ToolMetaStyle.Render("...")
 }
 
 func FormatToolDone(startCall, endCall *llm.ToolCall, workingDir string) string {
@@ -170,9 +170,9 @@ func FormatToolDone(startCall, endCall *llm.ToolCall, workingDir string) string 
 	metadata, failed := formatToolResultMetadata(startCall.Name, endCall)
 	errText := formatToolError(startCall.Name, endCall.Error)
 	if failed {
-		return "  " + renderToolStatus("✗", toolDisplayName(startCall.Name), detail, metadata, errText, true)
+		return "  " + renderToolStatus("✗", startCall.Name, toolDisplayName(startCall.Name), detail, metadata, errText, true)
 	}
-	return "  " + renderToolStatus("✓", toolDisplayName(startCall.Name), detail, metadata, errText, false)
+	return "  " + renderToolStatus("✓", startCall.Name, toolDisplayName(startCall.Name), detail, metadata, errText, false)
 }
 
 func FormatSubagentTool(agent string, startCall, endCall *llm.ToolCall, workingDir string) string {
@@ -197,9 +197,9 @@ func FormatToolEnd(toolCall *llm.ToolCall) string {
 	metadata, failed := formatToolResultMetadata(toolCall.Name, toolCall)
 	errText := formatToolError(toolCall.Name, toolCall.Error)
 	if failed {
-		return "  " + renderToolStatus("✗", toolDisplayName(toolCall.Name), "", metadata, errText, true)
+		return "  " + renderToolStatus("✗", toolCall.Name, toolDisplayName(toolCall.Name), "", metadata, errText, true)
 	}
-	return "  " + renderToolStatus("✓", toolDisplayName(toolCall.Name), "", metadata, errText, false)
+	return "  " + renderToolStatus("✓", toolCall.Name, toolDisplayName(toolCall.Name), "", metadata, errText, false)
 }
 
 func formatToolError(toolName, message string) *string {
@@ -214,7 +214,7 @@ func formatToolError(toolName, message string) *string {
 	return &compacted
 }
 
-func renderToolStatus(marker, label, detail string, metadata []string, errText *string, failed bool) string {
+func renderToolStatus(marker, toolName, label, detail string, metadata []string, errText *string, failed bool) string {
 	var b strings.Builder
 	b.WriteString(repltheme.ToolNameStyle.Render(marker + " " + label))
 	if detail != "" {
@@ -224,7 +224,7 @@ func renderToolStatus(marker, label, detail string, metadata []string, errText *
 		if failed && errText == nil {
 			b.WriteString(repltheme.ToolErrorStyle.Render(detail))
 		} else {
-			b.WriteString(detail)
+			b.WriteString(renderToolDetail(toolName, detail))
 		}
 	}
 	for _, meta := range metadata {
@@ -240,6 +240,18 @@ func renderToolStatus(marker, label, detail string, metadata []string, errText *
 		b.WriteString(repltheme.ToolErrorStyle.Render(*errText))
 	}
 	return b.String()
+}
+
+func renderToolDetail(toolName, detail string) string {
+	if toolName != "grep" && toolName != "glob" {
+		return detail
+	}
+
+	before, after, found := strings.Cut(detail, " in ")
+	if !found {
+		return detail
+	}
+	return before + repltheme.ToolMetaStyle.Render(" in ") + after
 }
 
 func formatToolInputDetail(toolName string, input map[string]any, workingDir string) string {
