@@ -1487,18 +1487,6 @@ func TestDrainQueuedInput_EmptyQueueNoOp(t *testing.T) {
 	}
 }
 
-func TestInterruptStream_PreservesQueue(t *testing.T) {
-	m := newTestModel()
-	m.queuedInputs = []string{"queued1", "queued2"}
-	m.stream.cancel = func() {}
-
-	m.interruptStream("interrupted")
-
-	if len(m.queuedInputs) != 2 {
-		t.Errorf("expected queue to be preserved after interrupt, got %v", m.queuedInputs)
-	}
-}
-
 func TestHandleLLMError_CanceledPreservesQueue(t *testing.T) {
 	m := newTestModel()
 	m.queuedInputs = []string{"next msg"}

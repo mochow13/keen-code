@@ -51,10 +51,10 @@ Queued items are submitted **one per turn** — not all at once. After the curre
 | Stream ended with incomplete response (`handleLLMIncomplete`) | Yes |
 | Compaction completed (`handleCompactionDone`) | Yes |
 | Compaction failed (`handleCompactionError`) | Yes |
-| Stream canceled via Ctrl+C/Esc (`handleLLMError`, `context.Canceled`) | **No** |
-| Stream failed with an error (`handleLLMError`, non-cancel) | **No** |
+| Stream interrupted via Ctrl+C/Esc | Yes |
+| Stream failed with an error (`handleLLMError`) | **No** |
 
-Errors and cancellations do not drain the queue. This is intentional — if the LLM is having problems, sending another queued message immediately could compound the issue. The user can inspect the error, then manually submit the next queued item by pressing Enter, or clear the queue.
+A user-initiated interruption immediately submits the next queued message. Stream errors do not drain the queue, so the user can inspect the error before deciding whether to continue.
 
 ## Clearing the Queue
 
@@ -66,7 +66,7 @@ Works at any time, including while the agent is actively streaming. Clears all q
 
 ### Ctrl+C / Esc while idle
 
-When the agent is NOT actively streaming and the queue has items, pressing Ctrl+C or Esc clears the queue and shows a "Queue cleared" notification. If the agent IS streaming, Ctrl+C/Esc interrupts the stream but preserves the queue — the queued items will be available after the interruption resolves.
+When the agent is NOT actively streaming and the queue has items, pressing Ctrl+C or Esc clears the queue and shows a "Queue cleared" notification. If the agent IS streaming, Ctrl+C/Esc interrupts the stream and immediately submits the first queued item. Any remaining items stay queued for subsequent turns.
 
 ## Notifications
 

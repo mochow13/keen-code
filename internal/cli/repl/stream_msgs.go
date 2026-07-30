@@ -32,6 +32,11 @@ type llmToolEndMsg struct {
 type llmUsageMsg struct {
 	usage *llm.TokenUsage
 }
+type mainStreamMsg struct {
+	eventCh <-chan llm.StreamEvent
+	event   llm.StreamEvent
+	closed  bool
+}
 type subagentActivityMsg struct {
 	activity subagents.ToolActivity
 }

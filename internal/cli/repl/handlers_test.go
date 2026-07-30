@@ -291,6 +291,32 @@ func TestHandleKeyMsg_CtrlC_WithActiveStreamInterrupts(t *testing.T) {
 	}
 }
 
+func TestHandleKeyMsg_CtrlC_WithActiveStreamDrainsNextQueuedInput(t *testing.T) {
+	m := newTestModel()
+	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
+	client := &mockLLMClient{}
+	m.appState = replappstate.New(client, "")
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Loading...")
+	m.loading.showSpinner = true
+	m.stream.cancel = func() {}
+	m.queuedInputs = []string{"next prompt", "later prompt"}
+
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+
+	if !newM.stream.handler.IsActive() {
+		t.Fatal("expected next queued input to start a stream")
+	}
+	if len(newM.queuedInputs) != 1 || newM.queuedInputs[0] != "later prompt" {
+		t.Fatalf("expected only later prompt to remain queued, got %v", newM.queuedInputs)
+	}
+	if messages := newM.appState.GetMessages(); len(messages) != 1 || messages[0].Content != "next prompt" {
+		t.Fatalf("expected next prompt to be submitted, got %#v", messages)
+	}
+	if cmd == nil {
+		t.Fatal("expected command for the next stream")
+	}
+}
+
 func TestHandleKeyMsg_CtrlC_SecondCtrlCQuitsAfterInterrupt(t *testing.T) {
 	m := newTestModel()
 	eventCh := make(chan llm.StreamEvent)
@@ -349,6 +375,59 @@ func TestHandleKeyMsg_Esc_WithActiveStreamInterrupts(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Error("expected nil cmd for esc interruption")
+	}
+}
+
+func TestHandleKeyMsg_Esc_WithActiveStreamDrainsNextQueuedInput(t *testing.T) {
+	m := newTestModel()
+	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
+	client := &mockLLMClient{}
+	m.appState = replappstate.New(client, "")
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Loading...")
+	m.loading.showSpinner = true
+	m.stream.cancel = func() {}
+	m.queuedInputs = []string{"next prompt", "later prompt"}
+
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	if !newM.stream.handler.IsActive() {
+		t.Fatal("expected next queued input to start a stream")
+	}
+	if len(newM.queuedInputs) != 1 || newM.queuedInputs[0] != "later prompt" {
+		t.Fatalf("expected only later prompt to remain queued, got %v", newM.queuedInputs)
+	}
+	if messages := newM.appState.GetMessages(); len(messages) != 1 || messages[0].Content != "next prompt" {
+		t.Fatalf("expected next prompt to be submitted, got %#v", messages)
+	}
+	if cmd == nil {
+		t.Fatal("expected command for the next stream")
+	}
+}
+
+func TestHandleLLMStreamMsg_IgnoresPreviousStreamAfterQueuedInputStarts(t *testing.T) {
+	m := newTestModel()
+	oldEventCh := make(chan llm.StreamEvent)
+	newEventCh := make(chan llm.StreamEvent)
+	m.stream.handler.Start(newEventCh, "Loading...")
+	m.stream.handler.HandleChunk("new response")
+	m.loading.showSpinner = true
+
+	newM, cmd, handled := m.handleLLMStreamMsg(mainStreamMsg{
+		eventCh: oldEventCh,
+		event:   llm.StreamEvent{Type: llm.StreamEventTypeError, Error: context.Canceled},
+	})
+
+	if !handled {
+		t.Fatal("expected stale stream message to be handled")
+	}
+	if cmd != nil {
+		t.Fatal("expected no command for stale stream message")
+	}
+	if !newM.stream.handler.IsActive() {
+		t.Fatal("expected current stream to remain active")
+	}
+	if got := newM.stream.handler.GetResponse(); got != "new response" {
+		t.Fatalf("expected current response to remain intact, got %q", got)
 	}
 }
 

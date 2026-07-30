@@ -453,7 +453,7 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		}
 		if m.stream.handler != nil && m.stream.handler.IsActive() {
 			m.interruptStream(interruptedPromptText)
-			return *m, nil
+			return m.drainQueuedInput()
 		}
 		if len(m.queuedInputs) > 0 {
 			m.queuedInputs = nil
@@ -488,7 +488,7 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		}
 		if m.stream.handler != nil && m.stream.handler.IsActive() {
 			m.interruptStream(interruptedPromptText)
-			return *m, nil
+			return m.drainQueuedInput()
 		}
 		if len(m.queuedInputs) > 0 {
 			m.queuedInputs = nil
@@ -674,9 +674,7 @@ func (m *replModel) handlePermissionKeyMsg(msg tea.KeyPressMsg) (replModel, tea.
 			m.stream.handler.ResolvePendingPermission(replpermissions.StatusRedirected)
 			m.permissionRequester.SendResponse(replpermissions.ChoiceDeny, req.ToolName)
 			m.interruptStream(interruptedPromptText)
-			m.updateViewportContent()
-			m.scrollToBottomIfFollowing()
-			return *m, nil
+			return m.drainQueuedInput()
 		}
 		var status replpermissions.Status
 		switch choice {
@@ -705,6 +703,38 @@ func (m *replModel) handlePermissionKeyMsg(msg tea.KeyPressMsg) (replModel, tea.
 }
 
 func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	if streamMsg, ok := msg.(mainStreamMsg); ok {
+		if m.stream.handler == nil || m.stream.handler.eventCh != streamMsg.eventCh {
+			return m, nil, true
+		}
+		if streamMsg.closed {
+			msg = llmDoneMsg{}
+		} else {
+			switch streamMsg.event.Type {
+			case llm.StreamEventTypeChunk:
+				msg = llmChunkMsg(streamMsg.event.Content)
+			case llm.StreamEventTypeReasoningChunk:
+				msg = llmReasoningChunkMsg(streamMsg.event.Content)
+			case llm.StreamEventTypeDone:
+				msg = llmDoneMsg{}
+			case llm.StreamEventTypeError:
+				msg = llmErrorMsg{err: streamMsg.event.Error}
+			case llm.StreamEventTypeIncomplete:
+				msg = llmIncompleteMsg{err: streamMsg.event.Error}
+			case llm.StreamEventTypeToolStart:
+				msg = llmToolStartMsg{toolCall: streamMsg.event.ToolCall}
+			case llm.StreamEventTypeToolEnd:
+				msg = llmToolEndMsg{toolCall: streamMsg.event.ToolCall}
+			case llm.StreamEventTypeUsage:
+				msg = llmUsageMsg{usage: streamMsg.event.Usage}
+			case llm.StreamEventTypeRetry:
+				msg = llmRetryMsg{err: streamMsg.event.Error, attempt: streamMsg.event.Attempt}
+			default:
+				msg = llmDoneMsg{}
+			}
+		}
+	}
+
 	if updated, cmd, handled := m.handleBtwStreamMsg(msg); handled {
 		return updated, cmd, true
 	}
