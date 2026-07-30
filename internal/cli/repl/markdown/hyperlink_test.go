@@ -75,3 +75,37 @@ func TestRendererRenderLinkIsClickable(t *testing.T) {
 		t.Fatalf("expected OSC 8 hyperlink escape in %q", rendered)
 	}
 }
+
+func TestRendererRenderRelativeMarkdownLinkShowsLabelOnly(t *testing.T) {
+	renderer, err := New(80)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	rendered := stripANSI(renderer.Render("[internal/cli/repl/repl.go:413](/internal/cli/repl/repl.go#L413)"))
+	if !strings.Contains(rendered, "internal/cli/repl/repl.go:413") {
+		t.Fatalf("expected link label in %q", rendered)
+	}
+	if strings.Contains(rendered, "/internal/cli/repl/repl.go#L413") {
+		t.Fatalf("expected relative destination to be hidden, got %q", rendered)
+	}
+}
+
+func TestRendererRenderExternalMarkdownLinkUsesOSC8Label(t *testing.T) {
+	renderer, err := New(80)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	rendered := renderer.Render("[docs](https://example.com/docs)")
+	if !strings.Contains(rendered, osc8Open+"https://example.com/docs"+osc8ST) {
+		t.Fatalf("expected markdown link destination as OSC 8 target in %q", rendered)
+	}
+	if strings.Contains(stripEscapes(rendered), "https://example.com/docs") {
+		t.Fatalf("expected external destination to be hidden from visible text, got %q", rendered)
+	}
+}
+
+func stripEscapes(value string) string {
+	return ansiEscape.ReplaceAllString(stripANSI(value), "")
+}

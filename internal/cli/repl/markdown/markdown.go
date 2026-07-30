@@ -50,12 +50,15 @@ func (r *Renderer) Render(markdown string) string {
 		return ""
 	}
 
+	markdown, links := rewriteMarkdownLinks(markdown)
 	tables := markdownTableBlocks(markdown)
 	rendered, err := r.renderer.Render(markdown)
 	if err != nil {
 		return markdown
 	}
-	return makeURLsClickable(addTableOuterBorders(rendered, tables))
+	rendered = addTableOuterBorders(rendered, tables)
+	rendered = makeMarkdownLinksClickable(rendered, links)
+	return makeURLsClickable(rendered)
 }
 
 func (r *Renderer) UpdateWidth(width int) error {
