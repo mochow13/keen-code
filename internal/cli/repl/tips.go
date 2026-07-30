@@ -27,7 +27,6 @@ var tips = []string{
 	"`/skills list` shows all available skills including ones auto-generated from connected MCP servers.",
 	"Press Tab to move focus between the input box and the output viewport for keyboard scrolling.",
 	"Drag to select text in the output or input — it copies automatically when you release the mouse.",
-	"`/mcp connect` also accepts a tool name instead of a server name, useful if you remember the tool but not the server.",
 	"Alt/Option+click or Ctrl+click a link in the output to open it in your browser.",
 	"While the agent is working, your next prompts (up to 5) are queued and run automatically when it finishes.",
 	"Use `/emptyq` to clear queued prompts while the agent is still working.",

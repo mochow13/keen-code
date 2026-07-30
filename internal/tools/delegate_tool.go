@@ -60,7 +60,7 @@ func (t *DelegateTool) InputSchema() map[string]any {
 					"properties": map[string]any{
 						"agent": map[string]any{
 							"type":        "string",
-							"description": "Name of the subagent profile to run, for example explorer.",
+							"description": "Name of the subagent profile to run.",
 						},
 						"task": map[string]any{
 							"type":        "string",
