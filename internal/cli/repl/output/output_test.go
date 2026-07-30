@@ -145,6 +145,19 @@ func TestFormatToolInput_GrepShowsQuotedPatternInPathBaseName(t *testing.T) {
 	}
 }
 
+func TestFormatToolInput_GrepUnescapesLiteralRegexPunctuationForDisplay(t *testing.T) {
+	pattern := `\[Unreleased\]|\[0\.38\.1\] \\d+ \\w+ \\s+ \\b`
+	got := FormatToolInput("grep", map[string]any{"pattern": pattern, "path": "CHANGELOG.md"}, "/tmp/project")
+
+	want := `[Unreleased]|[0.38.1] \d+ \w+ \s+ \b in CHANGELOG.md`
+	if got != want {
+		t.Fatalf("expected display-only literal unescaping, got %q, want %q", got, want)
+	}
+	if pattern != `\[Unreleased\]|\[0\.38\.1\] \\d+ \\w+ \\s+ \\b` {
+		t.Fatalf("expected original pattern to remain unchanged, got %q", pattern)
+	}
+}
+
 func TestFormatToolInput_CallMCPToolShowsOnlyServerAndTool(t *testing.T) {
 	got := FormatToolInput("call_mcp_tool", map[string]any{
 		"server": "context7",

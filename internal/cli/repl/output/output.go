@@ -290,6 +290,7 @@ func formatSearchInput(input map[string]any, workingDir string) string {
 	pattern, _ := input["pattern"].(string)
 	if pattern != "" {
 		pattern = compactDisplayValue(pattern, maxDisplayPatternRunes)
+		pattern = formatSearchPatternForDisplay(pattern)
 	}
 	path, _ := input["path"].(string)
 	if path != "" {
@@ -306,6 +307,18 @@ func formatSearchInput(input map[string]any, workingDir string) string {
 	default:
 		return ""
 	}
+}
+
+func formatSearchPatternForDisplay(pattern string) string {
+	var b strings.Builder
+	b.Grow(len(pattern))
+	for i := 0; i < len(pattern); i++ {
+		if pattern[i] == '\\' && i+1 < len(pattern) && strings.ContainsRune(`\\.^$*+?()[]{}|`, rune(pattern[i+1])) {
+			i++
+		}
+		b.WriteByte(pattern[i])
+	}
+	return b.String()
 }
 
 func formatGenericInput(input map[string]any) string {
