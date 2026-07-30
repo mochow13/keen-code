@@ -57,7 +57,7 @@ func (g *Guard) CheckPath(path string, operation string) Permission {
 		return PermissionDenied
 	}
 
-	if operation == "read" && (g.IsInSkillDir(resolved) || g.IsInKeenBashDir(resolved) || g.IsInMCPArtifactsDir(resolved) || g.IsInMemoryDir(resolved)) {
+	if operation == "read" && (g.IsInSkillDir(resolved) || g.IsInKeenBashDir(resolved) || g.IsInMCPArtifactsDir(resolved) || g.IsInWebFetchArtifactsDir(resolved) || g.IsInMemoryDir(resolved)) {
 		return PermissionGranted
 	}
 
@@ -92,7 +92,7 @@ func (g *Guard) IsBlocked(path string) bool {
 		return true
 	}
 
-	if g.IsInSkillDir(resolved) || g.IsInKeenBashDir(resolved) || g.IsInMCPArtifactsDir(resolved) || g.IsInMemoryDir(resolved) {
+	if g.IsInSkillDir(resolved) || g.IsInKeenBashDir(resolved) || g.IsInMCPArtifactsDir(resolved) || g.IsInWebFetchArtifactsDir(resolved) || g.IsInMemoryDir(resolved) {
 		return false
 	}
 
@@ -168,6 +168,39 @@ func KeenMCPArtifactsDir() (string, error) {
 func (g *Guard) IsInMCPArtifactsDir(path string) bool {
 	cleaned := filepath.Clean(path)
 	artifactsDir, err := KeenMCPArtifactsDir()
+	if err != nil {
+		return false
+	}
+	artifactsDir = filepath.Clean(artifactsDir)
+	if cleaned == artifactsDir {
+		return true
+	}
+	prefix := artifactsDir + string(filepath.Separator)
+	if !strings.HasPrefix(cleaned+string(filepath.Separator), prefix) {
+		return false
+	}
+
+	info, err := os.Lstat(cleaned)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return false
+	}
+	return true
+}
+
+func KeenWebFetchArtifactsDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if home == "" {
+		return "", fmt.Errorf("home directory is empty")
+	}
+	return filepath.Join(home, ".keen", "web-fetch-artifacts"), nil
+}
+
+func (g *Guard) IsInWebFetchArtifactsDir(path string) bool {
+	cleaned := filepath.Clean(path)
+	artifactsDir, err := KeenWebFetchArtifactsDir()
 	if err != nil {
 		return false
 	}

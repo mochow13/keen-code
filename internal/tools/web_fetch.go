@@ -5,15 +5,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
+	"github.com/user/keen-code/internal/filesystem"
 )
 
 const (
-	webFetchTimeout     = 30 * time.Second
-	maxWebFetchBodySize = 128 * 1024 // 128KB
+	webFetchTimeout          = 30 * time.Second
+	maxInlineWebFetchSize    = 16 * 1024
+	webFetchPreviewHeadSize  = 4 * 1024
+	webFetchPreviewTailSize  = 2 * 1024
+	webFetchArtifactFileMode = 0600
 )
 
 type WebFetchTool struct{}
@@ -41,7 +46,9 @@ Limitations:
 - JavaScript-rendered pages (SPAs) will return the pre-JS skeleton, not the
   dynamically loaded content.
 - Auth-gated pages will return a redirect or login page.
-- Maximum response size is 128KB; larger responses are truncated.`
+- If the result is very large, the full output is saved to a file and the response includes
+  truncated: true, artifact_path, and a preview in content. Use read_file with offset/limit or
+  grep with path set to artifact_path to inspect the saved result incrementally.`
 }
 
 func (t *WebFetchTool) InputSchema() map[string]any {
@@ -91,20 +98,12 @@ func (t *WebFetchTool) Execute(ctx context.Context, input any) (any, error) {
 	}
 	defer resp.Body.Close()
 
-	limited := io.LimitReader(resp.Body, maxWebFetchBodySize+1)
-	bodyBytes, err := io.ReadAll(limited)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	truncated := false
-	if len(bodyBytes) > maxWebFetchBodySize {
-		bodyBytes = bodyBytes[:maxWebFetchBodySize]
-		truncated = true
-	}
-
 	content := string(bodyBytes)
-
 	contentType := resp.Header.Get("Content-Type")
 	if strings.Contains(contentType, "text/html") {
 		if md, err := htmltomarkdown.ConvertString(content); err == nil {
@@ -112,13 +111,83 @@ func (t *WebFetchTool) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	if truncated {
-		content += "\n... (content truncated)"
-	}
-
-	return map[string]any{
+	output := map[string]any{
 		"url":         url,
 		"status_code": resp.StatusCode,
-		"content":     content,
+	}
+	if len(content) <= maxInlineWebFetchSize {
+		output["content"] = content
+		return output, nil
+	}
+
+	summary, err := summarizeWebFetchResult(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write web fetch result artifact: %w", err)
+	}
+
+	output["content"] = summary.preview
+	output["truncated"] = true
+	output["artifact_path"] = summary.path
+	output["artifact_size_bytes"] = summary.size
+	return output, nil
+}
+
+type webFetchResultSummary struct {
+	preview string
+	path    string
+	size    int
+}
+
+func summarizeWebFetchResult(content string) (webFetchResultSummary, error) {
+	data := []byte(content)
+	path, err := writeWebFetchArtifact(data)
+	if err != nil {
+		return webFetchResultSummary{}, err
+	}
+
+	headSize := min(webFetchPreviewHeadSize, len(data))
+	tailSize := min(webFetchPreviewTailSize, len(data)-headSize)
+	tailStart := len(data) - tailSize
+	omitted := len(data) - headSize - tailSize
+
+	preview := fmt.Sprintf(
+		"%s\n\n... (%d bytes omitted; full result saved to artifact_path) ...\n\n%s",
+		string(data[:headSize]),
+		omitted,
+		string(data[tailStart:]),
+	)
+
+	return webFetchResultSummary{
+		preview: preview,
+		path:    path,
+		size:    len(data),
 	}, nil
+}
+
+func writeWebFetchArtifact(data []byte) (string, error) {
+	dir, err := filesystem.KeenWebFetchArtifactsDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve web fetch artifacts directory: %w", err)
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create web fetch artifacts directory %q: %w", dir, err)
+	}
+	if err := os.Chmod(dir, 0700); err != nil {
+		return "", fmt.Errorf("failed to secure web fetch artifacts directory %q: %w", dir, err)
+	}
+
+	file, err := os.CreateTemp(dir, "keen-web-fetch-*"+".txt")
+	if err != nil {
+		return "", fmt.Errorf("failed to create web fetch artifact file: %w", err)
+	}
+	path := file.Name()
+	defer file.Close()
+
+	if err := file.Chmod(webFetchArtifactFileMode); err != nil {
+		return "", fmt.Errorf("failed to secure web fetch artifact file %q: %w", path, err)
+	}
+	if _, err := file.Write(data); err != nil {
+		return "", fmt.Errorf("failed to write web fetch artifact file %q: %w", path, err)
+	}
+	return path, nil
 }

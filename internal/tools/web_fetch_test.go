@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -156,8 +157,10 @@ func TestWebFetchTool_Execute_NonOKStatus(t *testing.T) {
 	}
 }
 
-func TestWebFetchTool_Execute_TruncatesLargeResponse(t *testing.T) {
-	large := strings.Repeat("a", maxWebFetchBodySize+100)
+func TestWebFetchTool_Execute_LargeResponseSpillsToArtifact(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	large := strings.Repeat("a", maxInlineWebFetchSize+1)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -173,13 +176,30 @@ func TestWebFetchTool_Execute_TruncatesLargeResponse(t *testing.T) {
 	}
 
 	output := result.(map[string]any)
-	content, _ := output["content"].(string)
-
-	if !strings.HasSuffix(content, "... (content truncated)") {
-		t.Errorf("expected truncation suffix, got content ending with: %q", content[max(0, len(content)-50):])
+	if output["truncated"] != true {
+		t.Errorf("truncated = %v, want true", output["truncated"])
 	}
 
-	if len(content) > maxWebFetchBodySize+len("\n... (content truncated)")+1 {
-		t.Errorf("content exceeds expected truncated size: %d bytes", len(content))
+	artifactPath, ok := output["artifact_path"].(string)
+	if !ok || artifactPath == "" {
+		t.Fatal("artifact_path missing or empty")
+	}
+
+	artifactSize, ok := output["artifact_size_bytes"].(int)
+	if !ok || artifactSize != len(large) {
+		t.Errorf("artifact_size_bytes = %v, want %d", output["artifact_size_bytes"], len(large))
+	}
+
+	content, ok := output["content"].(string)
+	if !ok || !strings.Contains(content, "...") {
+		t.Error("content preview missing omission marker")
+	}
+
+	data, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("failed to read artifact %q: %v", artifactPath, err)
+	}
+	if string(data) != large {
+		t.Errorf("artifact content length = %d, want %d", len(data), len(large))
 	}
 }

@@ -159,6 +159,51 @@ func TestGuard_CheckPath_KeenBashDirGrantsRead(t *testing.T) {
 	}
 }
 
+func TestGuard_CheckPath_WebFetchArtifactsDirGrantsRead(t *testing.T) {
+	workingDir := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	artifactsDir := filepath.Join(home, ".keen", "web-fetch-artifacts")
+	if err := os.MkdirAll(artifactsDir, 0700); err != nil {
+		t.Fatalf("failed to create web fetch artifacts dir: %v", err)
+	}
+
+	path := filepath.Join(artifactsDir, "keen-web-fetch-123.txt")
+	if err := os.WriteFile(path, []byte("output"), 0600); err != nil {
+		t.Fatalf("failed to write web fetch artifact: %v", err)
+	}
+
+	g := NewGuard(workingDir, nil)
+	if got := g.CheckPath(path, "read"); got != PermissionGranted {
+		t.Errorf("CheckPath(web fetch artifact, read) = %v, want PermissionGranted", got)
+	}
+}
+
+func TestGuard_CheckPath_WebFetchArtifactsDirRejectsSymlink(t *testing.T) {
+	workingDir := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	artifactsDir := filepath.Join(home, ".keen", "web-fetch-artifacts")
+	if err := os.MkdirAll(artifactsDir, 0700); err != nil {
+		t.Fatalf("failed to create web fetch artifacts dir: %v", err)
+	}
+
+	target := filepath.Join(workingDir, "secret.txt")
+	if err := os.WriteFile(target, []byte("secret"), 0600); err != nil {
+		t.Fatalf("failed to write target file: %v", err)
+	}
+
+	path := filepath.Join(artifactsDir, "linked-artifact")
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
+	g := NewGuard(workingDir, nil)
+	if got := g.CheckPath(path, "read"); got != PermissionDenied {
+		t.Errorf("CheckPath(web fetch artifact symlink, read) = %v, want PermissionDenied", got)
+	}
+}
+
 func TestGuard_CheckPath_KeenBashDirDoesNotGrantWrite(t *testing.T) {
 	workingDir := t.TempDir()
 	home := t.TempDir()
