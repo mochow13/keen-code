@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-07-30
+
+### Changed
+- Refine the initial REPL screen and make regex search patterns easier to read in tool status output.
+- Continue queued prompts after interrupting a stream or redirecting a permission request.
+- Remove obsolete subagent and MCP guidance.
+
 ## [0.38.1] - 2026-07-29
 
 ### Changed
@@ -815,7 +822,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.38.1...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.39.0...HEAD
+[0.39.0]: https://github.com/mochow13/keen-code/compare/v0.38.1...v0.39.0
 [0.38.1]: https://github.com/mochow13/keen-code/compare/v0.38.0...v0.38.1
 [0.38.0]: https://github.com/mochow13/keen-code/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/mochow13/keen-code/compare/v0.36.3...v0.37.0
