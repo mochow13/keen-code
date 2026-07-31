@@ -47,6 +47,14 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		m.viewport.GotoBottom()
 		return *m, nil, true
 
+	case input == replcommands.Cleanup:
+		m.textarea.Reset()
+		m.startLoading("Cleaning up...")
+		m.adjustTextareaHeight()
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, tea.Batch(m.loading.spinner.Tick, cleanupCmd()), true
+
 	case input == replcommands.Model:
 		m.textarea.Reset()
 		return m.startModelSelection(), nil, true

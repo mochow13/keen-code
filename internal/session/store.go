@@ -94,6 +94,48 @@ func (s *Store) List() ([]Summary, error) {
 	return summaries, nil
 }
 
+func PruneExpired(root string, cutoff time.Time) error {
+	rootInfo, err := os.Lstat(root)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect sessions directory: %w", err)
+	}
+	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("sessions directory %q is not a directory", root)
+	}
+
+	namespaces, err := os.ReadDir(root)
+	if err != nil {
+		return fmt.Errorf("read sessions directory: %w", err)
+	}
+	for _, namespace := range namespaces {
+		if !namespace.IsDir() || namespace.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		namespaceDir := filepath.Join(root, namespace.Name())
+		entries, err := os.ReadDir(namespaceDir)
+		if err != nil {
+			return fmt.Errorf("read session namespace: %w", err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+				continue
+			}
+			dir := filepath.Join(namespaceDir, entry.Name())
+			info, err := os.Stat(filepath.Join(dir, transcriptFileName))
+			if err != nil || !info.Mode().IsRegular() || !info.ModTime().Before(cutoff) {
+				continue
+			}
+			if err := os.RemoveAll(dir); err != nil {
+				return fmt.Errorf("remove expired session %q: %w", dir, err)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Store) Create() (*Session, error) {
 	createdAt := time.Now().UTC()
 	sessionID, err := generateSessionID()

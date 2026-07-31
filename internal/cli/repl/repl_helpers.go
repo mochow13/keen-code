@@ -12,6 +12,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/user/keen-code/internal/cleanup"
 	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
 	repltooling "github.com/user/keen-code/internal/cli/repl/tooling"
@@ -183,6 +184,12 @@ func (m *replModel) startLoading(text string) {
 	m.loading.spinner.Spinner = nextLoadingSpinner()
 	m.loading.text = text
 	m.loading.startedAt = time.Now()
+}
+
+func cleanupCmd() tea.Cmd {
+	return func() tea.Msg {
+		return cleanupDoneMsg{err: cleanup.Run()}
+	}
 }
 
 func (m *replModel) stopLoading() {

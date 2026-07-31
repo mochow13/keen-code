@@ -587,6 +587,18 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return m.handleCompactionDone()
 	case compactionErrMsg:
 		return m.handleCompactionError(msg.err)
+	case cleanupDoneMsg:
+		m.stopLoading()
+		if msg.err != nil {
+			m.output.AddError("Failed, check ~/.keen/ to manually cleanup.", repltheme.ErrorStyle)
+		} else {
+			m.output.AddStyledLine("  ✓ Cleanup completed", repltheme.HighlightStyle)
+			m.output.AddEmptyLine()
+		}
+		m.adjustTextareaHeight()
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, nil
 	case updateCheckMsg:
 		m.handleUpdateCheckMsg(msg)
 		return m, nil

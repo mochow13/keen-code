@@ -128,6 +128,28 @@ func TestHandleEnterKey_HelpCommand(t *testing.T) {
 	}
 }
 
+func TestHandleEnterKey_CleanupCommand(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.textarea.SetValue(replcommands.Cleanup)
+
+	newM, cmd := m.handleEnterKey()
+	if !newM.loading.showSpinner || newM.loading.text != "Cleaning up..." {
+		t.Fatalf("expected cleanup spinner, got %#v", newM.loading)
+	}
+	if cmd == nil {
+		t.Fatal("expected cleanup command")
+	}
+
+	newM, _ = processCmd(newM, cmd)
+	if newM.loading.showSpinner {
+		t.Fatal("expected cleanup spinner to stop")
+	}
+	if !strings.Contains(newM.output.Join(), "Cleanup completed") {
+		t.Fatalf("expected completion message, got %q", newM.output.Join())
+	}
+}
+
 func TestHandleEnterKey_ModelCommand(t *testing.T) {
 	m := newTestModel()
 	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{}}
@@ -1509,6 +1531,7 @@ func TestIsKnownCommand(t *testing.T) {
 		{"/model", true},
 		{"/help", true},
 		{"/emptyq", true},
+		{"/cleanup", true},
 		{"/mcp connect foo", true},
 		{"/skills enable demo", true},
 		{"hello", false},

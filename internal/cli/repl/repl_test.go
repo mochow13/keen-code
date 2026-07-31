@@ -2,6 +2,7 @@ package repl
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -397,6 +398,23 @@ func TestUpdate_RoutesToNormalMode(t *testing.T) {
 
 	if updated.width != 100 {
 		t.Errorf("expected width 100, got %d", updated.width)
+	}
+}
+
+func TestUpdate_CleanupFailureShowsGenericMessage(t *testing.T) {
+	m := newTestModel()
+	m.startLoading("Cleaning up...")
+
+	updated, _ := m.updateNormalMode(cleanupDoneMsg{err: errors.New("disk full")})
+	if updated.loading.showSpinner {
+		t.Fatal("expected cleanup spinner to stop")
+	}
+	output := updated.output.Join()
+	if !strings.Contains(output, "Failed, check ~/.keen/ to manually cleanup.") {
+		t.Fatalf("unexpected cleanup failure output: %q", output)
+	}
+	if strings.Contains(output, "disk full") {
+		t.Fatalf("cleanup error leaked to UI: %q", output)
 	}
 }
 
