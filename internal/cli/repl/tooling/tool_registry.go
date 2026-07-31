@@ -69,5 +69,14 @@ func SetupToolRegistry(
 		GetSkillsCatalog: appState.SkillsCatalog,
 		Activity:         activity,
 	}
-	appState.RegisterTool(tools.NewDelegateTool(runner))
+	profiles := appState.GetSubagents().Profiles
+	agentNames := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		if !profile.Hidden {
+			agentNames = append(agentNames, profile.Name)
+		}
+	}
+	if len(agentNames) > 0 {
+		appState.RegisterTool(tools.NewDelegateTool(runner, agentNames))
+	}
 }

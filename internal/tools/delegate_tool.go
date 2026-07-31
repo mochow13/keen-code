@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 )
 
@@ -14,7 +16,8 @@ type SubagentRunner interface {
 const maxDelegateTasks = 10
 
 type DelegateTool struct {
-	runner SubagentRunner
+	runner      SubagentRunner
+	namedAgents []string
 }
 
 type delegateInput struct {
@@ -32,8 +35,11 @@ type delegateResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func NewDelegateTool(runner SubagentRunner) *DelegateTool {
-	return &DelegateTool{runner: runner}
+func NewDelegateTool(runner SubagentRunner, namedAgents []string) *DelegateTool {
+	return &DelegateTool{
+		runner:      runner,
+		namedAgents: normalizedAgentNames(namedAgents),
+	}
 }
 
 func (t *DelegateTool) Name() string {
@@ -60,7 +66,8 @@ func (t *DelegateTool) InputSchema() map[string]any {
 					"properties": map[string]any{
 						"agent": map[string]any{
 							"type":        "string",
-							"description": "Name of the subagent profile to run.",
+							"enum":        append([]string(nil), t.namedAgents...),
+							"description": "Name of the subagent profile to run. Use only one of the listed profile names; skills are not subagents.",
 						},
 						"task": map[string]any{
 							"type":        "string",
@@ -74,8 +81,11 @@ func (t *DelegateTool) InputSchema() map[string]any {
 }
 
 func (t *DelegateTool) ValidateInput(_ context.Context, input any) error {
-	_, err := parseDelegateInput(input)
-	return err
+	parsed, err := parseDelegateInput(input)
+	if err != nil {
+		return err
+	}
+	return t.validateAgents(parsed)
 }
 
 func (t *DelegateTool) Execute(ctx context.Context, input any) (any, error) {
@@ -84,6 +94,9 @@ func (t *DelegateTool) Execute(ctx context.Context, input any) (any, error) {
 	}
 	parsed, err := parseDelegateInput(input)
 	if err != nil {
+		return nil, err
+	}
+	if err := t.validateAgents(parsed); err != nil {
 		return nil, err
 	}
 
@@ -125,6 +138,35 @@ func (t *DelegateTool) Execute(ctx context.Context, input any) (any, error) {
 		"completed_by_agent": completedByAgent,
 		"failed_by_agent":    failedByAgent,
 	}, nil
+}
+
+func (t *DelegateTool) validateAgents(parsed delegateBatchInput) error {
+	for i, task := range parsed.Tasks {
+		if !containsAgent(t.namedAgents, task.Agent) {
+			return fmt.Errorf("invalid input: tasks[%d].agent must be one of: %s", i, strings.Join(t.namedAgents, ", "))
+		}
+	}
+	return nil
+}
+
+func normalizedAgentNames(agentNames []string) []string {
+	seen := make(map[string]bool, len(agentNames))
+	result := make([]string, 0, len(agentNames))
+	for _, name := range agentNames {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func containsAgent(agentNames []string, agent string) bool {
+	index := sort.SearchStrings(agentNames, agent)
+	return index < len(agentNames) && agentNames[index] == agent
 }
 
 func parseDelegateInput(input any) (delegateBatchInput, error) {

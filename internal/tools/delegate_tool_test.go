@@ -52,7 +52,7 @@ func (m *mockSubagentRunner) recordedCalls() []delegateCall {
 }
 
 func TestDelegateTool_Metadata(t *testing.T) {
-	tool := NewDelegateTool(&mockSubagentRunner{})
+	tool := NewDelegateTool(&mockSubagentRunner{}, []string{"explorer", "implementer"})
 
 	if tool.Name() != "delegate_task" {
 		t.Fatalf("Name() = %q, want %q", tool.Name(), "delegate_task")
@@ -63,7 +63,7 @@ func TestDelegateTool_Metadata(t *testing.T) {
 }
 
 func TestDelegateTool_InputSchema(t *testing.T) {
-	tool := NewDelegateTool(&mockSubagentRunner{})
+	tool := NewDelegateTool(&mockSubagentRunner{}, []string{"explorer", "implementer"})
 	schema := tool.InputSchema()
 
 	if schema["type"] != "object" {
@@ -95,11 +95,15 @@ func TestDelegateTool_InputSchema(t *testing.T) {
 	if _, ok := itemProperties["timeout_seconds"]; ok {
 		t.Fatal("item properties should not include timeout_seconds")
 	}
+	agent := itemProperties["agent"].(map[string]any)
+	if !reflect.DeepEqual(agent["enum"], []string{"explorer", "implementer"}) {
+		t.Fatalf("agent enum = %#v, want [explorer implementer]", agent["enum"])
+	}
 }
 
 func TestDelegateTool_ExecutePassesTasksToRunner(t *testing.T) {
 	runner := &mockSubagentRunner{result: map[string]any{"status": "completed"}}
-	tool := NewDelegateTool(runner)
+	tool := NewDelegateTool(runner, []string{"explorer", "implementer"})
 
 	result, err := tool.Execute(context.Background(), delegateTasks(
 		map[string]any{"agent": "explorer", "task": "Inspect internal/tools."},
@@ -133,7 +137,7 @@ func TestDelegateTool_ExecutePassesTasksToRunner(t *testing.T) {
 
 func TestDelegateTool_AssignsPerAgentInstancePositions(t *testing.T) {
 	runner := &mockSubagentRunner{}
-	tool := NewDelegateTool(runner)
+	tool := NewDelegateTool(runner, []string{"explorer", "implementer"})
 	_, err := tool.Execute(context.Background(), delegateTasks(
 		map[string]any{"agent": "explorer", "task": "inspect"},
 		map[string]any{"agent": "implementer", "task": "one"},
@@ -168,7 +172,7 @@ func TestDelegateTool_ExecuteRunsTasksInParallel(t *testing.T) {
 		started: make(chan struct{}, taskCount),
 		release: make(chan struct{}),
 	}
-	tool := NewDelegateTool(runner)
+	tool := NewDelegateTool(runner, []string{"explorer", "implementer"})
 	done := make(chan error, 1)
 
 	go func() {
@@ -199,7 +203,7 @@ func TestDelegateTool_ExecuteReturnsPerTaskErrors(t *testing.T) {
 		result: map[string]any{"status": "error"},
 		err:    wantErr,
 	}
-	tool := NewDelegateTool(runner)
+	tool := NewDelegateTool(runner, []string{"explorer", "implementer"})
 
 	result, err := tool.Execute(context.Background(), delegateTasks(
 		map[string]any{"agent": "explorer", "task": "Inspect docs."},
@@ -241,12 +245,13 @@ func TestDelegateTool_ValidateInputRejectsInvalidInput(t *testing.T) {
 		{name: "too many tasks", input: map[string]any{"tasks": tooMany}, wantErr: "at most 10 tasks"},
 		{name: "missing agent", input: delegateTasks(map[string]any{"task": "Inspect docs."}), wantErr: "tasks[0].agent"},
 		{name: "missing task", input: delegateTasks(map[string]any{"agent": "explorer"}), wantErr: "tasks[0].task"},
+		{name: "unknown agent", input: delegateTasks(map[string]any{"agent": "reviewer", "task": "Review changes."}), wantErr: "must be one of: explorer, implementer"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runner := &mockSubagentRunner{}
-			tool := NewDelegateTool(runner)
+			tool := NewDelegateTool(runner, []string{"explorer", "implementer"})
 
 			err := tool.ValidateInput(context.Background(), tt.input)
 			if err == nil {
@@ -262,8 +267,23 @@ func TestDelegateTool_ValidateInputRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestDelegateTool_ExecuteRejectsUnknownAgent(t *testing.T) {
+	runner := &mockSubagentRunner{}
+	tool := NewDelegateTool(runner, []string{"explorer"})
+
+	_, err := tool.Execute(context.Background(), delegateTasks(
+		map[string]any{"agent": "reviewer", "task": "Review changes."},
+	))
+	if err == nil || !strings.Contains(err.Error(), "must be one of: explorer") {
+		t.Fatalf("Execute() error = %v, want unknown-agent validation error", err)
+	}
+	if len(runner.recordedCalls()) != 0 {
+		t.Fatal("runner should not be called for an unknown agent")
+	}
+}
+
 func TestDelegateTool_ExecuteRejectsMissingRunner(t *testing.T) {
-	tool := NewDelegateTool(nil)
+	tool := NewDelegateTool(nil, []string{"explorer"})
 
 	_, err := tool.Execute(context.Background(), delegateTasks(
 		map[string]any{"agent": "explorer", "task": "Inspect docs."},

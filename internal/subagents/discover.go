@@ -90,6 +90,7 @@ func Catalog(profiles []Profile) string {
 	var sb strings.Builder
 	sb.WriteString("## Available Subagents\n\n")
 	sb.WriteString("You can delegate up to 10 bounded tasks to named subagents and run them in parallel. ")
+	sb.WriteString("Only the profile names listed below are valid delegate_task agents. Skills are not subagents; do not use a skill name as an agent name. ")
 	sb.WriteString("Use a subagent only when the work can be handed off as a self-contained task with a clear objective. ")
 	sb.WriteString("Choose profiles according to their descriptions and configured capabilities, and pass relevant paths, inputs, constraints, and expected results. ")
 	sb.WriteString("Each delegated task is a one-shot run: you cannot ask the child follow-up questions or resume its context, so include everything needed in the initial task. ")

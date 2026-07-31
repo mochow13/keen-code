@@ -83,6 +83,8 @@ func TestCatalogSupportsCapableWorkerProfiles(t *testing.T) {
 	}})
 	for _, expected := range []string{
 		"up to 10 bounded tasks",
+		"Only the profile names listed below are valid delegate_task agents",
+		"Skills are not subagents",
 		"descriptions and configured capabilities",
 		"relevant paths, inputs, constraints, and expected results",
 		"one-shot run",
