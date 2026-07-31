@@ -1,6 +1,6 @@
 {
   "name": "keen-code",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "description": "CLI coding agent powered by AI (npm compatibility wrapper)",
   "bin": {
     "keen": "bin/keen.js"
