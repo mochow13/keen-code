@@ -54,6 +54,36 @@ Profiles specifying only one of `provider` or `model` are rejected and reported 
 - If both are supplied, Keen resolves that provider's credentials, endpoint, headers, authentication mode, and selected model.
 - For a profile-specific model, `thinking_effort` is used when present. When omitted, it remains unset so the provider/model default applies.
 
+### Choosing `thinking_effort`
+
+`thinking_effort` is model-specific, not merely provider-specific. Use only a value listed in that exact provider/model entry's `thinking_efforts` array in [`internal/providers/registry.yaml`](../internal/providers/registry.yaml). The registry is the source of truth because models from the same provider can support different values; a model with no `thinking_efforts` entry does not expose a configurable thinking effort in Keen.
+
+For example:
+
+```yaml
+provider: openai
+model: gpt-5.4
+thinking_effort: low
+```
+
+At the time of writing, registry values use these provider and model-family conventions:
+
+| Provider or model family | Registry values used by supported models |
+|---|---|
+| Anthropic | `low`, `medium`, `high`, and `max`; selected models also list `xhigh` |
+| Amazon Bedrock Anthropic | `low`, `medium`, `high`, and `max`; selected models also list `xhigh` |
+| OpenAI | Model-dependent subsets of `none`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra` |
+| OpenAI Codex | Model-dependent subsets of `none`, `low`, `medium`, `high`, `xhigh`, and `max` |
+| Google AI | `low`, `medium`, and `high`; selected Flash models also list `minimal` |
+| Z.ai and OpenCode Go GLM/Kimi/Qwen models with thinking controls | `enabled`, `disabled` |
+| DeepSeek and OpenCode Go DeepSeek | `off`, `high`, `max` |
+
+These are conventions, not a substitute for checking the exact model entry. For example, one Anthropic model may support `max` but not `xhigh`, and models such as Anthropic Haiku, Moonshot, MiniMax, or some OpenCode Go models may omit configurable efforts entirely.
+
+Subagent profile parsing does not currently validate `thinking_effort` against the registry. An unsupported value can be ignored by an adapter, disable thinking, be forwarded to the provider, or cause the child request to fail, depending on the provider/model path. Keen does not automatically retry the child without that value. When a model is absent from the registry, such as a custom `openai-compatible` model, omit `thinking_effort` unless that model's provider documentation confirms the accepted value and parameter behavior.
+
+See [AI Providers: Thinking Efforts](ai-providers.md#thinking-efforts) for provider adapter details. When that overview and the registry differ, follow the exact model entry in the registry.
+
 ## Permissions
 
 | Permission | Tools |
