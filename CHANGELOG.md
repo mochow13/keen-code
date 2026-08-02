@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-08-03
+
+### Added
+- Automatically compact long-running agent context across all LLM providers while preserving active tool progress.
+- Persist and replay automatic compaction checkpoints in interactive and headless sessions.
+- Document manual and automatic context compaction flows.
+
+### Changed
+- Refine agent and compaction prompts for concise continuation summaries.
+- Preserve partial headless output when a post-compaction stream fails.
+
+### Fixed
+- Stop Genkit test iterators when stream consumers stop early.
+
 ## [0.40.0] - 2026-08-05
 
 ### Added
@@ -831,7 +845,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.40.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.41.0...HEAD
+[0.41.0]: https://github.com/mochow13/keen-code/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/mochow13/keen-code/compare/v0.39.0...v0.40.0
 [0.39.0]: https://github.com/mochow13/keen-code/compare/v0.38.1...v0.39.0
 [0.38.1]: https://github.com/mochow13/keen-code/compare/v0.38.0...v0.38.1
