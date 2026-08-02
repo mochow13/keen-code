@@ -105,6 +105,70 @@ func TestStoreCreateAppendListLoad(t *testing.T) {
 	}
 }
 
+func TestStoreAppendBatch_AtomicallyAppendsSequentialEvents(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	store, err := NewStore(filepath.Join(tmp, "project"))
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	session, err := store.Create()
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	err = store.AppendBatch(session, []Event{
+		{Kind: KindAssistantTurn, AssistantTurn: &AssistantTurnPayload{Message: "checkpoint"}},
+		{Kind: KindCompactionApplied, CompactionApplied: &CompactionAppliedPayload{Messages: []llm.Message{{Role: llm.RoleUser, Content: "summary"}}}},
+	})
+	if err != nil {
+		t.Fatalf("AppendBatch() error = %v", err)
+	}
+
+	events, err := loadEvents(session.TranscriptPath)
+	if err != nil {
+		t.Fatalf("loadEvents() error = %v", err)
+	}
+	if len(events) != 3 || events[1].Seq != 2 || events[2].Seq != 3 {
+		t.Fatalf("events = %#v, want sequential batch events", events)
+	}
+	if session.nextSeq != 4 {
+		t.Fatalf("next sequence = %d, want 4", session.nextSeq)
+	}
+}
+
+func TestStoreAppendBatch_FailureLeavesNoPartialEvents(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	store, err := NewStore(filepath.Join(tmp, "project"))
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+	session, err := store.Create()
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if err := os.RemoveAll(session.Directory); err != nil {
+		t.Fatalf("RemoveAll() error = %v", err)
+	}
+
+	err = store.AppendBatch(session, []Event{
+		{Kind: KindAssistantTurn, AssistantTurn: &AssistantTurnPayload{Message: "checkpoint"}},
+		{Kind: KindCompactionApplied, CompactionApplied: &CompactionAppliedPayload{}},
+	})
+	if err == nil {
+		t.Fatal("AppendBatch() succeeded after session directory was removed")
+	}
+	if session.nextSeq != 2 {
+		t.Fatalf("next sequence = %d, want unchanged value 2", session.nextSeq)
+	}
+	if _, err := os.Stat(session.TranscriptPath); !os.IsNotExist(err) {
+		t.Fatalf("transcript stat error = %v, want not exist", err)
+	}
+}
+
 func TestStoreList_UsesLastUserMessagePreview(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)

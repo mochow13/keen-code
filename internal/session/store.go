@@ -197,6 +197,60 @@ func (s *Store) Append(session *Session, event Event) error {
 	return nil
 }
 
+// AppendBatch atomically persists events as one JSONL transcript update.
+func (s *Store) AppendBatch(session *Session, events []Event) error {
+	if session == nil {
+		return fmt.Errorf("session is nil")
+	}
+	if len(events) == 0 {
+		return nil
+	}
+
+	data := make([]byte, 0)
+	for i := range events {
+		events[i].Seq = session.nextSeq + uint64(i)
+		encoded, err := json.Marshal(events[i])
+		if err != nil {
+			return fmt.Errorf("marshal session event: %w", err)
+		}
+		data = append(data, encoded...)
+		data = append(data, '\n')
+	}
+
+	existing, err := os.ReadFile(session.TranscriptPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read transcript file: %w", err)
+	}
+
+	temp, err := os.CreateTemp(session.Directory, ".transcript-*")
+	if err != nil {
+		return fmt.Errorf("create transcript transaction: %w", err)
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	if err := temp.Chmod(0600); err != nil {
+		temp.Close()
+		return fmt.Errorf("set transcript transaction permissions: %w", err)
+	}
+	if _, err := temp.Write(existing); err != nil {
+		temp.Close()
+		return fmt.Errorf("write transcript transaction: %w", err)
+	}
+	if _, err := temp.Write(data); err != nil {
+		temp.Close()
+		return fmt.Errorf("write transcript transaction: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("close transcript transaction: %w", err)
+	}
+	if err := os.Rename(tempPath, session.TranscriptPath); err != nil {
+		return fmt.Errorf("commit transcript transaction: %w", err)
+	}
+
+	session.nextSeq += uint64(len(events))
+	return nil
+}
+
 func (s *Store) Load(summary Summary) (*LoadedSession, error) {
 	events, err := loadEvents(summary.TranscriptPath)
 	if err != nil {

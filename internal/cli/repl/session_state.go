@@ -65,14 +65,28 @@ func (s *replSessionState) appendCompaction(segments []streamSegment, messages [
 	if s == nil || s.current == nil {
 		return nil
 	}
-	return s.store.Append(s.current, session.Event{
+	return s.store.Append(s.current, buildCompactionEvent(segments, messages, status))
+}
+
+func (s *replSessionState) appendAutoCompaction(checkpointSegments []streamSegment, checkpoint llm.Message, messages []llm.Message) error {
+	if s == nil || s.current == nil {
+		return nil
+	}
+	return s.store.AppendBatch(s.current, []session.Event{
+		buildAssistantTurnEvent(checkpointSegments, checkpoint, false, ""),
+		buildCompactionEvent(nil, messages, ""),
+	})
+}
+
+func buildCompactionEvent(segments []streamSegment, messages []llm.Message, status string) session.Event {
+	return session.Event{
 		Kind: session.KindCompactionApplied,
 		CompactionApplied: &session.CompactionAppliedPayload{
 			Status:     status,
 			Transcript: buildAssistantTurnTranscript(segments),
 			Messages:   cloneLLMMessages(messages),
 		},
-	})
+	}
 }
 
 func (s *replSessionState) resetSession() {
