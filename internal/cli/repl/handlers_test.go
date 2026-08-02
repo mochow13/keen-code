@@ -1150,3 +1150,71 @@ func TestHandleKeyMsg_SlashCommandWithoutAtShowsCommandSuggestions(t *testing.T)
 		t.Fatalf("expected /clear in suggestions, got %q", newM.suggestion.View(80))
 	}
 }
+
+func TestAutoCompactionEscCancelsOnlyChild(t *testing.T) {
+	m := newTestModel()
+	m.compaction.active = true
+	m.compaction.mode = compactionAutomatic
+	childCancelled := false
+	parentCancelled := false
+	m.compaction.cancel = func() { childCancelled = true }
+	m.stream.cancel = func() { parentCancelled = true }
+
+	updated, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	if !childCancelled {
+		t.Fatal("Esc did not cancel automatic compaction child")
+	}
+	if parentCancelled {
+		t.Fatal("Esc cancelled the parent stream")
+	}
+	if updated.compaction.cancel != nil {
+		t.Fatal("child cancellation callback was not cleared")
+	}
+}
+
+func TestAutoCompactionAppliedStripsSystemMessagesFromAppState(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.compaction.active = true
+	m.compaction.mode = compactionAutomatic
+
+	updated, _ := m.handleAutoCompactionApplied(&llm.AutoCompactionEvent{Replacement: []llm.Message{
+		{Role: llm.RoleSystem, Content: "provider system prompt"},
+		{Role: llm.RoleUser, Content: "checkpoint"},
+	}})
+
+	messages := updated.appState.GetMessages()
+	if len(messages) != 1 || messages[0].Role != llm.RoleUser || messages[0].Content != "checkpoint" {
+		t.Fatalf("AppState messages = %#v, want system-free replacement", messages)
+	}
+}
+
+func TestAutoCompactionAppliedReplacesHistoryWithoutAppendingCheckpoint(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.stream.handler.HandleChunk("visible work")
+	m.appState.AddMessage(llm.RoleUser, "original task")
+	m.compaction.active = true
+	m.compaction.mode = compactionAutomatic
+	replacement := []llm.Message{{Role: llm.RoleUser, Content: "checkpoint"}}
+
+	updated, _ := m.handleAutoCompactionApplied(&llm.AutoCompactionEvent{Replacement: replacement})
+
+	messages := updated.appState.GetMessages()
+	if len(messages) != 1 || messages[0].Content != "checkpoint" {
+		t.Fatalf("history = %#v, want replacement only", messages)
+	}
+	if updated.stream.handler.GetResponse() != "" {
+		t.Fatal("checkpoint content remained in active handler")
+	}
+	if updated.compaction.active || updated.compaction.mode != compactionNone {
+		t.Fatal("automatic compaction state was not cleared")
+	}
+	if updated.loading.text == "Compacting..." {
+		t.Fatal("loader was not restored")
+	}
+	if updated.notification.text != "Context compacted automatically." {
+		t.Fatalf("notification = %q", updated.notification.text)
+	}
+}

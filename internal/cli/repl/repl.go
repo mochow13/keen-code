@@ -139,8 +139,17 @@ type streamState struct {
 	renderInterval time.Duration
 }
 
+type compactionMode uint8
+
+const (
+	compactionNone compactionMode = iota
+	compactionManual
+	compactionAutomatic
+)
+
 type compactionState struct {
 	active bool
+	mode   compactionMode
 	cancel context.CancelFunc
 }
 
@@ -800,7 +809,8 @@ func (m replModel) View() tea.View {
 			view.WriteString("\n")
 		} else if m.notification.text != "" {
 			view.WriteString("\n")
-			view.WriteString("  " + repltheme.AccentStyle.Render(m.notification.text))
+			view.WriteString("  ")
+			view.WriteString(repltheme.AccentStyle.Render(m.notification.text))
 			view.WriteString("\n")
 		} else if m.loading.lastTurnElapsedMsg != "" {
 			view.WriteString("\n")

@@ -32,6 +32,18 @@ type llmToolEndMsg struct {
 type llmUsageMsg struct {
 	usage *llm.TokenUsage
 }
+type llmAutoCompactionStartedMsg struct {
+	event *llm.AutoCompactionEvent
+}
+type llmAutoCompactionAppliedMsg struct {
+	event *llm.AutoCompactionEvent
+}
+type llmAutoCompactionCancelledMsg struct {
+	event *llm.AutoCompactionEvent
+}
+type llmAutoCompactionFailedMsg struct {
+	event *llm.AutoCompactionEvent
+}
 type mainStreamMsg struct {
 	eventCh <-chan llm.StreamEvent
 	event   llm.StreamEvent

@@ -161,6 +161,16 @@ func (s *AppState) ResetClientState() {
 	}
 }
 
+func WithoutSystemMessages(messages []llm.Message) []llm.Message {
+	withoutSystem := make([]llm.Message, 0, len(messages))
+	for _, message := range messages {
+		if message.Role != llm.RoleSystem {
+			withoutSystem = append(withoutSystem, message)
+		}
+	}
+	return llm.CloneMessages(withoutSystem)
+}
+
 func (s *AppState) ReplaceMessages(messages []llm.Message) {
 	s.messages = llm.CloneMessages(messages)
 }

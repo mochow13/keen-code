@@ -64,7 +64,10 @@ func (m replModel) renderQueuedInputs() string {
 		if lipgloss.Width(display) > maxWidth {
 			display = ansi.Truncate(display, maxWidth-1, "…")
 		}
-		b.WriteString(" " + chip + " " + repltheme.QueueItemStyle.Render(display))
+		b.WriteString(" ")
+		b.WriteString(chip)
+		b.WriteString(" ")
+		b.WriteString(repltheme.QueueItemStyle.Render(display))
 		b.WriteString("\n")
 	}
 	return b.String()

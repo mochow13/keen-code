@@ -556,15 +556,19 @@ func formatModelSelectionCard(ms *replwidgets.Model, width int) string {
 	lines := strings.Split(strings.TrimRight(ms.ViewString(), "\n"), "\n")
 	var sb strings.Builder
 	sb.WriteString("\n")
-	sb.WriteString(rule + "\n\n")
+	sb.WriteString(rule)
+	sb.WriteString("\n\n")
 	for _, l := range lines {
 		wrapped := wrapTextWithStyle(l, lipgloss.NewStyle(), contentWidth)
 		for _, wrappedLine := range strings.Split(wrapped, "\n") {
-			sb.WriteString("  " + wrappedLine + "\n")
+			sb.WriteString("  ")
+			sb.WriteString(wrappedLine)
+			sb.WriteString("\n")
 		}
 	}
 	sb.WriteString("\n")
-	sb.WriteString(rule + "\n")
+	sb.WriteString(rule)
+	sb.WriteString("\n")
 	return sb.String()
 }
 

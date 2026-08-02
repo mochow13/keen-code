@@ -194,6 +194,16 @@ func (sh *StreamHandler) appendAssistantVisible(chunk string) {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentAssistant, content: chunk})
 }
 
+// Checkpoint returns the current visible content and starts a fresh segment
+// collection without disconnecting the active stream.
+func (sh *StreamHandler) Checkpoint() ([]string, string, []streamSegment) {
+	segments := cloneStreamSegments(sh.segments)
+	lines := sh.renderTranscriptLines()
+	response := sh.currentResponse
+	sh.ResetContent()
+	return lines, response, segments
+}
+
 func (sh *StreamHandler) ResetContent() {
 	sh.currentResponse = ""
 	sh.rawResponse = ""

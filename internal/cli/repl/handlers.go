@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/user/keen-code/internal/cli/repl/appstate"
 	reploutput "github.com/user/keen-code/internal/cli/repl/output"
 	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
@@ -63,7 +64,7 @@ func (m *replModel) drainSubagentActivity() {
 func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.drainSubagentActivity()
 	m.flushStreamRender()
-	if m.compaction.active {
+	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionDone()
 	}
 	segments := cloneStreamSegments(m.stream.handler.segments)
@@ -122,7 +123,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 
 func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.flushStreamRender()
-	if m.compaction.active {
+	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionError(err)
 	}
 	segments := cloneStreamSegments(m.stream.handler.segments)
@@ -168,11 +169,82 @@ func (m *replModel) handleLLMRetry(err error, attempt int) (replModel, tea.Cmd) 
 	return *m, m.waitForAsyncEvent()
 }
 
+func (m *replModel) restoreAutomaticCompactionLoader() {
+	m.compaction.active = false
+	m.compaction.mode = compactionNone
+	m.compaction.cancel = nil
+	m.loading.text = nextLoadingText()
+	m.stream.handler.SetLoadingText(m.loading.text)
+}
+
+func (m *replModel) handleAutoCompactionStarted(event *llm.AutoCompactionEvent) (replModel, tea.Cmd) {
+	m.compaction.active = true
+	m.compaction.mode = compactionAutomatic
+	if event != nil {
+		m.compaction.cancel = event.Cancel
+	}
+	m.loading.text = "Compacting..."
+	m.stream.handler.SetLoadingText(m.loading.text)
+	m.updateViewportContent()
+	m.scrollToBottomIfFollowing()
+	return *m, m.waitForAsyncEvent()
+}
+
+func (m *replModel) handleAutoCompactionApplied(event *llm.AutoCompactionEvent) (replModel, tea.Cmd) {
+	if event == nil || len(event.Replacement) == 0 {
+		return m.handleAutoCompactionStopped()
+	}
+
+	m.flushStreamRender()
+	segments := cloneStreamSegments(m.stream.handler.segments)
+	m.recordHistoricalToolActivity(segments)
+
+	var turnMemory *llm.TurnMemory
+	if m.turnMemory != nil {
+		turnMemory = m.turnMemory.Build()
+	}
+	checkpoint := llm.Message{
+		Role:       llm.RoleAssistant,
+		Content:    m.stream.handler.GetResponse(),
+		TurnMemory: turnMemory,
+	}
+
+	persistedReplacement := appstate.WithoutSystemMessages(event.Replacement)
+	if err := m.sessions.appendAutoCompaction(segments, checkpoint, persistedReplacement); err != nil {
+		m.handleSessionPersistenceError(err)
+		return m.handleAutoCompactionStopped()
+	}
+
+	m.clearTurnMemory()
+	lines, _, _ := m.stream.handler.Checkpoint()
+	m.appState.ReplaceMessages(persistedReplacement)
+	m.startAssistantTurnMemory()
+	m.appState.ClearContextMetrics()
+	m.refreshContextStatus()
+	m.restoreAutomaticCompactionLoader()
+	for _, line := range lines {
+		m.output.AddLine(line)
+	}
+	if len(lines) > 0 {
+		m.output.AddEmptyLine()
+	}
+	m.updateViewportContent()
+	m.scrollToBottomIfFollowing()
+	return *m, tea.Batch(m.showNotification("Context compacted automatically."), m.waitForAsyncEvent())
+}
+
+func (m *replModel) handleAutoCompactionStopped() (replModel, tea.Cmd) {
+	m.restoreAutomaticCompactionLoader()
+	m.updateViewportContent()
+	return *m, m.waitForAsyncEvent()
+}
+
 func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	m.flushStreamRender()
 	segments := cloneStreamSegments(m.stream.handler.segments)
 	responseLines, summary := m.stream.handler.HandleDone()
 	m.compaction.active = false
+	m.compaction.mode = compactionNone
 	m.stopLoading()
 	m.compaction.cancel = nil
 	m.clearStreamCancel()
@@ -207,6 +279,7 @@ func (m *replModel) handleCompactionError(err error) (replModel, tea.Cmd) {
 		}
 	}
 	m.compaction.active = false
+	m.compaction.mode = compactionNone
 	m.stopLoading()
 	m.compaction.cancel = nil
 	m.clearStreamCancel()
@@ -388,8 +461,15 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return *m, nil
 	}
 
-	if m.compaction.active {
+	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		if keyMsg.String() == keyEsc && m.compaction.cancel != nil {
+			m.compaction.cancel()
+			m.compaction.cancel = nil
+		}
+		return *m, nil
+	}
+	if m.compaction.mode == compactionAutomatic && keyMsg.String() == keyEsc {
+		if m.compaction.cancel != nil {
 			m.compaction.cancel()
 			m.compaction.cancel = nil
 		}
@@ -729,6 +809,14 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 				msg = llmUsageMsg{usage: streamMsg.event.Usage}
 			case llm.StreamEventTypeRetry:
 				msg = llmRetryMsg{err: streamMsg.event.Error, attempt: streamMsg.event.Attempt}
+			case llm.StreamEventTypeAutoCompactionStarted:
+				msg = llmAutoCompactionStartedMsg{event: streamMsg.event.AutoCompaction}
+			case llm.StreamEventTypeAutoCompactionApplied:
+				msg = llmAutoCompactionAppliedMsg{event: streamMsg.event.AutoCompaction}
+			case llm.StreamEventTypeAutoCompactionCancelled:
+				msg = llmAutoCompactionCancelledMsg{event: streamMsg.event.AutoCompaction}
+			case llm.StreamEventTypeAutoCompactionFailed:
+				msg = llmAutoCompactionFailedMsg{event: streamMsg.event.AutoCompaction}
 			default:
 				msg = llmDoneMsg{}
 			}
@@ -751,7 +839,20 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 
 	if m.stream.handler == nil || !m.stream.handler.IsActive() {
 		switch msg.(type) {
-		case llmChunkMsg, llmReasoningChunkMsg, llmDoneMsg, llmIncompleteMsg, llmErrorMsg, llmRetryMsg, llmToolStartMsg, llmToolEndMsg, llmUsageMsg:
+		case
+			llmChunkMsg,
+			llmReasoningChunkMsg,
+			llmDoneMsg,
+			llmIncompleteMsg,
+			llmErrorMsg,
+			llmRetryMsg,
+			llmToolStartMsg,
+			llmToolEndMsg,
+			llmUsageMsg,
+			llmAutoCompactionStartedMsg,
+			llmAutoCompactionAppliedMsg,
+			llmAutoCompactionCancelledMsg,
+			llmAutoCompactionFailedMsg:
 			return m, nil, true
 		}
 	}
@@ -759,6 +860,15 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case llmUsageMsg:
 		updated, cmd := m.handleLLMUsage(msg.usage)
+		return updated, cmd, true
+	case llmAutoCompactionStartedMsg:
+		updated, cmd := m.handleAutoCompactionStarted(msg.event)
+		return updated, cmd, true
+	case llmAutoCompactionAppliedMsg:
+		updated, cmd := m.handleAutoCompactionApplied(msg.event)
+		return updated, cmd, true
+	case llmAutoCompactionCancelledMsg, llmAutoCompactionFailedMsg:
+		updated, cmd := m.handleAutoCompactionStopped()
 		return updated, cmd, true
 	case llmChunkMsg:
 		updated, cmd := m.handleLLMChunk(string(msg))

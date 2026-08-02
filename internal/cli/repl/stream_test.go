@@ -1245,3 +1245,28 @@ func TestHandleKeyMsg_Enter_WhenPermissionPending_DoesNotSubmit(t *testing.T) {
 		t.Error("expected permission to be resolved")
 	}
 }
+
+func TestStreamHandlerCheckpointPreservesActiveStream(t *testing.T) {
+	events := make(chan llm.StreamEvent)
+	handler := NewStreamHandler(nil)
+	handler.Start(events, "Working...")
+	handler.HandleChunk("before checkpoint")
+
+	_, response, segments := handler.Checkpoint()
+
+	if response != "before checkpoint" {
+		t.Fatalf("response = %q, want checkpoint response", response)
+	}
+	if len(segments) != 1 {
+		t.Fatalf("segments = %d, want 1", len(segments))
+	}
+	if !handler.IsActive() {
+		t.Fatal("checkpoint deactivated the stream")
+	}
+	if handler.eventCh != events {
+		t.Fatal("checkpoint disconnected the event channel")
+	}
+	if handler.GetResponse() != "" || handler.HasContent() {
+		t.Fatal("checkpoint did not clear current content")
+	}
+}

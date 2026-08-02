@@ -196,9 +196,14 @@ func formatPermissionKeyValue(label, value string, labelWidth, valueWidth int) s
 	}
 
 	var out strings.Builder
-	out.WriteString(prefix + " " + lines[0] + "\n")
+	out.WriteString(prefix)
+	out.WriteString(" ")
+	out.WriteString(lines[0])
+	out.WriteString("\n")
 	for _, line := range lines[1:] {
-		out.WriteString(continuation + line + "\n")
+		out.WriteString(continuation)
+		out.WriteString(line)
+		out.WriteString("\n")
 	}
 	return out.String()
 }

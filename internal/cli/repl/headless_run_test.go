@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/user/keen-code/internal/cli/repl/appstate"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/llm"
 	"github.com/user/keen-code/internal/session"
@@ -223,6 +226,102 @@ func loadOnlyHeadlessSessionEvents(t *testing.T, workingDir string) []session.Ev
 		t.Fatalf("Load() error = %v", err)
 	}
 	return loaded.Events
+}
+
+func TestCheckpointHeadlessAutoCompactionRejectsEmptyReplacement(t *testing.T) {
+	handler := NewStreamHandler(nil)
+	handler.Start(make(chan llm.StreamEvent), "")
+	appState := appstate.New(nil, "/tmp")
+	completedText := &strings.Builder{}
+	turnMemory := newTurnMemoryAccumulator()
+
+	err := checkpointHeadlessAutoCompaction(nil, appState, handler, turnMemory, completedText, &llm.AutoCompactionEvent{})
+	if err == nil {
+		t.Fatal("expected empty replacement error")
+	}
+	if !strings.Contains(err.Error(), "without replacement history") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestRunHeadless_AutoCompactionFailureReturnsPartialOutput(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []llm.StreamEvent{
+		{Type: llm.StreamEventTypeChunk, Content: "before checkpoint"},
+		{Type: llm.StreamEventTypeAutoCompactionApplied, AutoCompaction: &llm.AutoCompactionEvent{
+			Replacement: []llm.Message{
+				{Role: llm.RoleSystem, Content: "provider system prompt"},
+				{Role: llm.RoleUser, Content: "compacted context"},
+			},
+		}},
+		{Type: llm.StreamEventTypeChunk, Content: " after checkpoint"},
+		{Type: llm.StreamEventTypeError, Error: errors.New("provider failed")},
+	}}
+	var out bytes.Buffer
+
+	result, err := RunHeadless(context.Background(), HeadlessRunOptions{
+		WorkingDir: workingDir,
+		Config:     headlessTestConfig(),
+		Client:     client,
+		Prompt:     "task",
+		Out:        &out,
+	})
+	if err == nil || !strings.Contains(err.Error(), "provider failed") {
+		t.Fatalf("error = %v, want provider failure", err)
+	}
+	if result == nil || result.Text != "before checkpoint after checkpoint" {
+		t.Fatalf("result = %#v", result)
+	}
+	if got := out.String(); got != "before checkpoint after checkpoint\n" {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestRunHeadless_AutoCompactionCheckpointsOutputAndSession(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []llm.StreamEvent{
+		{Type: llm.StreamEventTypeChunk, Content: "before checkpoint"},
+		{Type: llm.StreamEventTypeReasoningChunk, Content: "private reasoning"},
+		{Type: llm.StreamEventTypeAutoCompactionApplied, AutoCompaction: &llm.AutoCompactionEvent{
+			Replacement: []llm.Message{{Role: llm.RoleUser, Content: "compacted context"}},
+		}},
+		{Type: llm.StreamEventTypeChunk, Content: " after checkpoint"},
+		{Type: llm.StreamEventTypeDone},
+	}}
+	var out bytes.Buffer
+
+	result, err := RunHeadless(context.Background(), HeadlessRunOptions{
+		WorkingDir: workingDir,
+		Config:     headlessTestConfig(),
+		Client:     client,
+		Prompt:     "task",
+		Format:     HeadlessFormatJSON,
+		Out:        &out,
+	})
+	if err != nil {
+		t.Fatalf("RunHeadless() error = %v", err)
+	}
+	if result.Text != "before checkpoint after checkpoint" {
+		t.Fatalf("result text = %q", result.Text)
+	}
+	if bytes.Contains(out.Bytes(), []byte("private")) {
+		t.Fatalf("headless output exposed private compaction content: %s", out.String())
+	}
+
+	events := loadOnlyHeadlessSessionEvents(t, workingDir)
+	if len(events) != 5 {
+		t.Fatalf("expected session, user, checkpoint, compaction, final events; got %d", len(events))
+	}
+	if got := events[2].AssistantTurn; got == nil || got.Message != "before checkpoint" {
+		t.Fatalf("unexpected checkpoint event: %#v", got)
+	}
+	compaction := events[3].CompactionApplied
+	if compaction == nil || compaction.Status != "" || len(compaction.Transcript) != 0 {
+		t.Fatalf("unexpected compaction event: %#v", compaction)
+	}
+	if got := session.BuildConversation(events); len(got) != 2 || got[0].Role != llm.RoleUser || got[0].Content != "compacted context" || got[1].Content != " after checkpoint" {
+		t.Fatalf("unexpected projected conversation: %#v", got)
+	}
 }
 
 func messageContents(messages []llm.Message) []string {

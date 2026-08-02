@@ -219,6 +219,7 @@ func (m *replModel) startCompaction(extraPrompt string) (replModel, tea.Cmd) {
 
 	m.compaction.cancel = cancel
 	m.compaction.active = true
+	m.compaction.mode = compactionManual
 	m.startLoading("Compacting...")
 	m.clearTurnMemory()
 	m.stream.handler.Start(eventCh, m.loading.text)

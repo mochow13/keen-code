@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/user/keen-code/internal/cli/repl/appstate"
 	replappstate "github.com/user/keen-code/internal/cli/repl/appstate"
 	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/user/keen-code/internal/cli/repl/tooling"
@@ -99,6 +100,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	handler.showThinking = false
 	handler.Start(eventCh, "")
 	turnMemory := newTurnMemoryAccumulator()
+	var completedText strings.Builder
 
 	var lastUsage *llm.TokenUsage
 	for {
@@ -108,7 +110,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 			close(diffReq.Done)
 		case event, ok := <-eventCh:
 			if !ok {
-				return finishHeadlessRun(opts.Out, format, sessions, handler, turnMemory, lastUsage)
+				return finishHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage)
 			}
 			switch event.Type {
 			case llm.StreamEventTypeChunk:
@@ -123,15 +125,27 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 				lastUsage = event.Usage
 			case llm.StreamEventTypeRetry:
 				handler.RewindForRetry()
+			case llm.StreamEventTypeAutoCompactionApplied:
+				if err := checkpointHeadlessAutoCompaction(
+					sessions,
+					appState,
+					handler,
+					turnMemory,
+					&completedText,
+					event.AutoCompaction,
+				); err != nil {
+					return nil, err
+				}
+				lastUsage = nil
 			case llm.StreamEventTypeDone:
-				return finishHeadlessRun(opts.Out, format, sessions, handler, turnMemory, lastUsage)
+				return finishHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage)
 			case llm.StreamEventTypeIncomplete:
-				return failHeadlessRun(sessions, handler, turnMemory, event.Error)
+				return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, event.Error)
 			case llm.StreamEventTypeError:
-				return failHeadlessRun(sessions, handler, turnMemory, event.Error)
+				return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, event.Error)
 			}
 		case <-ctx.Done():
-			return failHeadlessRun(sessions, handler, turnMemory, ctx.Err())
+			return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, ctx.Err())
 		}
 	}
 }
@@ -174,13 +188,52 @@ func handleHeadlessToolEnd(handler *StreamHandler, toolCall *llm.ToolCall) {
 	handler.HandleToolEnd(toolCall)
 }
 
-func finishHeadlessRun(out io.Writer, format string, sessions *replSessionState, handler *StreamHandler, turnMemory *turnMemoryAccumulator, usage *llm.TokenUsage) (*HeadlessRunResult, error) {
+func checkpointHeadlessAutoCompaction(
+	sessions *replSessionState,
+	appState *replappstate.AppState,
+	handler *StreamHandler,
+	turnMemory *turnMemoryAccumulator,
+	completedText *strings.Builder,
+	compaction *llm.AutoCompactionEvent,
+) error {
+	if compaction == nil || len(compaction.Replacement) == 0 {
+		return fmt.Errorf("automatic compaction applied without replacement history")
+	}
+
 	segments := cloneStreamSegments(handler.segments)
 	turnMemory.RecordToolActivity(segments, handler.workingDir)
-	_, response := handler.HandleDone()
-	assistantMessage := llm.Message{
+	response := handler.GetResponse()
+	persistedReplacement := appstate.WithoutSystemMessages(compaction.Replacement)
+	if err := sessions.appendAutoCompaction(segments, llm.Message{
 		Role:       llm.RoleAssistant,
 		Content:    response,
+		TurnMemory: turnMemory.Build(),
+	}, persistedReplacement); err != nil {
+		return err
+	}
+
+	completedText.WriteString(response)
+	appState.ReplaceMessages(persistedReplacement)
+	handler.ResetContent()
+	*turnMemory = *newTurnMemoryAccumulator()
+	return nil
+}
+
+func finishHeadlessRun(
+	out io.Writer,
+	format string,
+	sessions *replSessionState,
+	handler *StreamHandler,
+	turnMemory *turnMemoryAccumulator,
+	completedText string,
+	usage *llm.TokenUsage,
+) (*HeadlessRunResult, error) {
+	segments := cloneStreamSegments(handler.segments)
+	turnMemory.RecordToolActivity(segments, handler.workingDir)
+	_, currentResponse := handler.HandleDone()
+	assistantMessage := llm.Message{
+		Role:       llm.RoleAssistant,
+		Content:    currentResponse,
 		TurnMemory: turnMemory.Build(),
 	}
 	if err := sessions.appendAssistantTurn(segments, assistantMessage, false, ""); err != nil {
@@ -190,13 +243,22 @@ func finishHeadlessRun(out io.Writer, format string, sessions *replSessionState,
 	result := &HeadlessRunResult{
 		SessionID:         sessions.currentID(),
 		OpenCodeSessionID: strings.ReplaceAll(sessions.currentID(), "-", ""),
-		Text:              response,
+		Text:              completedText + currentResponse,
 		Usage:             cloneHeadlessUsage(usage),
 	}
 	return result, writeHeadlessResult(out, format, result)
 }
 
-func failHeadlessRun(sessions *replSessionState, handler *StreamHandler, turnMemory *turnMemoryAccumulator, err error) (*HeadlessRunResult, error) {
+func failHeadlessRun(
+	out io.Writer,
+	format string,
+	sessions *replSessionState,
+	handler *StreamHandler,
+	turnMemory *turnMemoryAccumulator,
+	completedText string,
+	usage *llm.TokenUsage,
+	err error,
+) (*HeadlessRunResult, error) {
 	if err == nil {
 		err = fmt.Errorf("LLM stream incomplete")
 	}
@@ -210,7 +272,16 @@ func failHeadlessRun(sessions *replSessionState, handler *StreamHandler, turnMem
 		TurnMemory: turnMemory.Build(),
 	}
 	_ = sessions.appendAssistantTurn(segments, assistantMessage, false, errMsg)
-	return nil, err
+	result := &HeadlessRunResult{
+		SessionID:         sessions.currentID(),
+		OpenCodeSessionID: strings.ReplaceAll(sessions.currentID(), "-", ""),
+		Text:              completedText + partialResponse,
+		Usage:             cloneHeadlessUsage(usage),
+	}
+	if writeErr := writeHeadlessResult(out, format, result); writeErr != nil {
+		return result, fmt.Errorf("%w; failed to write partial result: %v", err, writeErr)
+	}
+	return result, err
 }
 
 func cloneHeadlessUsage(usage *llm.TokenUsage) *headlessUsage {
