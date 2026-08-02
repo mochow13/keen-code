@@ -354,10 +354,13 @@ func TestGenkitClient_executeTools_Success(t *testing.T) {
 	}
 
 	eventCh := make(chan StreamEvent, 4)
-	parts := client.executeTools(context.Background(), toolRequests, registry, eventCh)
+	parts, activities := client.executeTools(context.Background(), toolRequests, registry, eventCh)
 
 	if len(parts) != 1 {
 		t.Fatalf("expected 1 tool response part, got %d", len(parts))
+	}
+	if len(activities) != 1 || activities[0].Status != "success" || !activities[0].HasRawOutput {
+		t.Fatalf("activities = %#v", activities)
 	}
 
 	startEvent := <-eventCh
@@ -410,11 +413,13 @@ func TestGenkitClient_StreamChat_ToolInvocation(t *testing.T) {
 		return func(yield func(*ai.ModelStreamValue, error) bool) {
 			callCount++
 			if callCount == 1 {
-				yield(&ai.ModelStreamValue{
+				if !yield(&ai.ModelStreamValue{
 					Chunk: &ai.ModelResponseChunk{
 						Content: []*ai.Part{ai.NewTextPart("I'll use the tool")},
 					},
-				}, nil)
+				}, nil) {
+					return
+				}
 				yield(&ai.ModelStreamValue{
 					Done: true,
 					Response: &ai.ModelResponse{
@@ -431,11 +436,13 @@ func TestGenkitClient_StreamChat_ToolInvocation(t *testing.T) {
 					},
 				}, nil)
 			} else {
-				yield(&ai.ModelStreamValue{
+				if !yield(&ai.ModelStreamValue{
 					Chunk: &ai.ModelResponseChunk{
 						Content: []*ai.Part{ai.NewTextPart("Tool result: processed: hello")},
 					},
-				}, nil)
+				}, nil) {
+					return
+				}
 				yield(&ai.ModelStreamValue{
 					Done: true,
 					Response: &ai.ModelResponse{
@@ -527,10 +534,13 @@ func TestGenkitClient_executeTools_Error(t *testing.T) {
 	}
 
 	eventCh := make(chan StreamEvent, 4)
-	parts := client.executeTools(context.Background(), toolRequests, registry, eventCh)
+	parts, activities := client.executeTools(context.Background(), toolRequests, registry, eventCh)
 
 	if len(parts) != 1 {
 		t.Fatalf("expected 1 tool response part, got %d", len(parts))
+	}
+	if len(activities) != 1 || activities[0].Status != "error" || !activities[0].HasRawOutput {
+		t.Fatalf("activities = %#v", activities)
 	}
 
 	startEvent := <-eventCh
@@ -680,11 +690,13 @@ func TestGenkitClient_PendingState_InjectedOnNextCall(t *testing.T) {
 			case 2:
 				yield(nil, expectedErr)
 			default:
-				yield(&ai.ModelStreamValue{
+				if !yield(&ai.ModelStreamValue{
 					Chunk: &ai.ModelResponseChunk{
 						Content: []*ai.Part{ai.NewTextPart("recovered")},
 					},
-				}, nil)
+				}, nil) {
+					return
+				}
 				yield(&ai.ModelStreamValue{
 					Done: true,
 					Response: &ai.ModelResponse{
@@ -850,11 +862,13 @@ func TestGenkitClient_PendingState_ClearedOnSuccess(t *testing.T) {
 
 	client.streamImpl = func(ctx context.Context, g *genkit.Genkit, opts ...ai.GenerateOption) iter.Seq2[*ai.ModelStreamValue, error] {
 		return func(yield func(*ai.ModelStreamValue, error) bool) {
-			yield(&ai.ModelStreamValue{
+			if !yield(&ai.ModelStreamValue{
 				Chunk: &ai.ModelResponseChunk{
 					Content: []*ai.Part{ai.NewTextPart("done")},
 				},
-			}, nil)
+			}, nil) {
+				return
+			}
 			yield(&ai.ModelStreamValue{
 				Done: true,
 				Response: &ai.ModelResponse{
