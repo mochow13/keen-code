@@ -17,6 +17,12 @@ func TestBuild_ContainsIdentity(t *testing.T) {
 	}
 }
 
+func TestBuild_SharedPromptIsByteBounded(t *testing.T) {
+	if len(sharedPrompt) > 2*1024 {
+		t.Fatalf("shared prompt is %d bytes; expected at most %d", len(sharedPrompt), 2*1024)
+	}
+}
+
 func TestBuild_ContainsWorkingDir(t *testing.T) {
 	dir := t.TempDir()
 	result := Build(dir, "", "", ModeBuild)
@@ -105,7 +111,7 @@ func TestBuild_IncludesSkillsCatalog(t *testing.T) {
 
 func TestBuild_PlanIncludesPlanInstructions(t *testing.T) {
 	result := Build(t.TempDir(), "", "", ModePlan)
-	for _, expected := range []string{"# Active mode: plan", "write_file and edit_file are not available", "/mode build or Shift+Tab"} {
+	for _, expected := range []string{"# Active mode: plan", "write_file and edit_file are unavailable", "/mode build or Shift+Tab"} {
 		if !strings.Contains(result, expected) {
 			t.Fatalf("expected %q in plan prompt, got %q", expected, result)
 		}
@@ -125,22 +131,20 @@ func TestBuild_BuildIncludesBuildInstructions(t *testing.T) {
 func TestBuild_IncludesToolFollowThroughInstructions(t *testing.T) {
 	result := Build(t.TempDir(), "", "", ModeBuild)
 	for _, expected := range []string{
-		"Tool use is an action, not narration",
-		"make that tool call before reporting findings",
-		"Earlier turns may include compact historical tool records",
-		"Inputs may be retained, omitted, or size-pruned",
-		"evidence only for fields they explicitly contain",
-		"Do not imitate empty or partial arguments",
-		"Re-run tools in later turns",
-		"Within the current turn, reuse successful results",
-		"Do not add a separate summary for your own memory",
+		"Do not narrate tool use",
+		"call the tool before reporting",
+		"Batch independent tool calls in parallel where possible",
+		"Earlier-turn records can be incomplete",
+		"Treat only explicit fields as evidence",
+		"do not infer or reuse omitted, empty, or partial arguments",
+		"Re-run tools for omitted or mutable state",
+		"Reuse current-turn results unless state changed",
+		"Refuse malicious code; assess suspicious code before working on it",
+		"Never create or update memory unless the user explicitly asks",
 	} {
 		if !strings.Contains(result, expected) {
 			t.Fatalf("expected %q in prompt, got %q", expected, result)
 		}
-	}
-	if strings.Contains(result, "add a brief summary of what you did for your own reference") {
-		t.Fatalf("did not expect self-summary instruction in prompt, got %q", result)
 	}
 }
 
