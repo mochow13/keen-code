@@ -2,6 +2,7 @@ package llm
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -16,9 +17,10 @@ import (
 const (
 	removedToolResultPlaceholder   = "Tool result removed to fit context."
 	contextWindowExceededError     = "context exceeds model window after removing tool results"
-	contextOutputReserveTokenCount = 8192
 	defaultContextWindowTokenCount = 200000
 )
+
+var ErrContextWindowExceeded = errors.New("context window exceeded")
 
 type contextReduction struct {
 	OriginalTokenCount int
@@ -44,12 +46,14 @@ func contextInputBudget(contextWindowTokenCount int) int {
 	if window <= 0 {
 		window = defaultContextWindowTokenCount
 	}
-	safety := max(4096, window/20)
-	budget := window - contextOutputReserveTokenCount - safety
-	if budget < 1 {
-		return 1
+	return max(1, window-max(4096, window/20)) // 5% safety margin
+}
+
+func shouldAutoCompact(estimatedInputTokenCount, effectiveBudget int) bool {
+	if effectiveBudget <= 0 {
+		return estimatedInputTokenCount > 0
 	}
-	return budget
+	return estimatedInputTokenCount >= effectiveBudget-(effectiveBudget/10) // 90% boundary
 }
 
 func contextFitsBudget(contextWindowTokenCount int, currentInputTokenCount int) bool {

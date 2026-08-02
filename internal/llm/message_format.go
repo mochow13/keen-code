@@ -75,6 +75,10 @@ func historicalToolArguments(activity HistoricalToolActivity) string {
 }
 
 func historicalToolResult(activity HistoricalToolActivity) string {
+	if activity.HasRawOutput {
+		return serializeJSON(activity.RawOutput)
+	}
+
 	status := activity.Status
 	if status != "success" {
 		status = "error"

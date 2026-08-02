@@ -21,11 +21,13 @@ type TurnMemory struct {
 }
 
 type HistoricalToolActivity struct {
-	TextOffset int            `json:"text_offset"`
-	Tool       string         `json:"tool"`
-	Input      map[string]any `json:"input,omitempty"`
-	Status     string         `json:"status"`
-	ExitCode   *int           `json:"exit_code,omitempty"`
+	TextOffset   int            `json:"text_offset"`
+	Tool         string         `json:"tool"`
+	Input        map[string]any `json:"input,omitempty"`
+	Status       string         `json:"status"`
+	ExitCode     *int           `json:"exit_code,omitempty"`
+	HasRawOutput bool           `json:"-"`
+	RawOutput    any            `json:"-"`
 }
 
 func CloneMessage(message Message) Message {
@@ -53,6 +55,7 @@ func CloneTurnMemory(memory *TurnMemory) *TurnMemory {
 		for i, activity := range memory.ToolActivity {
 			cloned.ToolActivity[i] = activity
 			cloned.ToolActivity[i].Input = cloneInputMap(activity.Input)
+			cloned.ToolActivity[i].RawOutput = cloneInputValue(activity.RawOutput)
 		}
 	}
 	return cloned
@@ -91,15 +94,19 @@ func (m *TurnMemory) IsEmpty() bool {
 type StreamEventType string
 
 const (
-	StreamEventTypeChunk          StreamEventType = "chunk"
-	StreamEventTypeReasoningChunk StreamEventType = "reasoning_chunk"
-	StreamEventTypeDone           StreamEventType = "done"
-	StreamEventTypeError          StreamEventType = "error"
-	StreamEventTypeToolStart      StreamEventType = "tool_start"
-	StreamEventTypeToolEnd        StreamEventType = "tool_end"
-	StreamEventTypeUsage          StreamEventType = "usage"
-	StreamEventTypeRetry          StreamEventType = "retry"
-	StreamEventTypeIncomplete     StreamEventType = "incomplete"
+	StreamEventTypeChunk                   StreamEventType = "chunk"
+	StreamEventTypeReasoningChunk          StreamEventType = "reasoning_chunk"
+	StreamEventTypeDone                    StreamEventType = "done"
+	StreamEventTypeError                   StreamEventType = "error"
+	StreamEventTypeToolStart               StreamEventType = "tool_start"
+	StreamEventTypeToolEnd                 StreamEventType = "tool_end"
+	StreamEventTypeUsage                   StreamEventType = "usage"
+	StreamEventTypeRetry                   StreamEventType = "retry"
+	StreamEventTypeIncomplete              StreamEventType = "incomplete"
+	StreamEventTypeAutoCompactionStarted   StreamEventType = "auto_compaction_started"
+	StreamEventTypeAutoCompactionApplied   StreamEventType = "auto_compaction_applied"
+	StreamEventTypeAutoCompactionCancelled StreamEventType = "auto_compaction_cancelled"
+	StreamEventTypeAutoCompactionFailed    StreamEventType = "auto_compaction_failed"
 )
 
 type TokenUsage struct {
@@ -110,13 +117,21 @@ type TokenUsage struct {
 	CachedTokens    int
 }
 
+type AutoCompactionEvent struct {
+	Cancel      func()
+	Replacement []Message
+	Usage       *TokenUsage
+	Error       error
+}
+
 type StreamEvent struct {
-	Type     StreamEventType
-	Content  string
-	Error    error
-	ToolCall *ToolCall
-	Usage    *TokenUsage
-	Attempt  int
+	Type           StreamEventType
+	Content        string
+	Error          error
+	ToolCall       *ToolCall
+	Usage          *TokenUsage
+	Attempt        int
+	AutoCompaction *AutoCompactionEvent
 }
 
 type ToolCall struct {

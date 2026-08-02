@@ -13,8 +13,9 @@ type LLMClient interface {
 }
 
 type StreamOptions struct {
-	SessionID string
-	OneShot   bool
+	SessionID             string
+	OneShot               bool
+	DisableAutoCompaction bool
 }
 
 func streamOptions(opts []StreamOptions) StreamOptions {

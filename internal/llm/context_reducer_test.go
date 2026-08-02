@@ -16,7 +16,7 @@ func TestContextFitsBudget(t *testing.T) {
 	if !contextFitsBudget(13050, 700) {
 		t.Fatal("expected context to fit budget")
 	}
-	if contextFitsBudget(13050, 800) {
+	if contextFitsBudget(13050, 9000) {
 		t.Fatal("expected context to exceed budget")
 	}
 }
@@ -302,10 +302,10 @@ func TestReduceBedrockContextForRequest_ReplacesToolResultContentOnly(t *testing
 }
 
 func contextWindowForInputBudget(budget int) int {
-	if budget+contextOutputReserveTokenCount+4096 < 81920 {
-		return budget + contextOutputReserveTokenCount + 4096
+	if budget+4096 < 81920 {
+		return budget + 4096
 	}
-	return (20*(budget+contextOutputReserveTokenCount) + 18) / 19
+	return (20*budget + 18) / 19
 }
 
 func repeatString(s string, count int) string {
