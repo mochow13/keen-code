@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -253,14 +254,35 @@ func (c *BedrockClient) StreamChat(
 		}
 		turnStartLen := len(msgParams)
 		toolConfig := toBedrockTools(toolRegistry)
+		compactionHistory := CloneMessages(messages)
+		autoCompactOff := false
+		forcedRecoveryUsed := false
+		hasNewToolTurns := false
 
 		for range maxToolTurns {
-			reducedMessages, reduction := reduceBedrockContextForRequest(c.contextWindowTokenCount, msgParams)
-			if !reduction.FitsBudget {
-				slog.Debug("Bedrock context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-				c.pendingState = nil
-				c.emitTerminalEvent(eventCh, msgParams, turnStartLen, injectedPending, fmt.Errorf(contextWindowExceededError))
+			if err := c.proactivelyCompactHistory(
+				ctx, &compactionHistory, &msgParams, &injectedPending, &turnStartLen,
+				streamOpts, hasNewToolTurns, autoCompactOff, eventCh,
+			); err != nil {
+				autoCompactOff = true
+			}
+
+			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
+				ctx, &compactionHistory, &msgParams, &injectedPending, &turnStartLen,
+				streamOpts, forcedRecoveryUsed, eventCh,
+			)
+			if err != nil {
+				if compactionAttempted {
+					c.exitIncomplete(eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
+				} else {
+					c.pendingState = nil
+					c.emitTerminalEvent(eventCh, msgParams, turnStartLen, injectedPending, err)
+				}
 				return
+			}
+			if compactionAttempted {
+				forcedRecoveryUsed = true
+				continue
 			}
 			msgParams = reducedMessages
 
@@ -309,16 +331,108 @@ func (c *BedrockClient) StreamChat(
 				Role:    brtypes.ConversationRoleAssistant,
 				Content: assistantBlocks,
 			})
-			msgParams = append(msgParams, brtypes.Message{
-				Role:    brtypes.ConversationRoleUser,
-				Content: c.executeTools(ctx, toolUses, toolRegistry, eventCh),
+			toolResults, activities := c.executeTools(ctx, toolUses, toolRegistry, eventCh)
+			msgParams = append(msgParams, brtypes.Message{Role: brtypes.ConversationRoleUser, Content: toolResults})
+			compactionHistory = append(compactionHistory, Message{
+				Role:       RoleAssistant,
+				Content:    bedrockAssistantText(assistantBlocks),
+				TurnMemory: &TurnMemory{ToolActivity: activities},
 			})
+			hasNewToolTurns = true
+			autoCompactOff = false
 		}
 
 		c.exitIncomplete(eventCh, msgParams, turnStartLen, injectedPending, nil, oneShot)
 	}()
 
 	return eventCh, nil
+}
+
+func (c *BedrockClient) proactivelyCompactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	msgParams *[]brtypes.Message,
+	injectedPending *[]brtypes.Message,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	hasNewToolTurns bool,
+	autoCompactOff bool,
+	eventCh chan<- StreamEvent,
+) error {
+	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || !hasNewToolTurns || autoCompactOff || len(*injectedPending) > 0 ||
+		!shouldAutoCompact(
+			estimateBedrockMessagesTokenCount(*msgParams),
+			contextInputBudget(c.contextWindowTokenCount),
+		) {
+		return nil
+	}
+	return c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, streamOpts.SessionID, eventCh)
+}
+
+func (c *BedrockClient) reduceContextOrCompact(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	msgParams *[]brtypes.Message,
+	injectedPending *[]brtypes.Message,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	forcedRecoveryUsed bool,
+	eventCh chan<- StreamEvent,
+) ([]brtypes.Message, bool, error) {
+	reducedMessages, reduction := reduceBedrockContextForRequest(c.contextWindowTokenCount, *msgParams)
+	if reduction.FitsBudget {
+		return reducedMessages, false, nil
+	}
+
+	slog.Debug("Bedrock context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
+	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || forcedRecoveryUsed || len(*injectedPending) > 0 {
+		return nil, false, fmt.Errorf("%w: %s", ErrContextWindowExceeded, contextWindowExceededError)
+	}
+	if err := c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, streamOpts.SessionID, eventCh); err != nil {
+		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", ErrContextWindowExceeded, err)
+	}
+	return nil, true, nil
+}
+
+func (c *BedrockClient) compactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	msgParams *[]brtypes.Message,
+	injectedPending *[]brtypes.Message,
+	turnStartLen *int,
+	sessionID string,
+	eventCh chan<- StreamEvent,
+) error {
+	compactionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eventCh <- StreamEvent{Type: StreamEventTypeAutoCompactionStarted, AutoCompaction: &AutoCompactionEvent{Cancel: cancel}}
+	replacement, usage, err := AutoCompact(compactionCtx, c, *compactionHistory, sessionID)
+	if err != nil {
+		eventType := StreamEventTypeAutoCompactionFailed
+		if isAutoCompactionCancellation(err) {
+			eventType = StreamEventTypeAutoCompactionCancelled
+		}
+		eventCh <- StreamEvent{Type: eventType, AutoCompaction: &AutoCompactionEvent{Error: err, Usage: usage}}
+		return err
+	}
+
+	_, *msgParams = toBedrockMessages(replacement)
+	*compactionHistory = replacement
+	*injectedPending = nil
+	*turnStartLen = len(*msgParams)
+	c.pendingState = nil
+	eventCh <- StreamEvent{Type: StreamEventTypeAutoCompactionApplied, AutoCompaction: &AutoCompactionEvent{Replacement: replacement, Usage: usage}}
+	return nil
+}
+
+func bedrockAssistantText(assistant []brtypes.ContentBlock) string {
+	var text strings.Builder
+	for _, block := range assistant {
+		if block, ok := block.(*brtypes.ContentBlockMemberText); ok {
+			text.WriteString(block.Value)
+		}
+	}
+	return text.String()
 }
 
 func cloneBedrockToolConfig(toolConfig *brtypes.ToolConfiguration) *brtypes.ToolConfiguration {
@@ -584,8 +698,9 @@ func (c *BedrockClient) executeTools(
 	toolUses []toolUseEntry,
 	registry *tools.Registry,
 	eventCh chan<- StreamEvent,
-) []brtypes.ContentBlock {
-	var resultBlocks []brtypes.ContentBlock
+) ([]brtypes.ContentBlock, []HistoricalToolActivity) {
+	resultBlocks := make([]brtypes.ContentBlock, 0, len(toolUses))
+	activities := make([]HistoricalToolActivity, 0, len(toolUses))
 
 	for _, tu := range toolUses {
 		start := time.Now()
@@ -634,7 +749,8 @@ func (c *BedrockClient) executeTools(
 				Status:    status,
 			},
 		})
+		activities = append(activities, historicalToolActivity(tu.name, tu.input, output, execErr))
 	}
 
-	return resultBlocks
+	return resultBlocks, activities
 }

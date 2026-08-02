@@ -559,6 +559,84 @@ func anthropicThinkingParams(effort string) (anthropic.ThinkingConfigParamUnion,
 	}
 }
 
+func (c *AnthropicClient) proactivelyCompactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	msgParams *[]anthropic.MessageParam,
+	injectedPending *[]anthropic.MessageParam,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	hasNewToolTurns bool,
+	autoCompactOff bool,
+	eventCh chan<- StreamEvent,
+) error {
+	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || !hasNewToolTurns || autoCompactOff || len(*injectedPending) > 0 ||
+		!shouldAutoCompact(
+			estimateAnthropicMessagesTokenCount(*msgParams),
+			contextInputBudget(c.contextWindowTokenCount),
+		) {
+		return nil
+	}
+
+	return c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, streamOpts.SessionID, eventCh)
+}
+
+func (c *AnthropicClient) reduceContextOrCompact(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	msgParams *[]anthropic.MessageParam,
+	injectedPending *[]anthropic.MessageParam,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	forcedRecoveryUsed bool,
+	eventCh chan<- StreamEvent,
+) ([]anthropic.MessageParam, bool, error) {
+	reducedMessages, reduction := reduceAnthropicContextForRequest(c.contextWindowTokenCount, *msgParams)
+	if reduction.FitsBudget {
+		return reducedMessages, false, nil
+	}
+
+	slog.Debug("Anthropic context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
+	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || forcedRecoveryUsed || len(*injectedPending) > 0 {
+		return nil, false, fmt.Errorf("%w: %s", ErrContextWindowExceeded, contextWindowExceededError)
+	}
+	if err := c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, streamOpts.SessionID, eventCh); err != nil {
+		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", ErrContextWindowExceeded, err)
+	}
+	return nil, true, nil
+}
+
+func (c *AnthropicClient) compactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	msgParams *[]anthropic.MessageParam,
+	injectedPending *[]anthropic.MessageParam,
+	turnStartLen *int,
+	sessionID string,
+	eventCh chan<- StreamEvent,
+) error {
+	compactionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eventCh <- StreamEvent{Type: StreamEventTypeAutoCompactionStarted, AutoCompaction: &AutoCompactionEvent{Cancel: cancel}}
+	replacement, usage, err := AutoCompact(compactionCtx, c, *compactionHistory, sessionID)
+	if err != nil {
+		eventType := StreamEventTypeAutoCompactionFailed
+		if isAutoCompactionCancellation(err) {
+			eventType = StreamEventTypeAutoCompactionCancelled
+		}
+		eventCh <- StreamEvent{Type: eventType, AutoCompaction: &AutoCompactionEvent{Error: err, Usage: usage}}
+		return err
+	}
+
+	_, *msgParams = toAnthropicMessages(replacement)
+	*compactionHistory = replacement
+	c.pendingState = nil
+	*injectedPending = nil
+	*turnStartLen = len(*msgParams)
+	eventCh <- StreamEvent{Type: StreamEventTypeAutoCompactionApplied, AutoCompaction: &AutoCompactionEvent{Replacement: replacement, Usage: usage}}
+	return nil
+}
+
 func (c *AnthropicClient) StreamChat(
 	ctx context.Context,
 	messages []Message,
@@ -580,13 +658,35 @@ func (c *AnthropicClient) StreamChat(
 		turnStartLen := len(msgParams)
 		anthropicTools := toAnthropicTools(toolRegistry)
 		requestOpts := c.requestOptions(streamOpts)
+		compactionHistory := CloneMessages(messages)
+		autoCompactOff := false
+		hasNewToolTurns := false
+		forcedRecoveryUsed := false
+
 		for range maxToolTurns {
-			reducedMessages, reduction := reduceAnthropicContextForRequest(c.contextWindowTokenCount, msgParams)
-			if !reduction.FitsBudget {
-				slog.Debug("Anthropic context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-				c.pendingState = nil
-				c.emitTerminalEvent(eventCh, msgParams, turnStartLen, injectedPending, fmt.Errorf(contextWindowExceededError))
+			if err := c.proactivelyCompactHistory(
+				ctx, &compactionHistory, &msgParams, &injectedPending, &turnStartLen,
+				streamOpts, hasNewToolTurns, autoCompactOff, eventCh,
+			); err != nil {
+				autoCompactOff = true
+			}
+
+			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
+				ctx, &compactionHistory, &msgParams, &injectedPending, &turnStartLen,
+				streamOpts, forcedRecoveryUsed, eventCh,
+			)
+			if err != nil {
+				if compactionAttempted {
+					c.exitIncomplete(eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
+				} else {
+					c.pendingState = nil
+					c.emitTerminalEvent(eventCh, msgParams, turnStartLen, injectedPending, err)
+				}
 				return
+			}
+			if compactionAttempted {
+				forcedRecoveryUsed = true
+				continue
 			}
 			msgParams = reducedMessages
 			turnSystem := systemBlocks
@@ -639,8 +739,15 @@ func (c *AnthropicClient) StreamChat(
 
 			msgParams = append(msgParams, anthropic.NewAssistantMessage(assistantBlocks...))
 
-			toolResultBlocks := c.executeTools(ctx, toolUses, toolRegistry, eventCh)
+			toolResultBlocks, activities := c.executeTools(ctx, toolUses, toolRegistry, eventCh)
 			msgParams = append(msgParams, anthropic.NewUserMessage(toolResultBlocks...))
+			compactionHistory = append(compactionHistory, Message{
+				Role:       RoleAssistant,
+				Content:    anthropicAssistantText(assistantBlocks),
+				TurnMemory: &TurnMemory{ToolActivity: activities},
+			})
+			hasNewToolTurns = true
+			autoCompactOff = false
 		}
 
 		c.exitIncomplete(eventCh, msgParams, turnStartLen, injectedPending, nil, oneShot)
@@ -746,13 +853,24 @@ func (c *AnthropicClient) exitIncomplete(eventCh chan<- StreamEvent, msgParams [
 	c.emitTerminalEvent(eventCh, msgParams, turnStartLen, injectedPending, err)
 }
 
+func anthropicAssistantText(blocks []anthropic.ContentBlockParamUnion) string {
+	var text strings.Builder
+	for _, block := range blocks {
+		if block.OfText != nil {
+			text.WriteString(block.OfText.Text)
+		}
+	}
+	return text.String()
+}
+
 func (c *AnthropicClient) executeTools(
 	ctx context.Context,
 	toolUses []toolUseEntry,
 	registry *tools.Registry,
 	eventCh chan<- StreamEvent,
-) []anthropic.ContentBlockParamUnion {
-	var resultBlocks []anthropic.ContentBlockParamUnion
+) ([]anthropic.ContentBlockParamUnion, []HistoricalToolActivity) {
+	resultBlocks := make([]anthropic.ContentBlockParamUnion, 0, len(toolUses))
+	activities := make([]HistoricalToolActivity, 0, len(toolUses))
 
 	for _, tu := range toolUses {
 		start := time.Now()
@@ -790,7 +908,8 @@ func (c *AnthropicClient) executeTools(
 		}
 
 		resultBlocks = append(resultBlocks, anthropic.NewToolResultBlock(tu.id, resultContent, execErr != nil))
+		activities = append(activities, historicalToolActivity(tu.name, tu.input, output, execErr))
 	}
 
-	return resultBlocks
+	return resultBlocks, activities
 }

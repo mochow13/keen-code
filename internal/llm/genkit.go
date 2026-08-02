@@ -7,6 +7,7 @@ import (
 	"iter"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/firebase/genkit/go/ai"
@@ -239,13 +240,18 @@ func (c *GenkitClient) StreamChat(
 	go func() {
 		defer close(eventCh)
 
-		aiMessages := toGenkitMessages(messages)
-		oneShot := streamOptions(opts).OneShot
+		streamOpts := streamOptions(opts)
+		oneShot := streamOpts.OneShot
+		compactionHistory := CloneMessages(messages)
+		aiMessages := toGenkitMessages(compactionHistory)
 		var injectedPending []*ai.Message
 		if !oneShot {
 			aiMessages, injectedPending = c.injectPendingState(aiMessages)
 		}
 		turnStartLen := len(aiMessages)
+		autoCompactOff := false
+		forcedRecoveryUsed := false
+		hasNewToolTurns := false
 
 		var genkitTools []ai.ToolRef
 		if toolRegistry != nil && toolRegistry.Count() > 0 {
@@ -253,12 +259,29 @@ func (c *GenkitClient) StreamChat(
 		}
 
 		for range maxToolTurns {
-			reducedMessages, reduction := reduceGenkitContextForRequest(c.contextWindowTokenCount, aiMessages)
-			if !reduction.FitsBudget {
-				slog.Debug("Genkit context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-				c.pendingState = nil
-				c.emitTerminalEvent(eventCh, aiMessages, turnStartLen, injectedPending, fmt.Errorf(contextWindowExceededError))
+			if err := c.proactivelyCompactHistory(
+				ctx, &compactionHistory, &aiMessages, &injectedPending, &turnStartLen,
+				streamOpts, hasNewToolTurns, autoCompactOff, eventCh,
+			); err != nil {
+				autoCompactOff = true
+			}
+
+			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
+				ctx, &compactionHistory, &aiMessages, &injectedPending, &turnStartLen,
+				streamOpts, forcedRecoveryUsed, eventCh,
+			)
+			if err != nil {
+				if compactionAttempted {
+					c.exitIncomplete(eventCh, aiMessages, turnStartLen, injectedPending, err, oneShot)
+				} else {
+					c.pendingState = nil
+					c.emitTerminalEvent(eventCh, aiMessages, turnStartLen, injectedPending, err)
+				}
 				return
+			}
+			if compactionAttempted {
+				forcedRecoveryUsed = true
+				continue
 			}
 			aiMessages = reducedMessages
 
@@ -306,7 +329,7 @@ func (c *GenkitClient) StreamChat(
 
 			aiMessages = append(aiMessages, modelResponse.Message)
 
-			toolResponseParts := c.executeTools(ctx, toolRequests, toolRegistry, eventCh)
+			toolResponseParts, activities := c.executeTools(ctx, toolRequests, toolRegistry, eventCh)
 			if len(toolResponseParts) > 0 {
 				toolMsg := &ai.Message{
 					Role:    ai.RoleTool,
@@ -314,12 +337,103 @@ func (c *GenkitClient) StreamChat(
 				}
 				aiMessages = append(aiMessages, toolMsg)
 			}
+			compactionHistory = append(compactionHistory, Message{
+				Role:       RoleAssistant,
+				Content:    genkitAssistantText(modelResponse.Message),
+				TurnMemory: &TurnMemory{ToolActivity: activities},
+			})
+			hasNewToolTurns = true
+			autoCompactOff = false
 		}
 
 		c.exitIncomplete(eventCh, aiMessages, turnStartLen, injectedPending, nil, oneShot)
 	}()
 
 	return eventCh, nil
+}
+
+func (c *GenkitClient) proactivelyCompactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	aiMessages *[]*ai.Message,
+	injectedPending *[]*ai.Message,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	hasNewToolTurns bool,
+	autoCompactOff bool,
+	eventCh chan<- StreamEvent,
+) error {
+	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || !hasNewToolTurns || autoCompactOff || len(*injectedPending) > 0 ||
+		!shouldAutoCompact(estimateGenkitMessagesTokenCount(*aiMessages), contextInputBudget(c.contextWindowTokenCount)) {
+		return nil
+	}
+	return c.compactHistory(ctx, compactionHistory, aiMessages, injectedPending, turnStartLen, streamOpts.SessionID, eventCh)
+}
+
+func (c *GenkitClient) reduceContextOrCompact(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	aiMessages *[]*ai.Message,
+	injectedPending *[]*ai.Message,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	forcedRecoveryUsed bool,
+	eventCh chan<- StreamEvent,
+) ([]*ai.Message, bool, error) {
+	reducedMessages, reduction := reduceGenkitContextForRequest(c.contextWindowTokenCount, *aiMessages)
+	if reduction.FitsBudget {
+		return reducedMessages, false, nil
+	}
+
+	slog.Debug("Genkit context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
+	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || forcedRecoveryUsed || len(*injectedPending) > 0 {
+		return nil, false, fmt.Errorf("%w: %s", ErrContextWindowExceeded, contextWindowExceededError)
+	}
+	if err := c.compactHistory(ctx, compactionHistory, aiMessages, injectedPending, turnStartLen, streamOpts.SessionID, eventCh); err != nil {
+		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", ErrContextWindowExceeded, err)
+	}
+	return nil, true, nil
+}
+
+func (c *GenkitClient) compactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	aiMessages *[]*ai.Message,
+	injectedPending *[]*ai.Message,
+	turnStartLen *int,
+	sessionID string,
+	eventCh chan<- StreamEvent,
+) error {
+	compactionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eventCh <- StreamEvent{Type: StreamEventTypeAutoCompactionStarted, AutoCompaction: &AutoCompactionEvent{Cancel: cancel}}
+	replacement, usage, err := AutoCompact(compactionCtx, c, *compactionHistory, sessionID)
+	if err != nil {
+		eventType := StreamEventTypeAutoCompactionFailed
+		if isAutoCompactionCancellation(err) {
+			eventType = StreamEventTypeAutoCompactionCancelled
+		}
+		eventCh <- StreamEvent{Type: eventType, AutoCompaction: &AutoCompactionEvent{Error: err, Usage: usage}}
+		return err
+	}
+
+	*compactionHistory = replacement
+	*aiMessages = toGenkitMessages(replacement)
+	*injectedPending = nil
+	*turnStartLen = len(*aiMessages)
+	c.pendingState = nil
+	eventCh <- StreamEvent{Type: StreamEventTypeAutoCompactionApplied, AutoCompaction: &AutoCompactionEvent{Replacement: replacement, Usage: usage}}
+	return nil
+}
+
+func genkitAssistantText(response *ai.Message) string {
+	var text strings.Builder
+	for _, part := range response.Content {
+		if part != nil && part.IsText() {
+			text.WriteString(part.Text)
+		}
+	}
+	return text.String()
 }
 
 func (c *GenkitClient) Reset() {
@@ -383,8 +497,9 @@ func (c *GenkitClient) executeTools(
 	toolRequests []*ai.ToolRequest,
 	registry *tools.Registry,
 	eventCh chan<- StreamEvent,
-) []*ai.Part {
-	var toolResponseParts []*ai.Part
+) ([]*ai.Part, []HistoricalToolActivity) {
+	toolResponseParts := make([]*ai.Part, 0, len(toolRequests))
+	activities := make([]HistoricalToolActivity, 0, len(toolRequests))
 
 	for _, req := range toolRequests {
 		start := time.Now()
@@ -439,7 +554,8 @@ func (c *GenkitClient) executeTools(
 				Output: output,
 			}))
 		}
+		activities = append(activities, historicalToolActivity(req.Name, input, output, execErr))
 	}
 
-	return toolResponseParts
+	return toolResponseParts, activities
 }

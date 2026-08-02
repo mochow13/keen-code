@@ -587,7 +587,10 @@ func TestAnthropicClient_executeTools_Success(t *testing.T) {
 
 	uses := []toolUseEntry{{id: "id1", name: "success_tool", input: map[string]any{"message": "hi"}}}
 	eventCh := make(chan StreamEvent, 4)
-	blocks := c.executeTools(context.Background(), uses, registry, eventCh)
+	blocks, activities := c.executeTools(context.Background(), uses, registry, eventCh)
+	if len(activities) != 1 || activities[0].Status != "success" || !activities[0].HasRawOutput {
+		t.Fatalf("activities = %#v", activities)
+	}
 
 	if len(blocks) != 1 {
 		t.Fatalf("expected 1 result block, got %d", len(blocks))
@@ -616,7 +619,10 @@ func TestAnthropicClient_executeTools_Error(t *testing.T) {
 
 	uses := []toolUseEntry{{id: "id2", name: "failing_tool", input: map[string]any{}}}
 	eventCh := make(chan StreamEvent, 4)
-	blocks := c.executeTools(context.Background(), uses, registry, eventCh)
+	blocks, activities := c.executeTools(context.Background(), uses, registry, eventCh)
+	if len(activities) != 1 || activities[0].Status != "error" {
+		t.Fatalf("activities = %#v", activities)
+	}
 
 	if len(blocks) != 1 {
 		t.Fatalf("expected 1 result block, got %d", len(blocks))

@@ -492,13 +492,35 @@ func (c *OpenAICompatibleClient) StreamChat(
 		oaiTools := toOpenAITools(toolRegistry)
 		requestOpts := c.requestOptions(streamOpts)
 
+		compactionHistory := CloneMessages(messages)
+		autoCompactOff := false
+		hasNewToolTurns := false
+		forcedRecoveryUsed := false
+
 		for range maxToolTurns {
-			reducedMessages, reduction := reduceOpenAIContextForRequest(c.contextWindowTokenCount, oaiMessages)
-			if !reduction.FitsBudget {
-				slog.Debug("OpenAI context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-				c.pendingState = nil
-				c.emitTerminalEvent(eventCh, oaiMessages, turnStartLen, injectedPending, fmt.Errorf(contextWindowExceededError))
+			if err := c.proactivelyCompactHistory(
+				ctx, &compactionHistory, &oaiMessages, &injectedPending, &turnStartLen,
+				streamOpts, hasNewToolTurns, autoCompactOff, eventCh,
+			); err != nil {
+				autoCompactOff = true
+			}
+
+			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
+				ctx, &compactionHistory, &oaiMessages, &injectedPending, &turnStartLen,
+				streamOpts, forcedRecoveryUsed, eventCh,
+			)
+			if err != nil {
+				if compactionAttempted {
+					c.exitIncomplete(eventCh, oaiMessages, turnStartLen, injectedPending, err, oneShot)
+				} else {
+					c.pendingState = nil
+					c.emitTerminalEvent(eventCh, oaiMessages, turnStartLen, injectedPending, err)
+				}
 				return
+			}
+			if compactionAttempted {
+				forcedRecoveryUsed = true
+				continue
 			}
 			oaiMessages = reducedMessages
 
@@ -546,16 +568,121 @@ func (c *OpenAICompatibleClient) StreamChat(
 				OfAssistant: &assistant,
 			})
 
-			toolMsgs := c.executeTools(ctx, message.ToolCalls, toolRegistry, eventCh)
+			toolMsgs, activities := c.executeTools(ctx, message.ToolCalls, toolRegistry, eventCh)
 			if len(toolMsgs) > 0 {
 				oaiMessages = append(oaiMessages, toolMsgs...)
 			}
+			compactionHistory = append(compactionHistory, Message{
+				Role: RoleAssistant, Content: message.Content,
+				TurnMemory: &TurnMemory{ToolActivity: activities},
+			})
+			autoCompactOff = false
+			hasNewToolTurns = true
 		}
 
 		c.exitIncomplete(eventCh, oaiMessages, turnStartLen, injectedPending, nil, oneShot)
 	}()
 
 	return eventCh, nil
+}
+
+func (c *OpenAICompatibleClient) proactivelyCompactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	oaiMessages *[]openai.ChatCompletionMessageParamUnion,
+	injectedPending *[]openai.ChatCompletionMessageParamUnion,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	hasNewToolTurns bool,
+	autoCompactOff bool,
+	eventCh chan<- StreamEvent,
+) error {
+	if streamOpts.DisableAutoCompaction || !hasNewToolTurns || autoCompactOff ||
+		!shouldAutoCompact(
+			estimateOpenAIMessagesTokenCount(*oaiMessages),
+			contextInputBudget(c.contextWindowTokenCount),
+		) {
+		return nil
+	}
+
+	return c.compactHistory(
+		ctx, compactionHistory, oaiMessages, injectedPending, turnStartLen,
+		streamOpts.SessionID, eventCh,
+	)
+}
+
+func (c *OpenAICompatibleClient) reduceContextOrCompact(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	oaiMessages *[]openai.ChatCompletionMessageParamUnion,
+	injectedPending *[]openai.ChatCompletionMessageParamUnion,
+	turnStartLen *int,
+	streamOpts StreamOptions,
+	forcedRecoveryUsed bool,
+	eventCh chan<- StreamEvent,
+) ([]openai.ChatCompletionMessageParamUnion, bool, error) {
+	reducedMessages, reduction := reduceOpenAIContextForRequest(c.contextWindowTokenCount, *oaiMessages)
+	if reduction.FitsBudget {
+		return reducedMessages, false, nil
+	}
+	if streamOpts.DisableAutoCompaction || forcedRecoveryUsed {
+		return nil, false, fmt.Errorf("%w: %s", ErrContextWindowExceeded, contextWindowExceededError)
+	}
+	if err := c.compactHistory(
+		ctx, compactionHistory, oaiMessages, injectedPending, turnStartLen,
+		streamOpts.SessionID, eventCh,
+	); err != nil {
+		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", ErrContextWindowExceeded, err)
+	}
+	return nil, true, nil
+}
+
+func (c *OpenAICompatibleClient) compactHistory(
+	ctx context.Context,
+	compactionHistory *[]Message,
+	oaiMessages *[]openai.ChatCompletionMessageParamUnion,
+	injectedPending *[]openai.ChatCompletionMessageParamUnion,
+	turnStartLen *int,
+	sessionID string,
+	eventCh chan<- StreamEvent,
+) error {
+	replacement, _, err := c.autoCompact(ctx, *compactionHistory, sessionID, eventCh)
+	if err != nil {
+		return err
+	}
+
+	*oaiMessages = toOpenAIMessages(replacement)
+	*compactionHistory = replacement
+	c.pendingState = nil
+	*injectedPending = nil
+	*turnStartLen = len(*oaiMessages)
+	return nil
+}
+
+func (c *OpenAICompatibleClient) autoCompact(ctx context.Context, history []Message, sessionID string, eventCh chan<- StreamEvent) ([]Message, bool, error) {
+	compactionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eventCh <- StreamEvent{
+		Type:           StreamEventTypeAutoCompactionStarted,
+		AutoCompaction: &AutoCompactionEvent{Cancel: cancel},
+	}
+	replacement, usage, err := AutoCompact(compactionCtx, c, history, sessionID)
+	if err != nil {
+		eventType := StreamEventTypeAutoCompactionFailed
+		if isAutoCompactionCancellation(err) {
+			eventType = StreamEventTypeAutoCompactionCancelled
+		}
+		eventCh <- StreamEvent{
+			Type:           eventType,
+			AutoCompaction: &AutoCompactionEvent{Usage: usage, Error: err},
+		}
+		return nil, false, err
+	}
+	eventCh <- StreamEvent{
+		Type:           StreamEventTypeAutoCompactionApplied,
+		AutoCompaction: &AutoCompactionEvent{Replacement: replacement, Usage: usage},
+	}
+	return replacement, true, nil
 }
 
 func (c *OpenAICompatibleClient) requestOptions(opts StreamOptions) []option.RequestOption {
@@ -603,8 +730,9 @@ func (c *OpenAICompatibleClient) executeTools(
 	toolCalls []openai.ChatCompletionMessageToolCall,
 	registry *tools.Registry,
 	eventCh chan<- StreamEvent,
-) []openai.ChatCompletionMessageParamUnion {
+) ([]openai.ChatCompletionMessageParamUnion, []HistoricalToolActivity) {
 	toolMessages := make([]openai.ChatCompletionMessageParamUnion, 0, len(toolCalls))
+	activities := make([]HistoricalToolActivity, 0, len(toolCalls))
 
 	for _, tc := range toolCalls {
 		start := time.Now()
@@ -647,7 +775,8 @@ func (c *OpenAICompatibleClient) executeTools(
 		}
 
 		toolMessages = append(toolMessages, openai.ToolMessage(toolOutput, tc.ID))
+		activities = append(activities, historicalToolActivity(tc.Function.Name, input, output, execErr))
 	}
 
-	return toolMessages
+	return toolMessages, activities
 }
