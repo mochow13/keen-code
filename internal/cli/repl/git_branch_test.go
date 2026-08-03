@@ -115,16 +115,19 @@ func TestInputMetaView_TwoLinesWithBranch(t *testing.T) {
 	}
 }
 
-func TestInputMetaStatusLine_ShowsProviderPrefix(t *testing.T) {
+func TestInputMetaLocationLine_ShowsProviderPrefix(t *testing.T) {
 	m := newTestModel()
 	m.width = 120
 	m.ctx.workingDir = t.TempDir()
 	m.ctx.cfg.Provider = "anthropic"
 	m.ctx.cfg.Model = "claude-sonnet-4-5"
 
-	line := strings.Split(m.inputMetaView(), "\n")[1]
-	if !strings.Contains(line, "anthropic/claude-sonnet-4-5") {
-		t.Fatalf("expected provider/model on status line, got %q", line)
+	lines := strings.Split(m.inputMetaView(), "\n")
+	if !strings.Contains(lines[0], "anthropic/claude-sonnet-4-5") {
+		t.Fatalf("expected provider/model on location line, got %q", lines[0])
+	}
+	if strings.Contains(lines[1], "anthropic/claude-sonnet-4-5") {
+		t.Fatalf("expected no provider/model on status line, got %q", lines[1])
 	}
 }
 
@@ -136,9 +139,6 @@ func TestInputMetaView_NoBranchOutsideGitRepo(t *testing.T) {
 	lines := strings.Split(m.inputMetaView(), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 meta lines, got %d", len(lines))
-	}
-	if strings.Contains(lines[0], "•") {
-		t.Fatalf("expected no branch separator, got %q", lines[0])
 	}
 }
 

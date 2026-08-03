@@ -866,29 +866,25 @@ func (m replModel) inputMetaView() string {
 func (m replModel) inputMetaLocationLine() string {
 	const leftPad = "  "
 	const sep = " • "
-	text := " " + abbreviateHome(m.ctx.workingDir)
-	trunc := func(s string) string {
-		if m.width > 0 {
-			maxWidth := m.width - lipgloss.Width(leftPad)
-			if lipgloss.Width(s) > maxWidth && maxWidth > 1 {
-				return ansi.Truncate(s, maxWidth-1, "…")
-			}
-		}
-		return s
+
+	model := m.inputMetaModel()
+	location := " " + abbreviateHome(m.ctx.workingDir)
+	prefix := leftPad + repltheme.HighlightStyle.Render(model) + repltheme.MetaLabelStyle.Render(sep)
+	available := m.width - lipgloss.Width(prefix)
+	if m.width > 0 && lipgloss.Width(location) > available && available > 1 {
+		location = ansi.Truncate(location, available-1, "…")
 	}
-	var line string
+
+	line := prefix + repltheme.HighlightStyle.Render(location)
 	if m.gitBranch != "" {
-		avail := m.width - lipgloss.Width(leftPad) - lipgloss.Width(sep)
-		text = trunc(text)
 		branch := m.gitBranch
-		if avail > lipgloss.Width(text)+1 && avail-lipgloss.Width(text) < lipgloss.Width(branch) {
-			branch = ansi.Truncate(branch, avail-lipgloss.Width(text)-1, "…")
+		available -= lipgloss.Width(location) + lipgloss.Width(sep)
+		if available > 1 && lipgloss.Width(branch) > available {
+			branch = ansi.Truncate(branch, available-1, "…")
 		}
-		line = leftPad + repltheme.HighlightStyle.Render(text) +
-			repltheme.MetaLabelStyle.Render(sep) +
-			repltheme.HighlightStyle.Render(branch)
-	} else {
-		line = leftPad + repltheme.HighlightStyle.Render(trunc(text))
+		if available > 0 {
+			line += repltheme.MetaLabelStyle.Render(sep) + repltheme.HighlightStyle.Render(branch)
+		}
 	}
 	if m.contextStatus.ShouldSuggestCompaction() {
 		hint := repltheme.CompactionSuggestionStyle.Render("Try /compact")
@@ -899,20 +895,19 @@ func (m replModel) inputMetaLocationLine() string {
 	return line
 }
 
-func (m replModel) inputMetaStatusLine() string {
-	model := "-"
-
-	if m.ctx != nil && m.ctx.cfg != nil {
-		if m.ctx.cfg.Model != "" {
-			model = displayModelName(m.ctx.cfg.Provider, m.ctx.cfg.Model)
-			if m.ctx.cfg.Provider != "" {
-				model = m.ctx.cfg.Provider + "/" + model
-			}
-		}
+func (m replModel) inputMetaModel() string {
+	if m.ctx == nil || m.ctx.cfg == nil || m.ctx.cfg.Model == "" {
+		return "-"
 	}
 
-	modelText := repltheme.HighlightStyle.Render(" " + model)
+	model := displayModelName(m.ctx.cfg.Provider, m.ctx.cfg.Model)
+	if m.ctx.cfg.Provider != "" {
+		return m.ctx.cfg.Provider + "/" + model
+	}
+	return model
+}
 
+func (m replModel) inputMetaStatusLine() string {
 	thinkingText := ""
 	if m.ctx != nil && m.ctx.cfg != nil && m.ctx.cfg.ThinkingEffort != "" && m.ctx.registry != nil {
 		if modelMeta, ok := m.ctx.registry.GetModel(m.ctx.cfg.Provider, m.ctx.cfg.Model); ok && modelMeta.SupportsThinkingEffort() {
@@ -931,7 +926,7 @@ func (m replModel) inputMetaStatusLine() string {
 		timerText = repltheme.LoadingTimerStyle.Render("⏱ " + m.loadingElapsedText())
 	}
 
-	parts := []string{modelText}
+	parts := make([]string, 0, 3)
 	if thinkingText != "" {
 		parts = append(parts, thinkingText)
 	}

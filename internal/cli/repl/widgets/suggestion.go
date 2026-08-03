@@ -134,11 +134,8 @@ func (s SuggestionModel) Height() int {
 	if !s.visible {
 		return 0
 	}
-	visible := len(s.items)
-	if visible > maxVisibleItems {
-		visible = maxVisibleItems
-	}
-	return visible + 2
+	visible := min(len(s.items), maxVisibleItems)
+	return visible
 }
 
 func (s SuggestionModel) Visible() bool {
@@ -150,10 +147,7 @@ func (s SuggestionModel) View(width int) string {
 		return ""
 	}
 
-	end := s.scrollOffset + maxVisibleItems
-	if end > len(s.items) {
-		end = len(s.items)
-	}
+	end := min(s.scrollOffset+maxVisibleItems, len(s.items))
 	visible := s.items[s.scrollOffset:end]
 
 	cmdColWidth := 0
@@ -164,22 +158,23 @@ func (s SuggestionModel) View(width int) string {
 	}
 	cmdColWidth += 2
 
-	// 2 for border + 2 for container padding
+	// 2 for container padding and 2 for the selection marker.
 	maxDescWidth := width - cmdColWidth - 4
 	// Account for description's own left padding (2)
 	maxDescWidth -= 2
 
 	var rows []string
 	for i, item := range visible {
-		isSelected := (i + s.scrollOffset) == s.selected
-
-		var cmdStyle, descStyle lipgloss.Style
-		if isSelected {
+		selected := s.scrollOffset+i == s.selected
+		cmdStyle := repltheme.SuggestionCmdStyle.Width(cmdColWidth)
+		descStyle := repltheme.SuggestionDescStyle
+		fileStyle := repltheme.SuggestionFileStyle
+		marker := "  "
+		if selected {
 			cmdStyle = repltheme.SuggestionSelectedCmdStyle.Width(cmdColWidth)
 			descStyle = repltheme.SuggestionSelectedDescStyle
-		} else {
-			cmdStyle = repltheme.SuggestionCmdStyle.Width(cmdColWidth)
-			descStyle = repltheme.SuggestionDescStyle
+			fileStyle = repltheme.SuggestionSelectedFileStyle
+			marker = repltheme.SuggestionSelectedStyle.Render("▸ ")
 		}
 
 		var row string
@@ -199,20 +194,14 @@ func (s SuggestionModel) View(width int) string {
 				row = cmdStyle.Render(item.Name)
 			}
 		} else {
-			row = cmdStyle.Render(item.Name)
+			row = fileStyle.Render(item.Name)
 		}
-		rows = append(rows, row)
+		rows = append(rows, marker+row)
 	}
 
 	inner := strings.Join(rows, "\n")
 
-	hasSelection := s.selected >= 0 && len(s.items) > 0
-	containerStyle := repltheme.SuggestionContainerStyle
-	if hasSelection {
-		containerStyle = containerStyle.BorderForeground(repltheme.PrimaryColor)
-	}
-
-	box := containerStyle.Render(inner)
+	box := repltheme.SuggestionContainerStyle.Render(inner)
 
 	boxWidth := lipgloss.Width(box)
 	if boxWidth < width {

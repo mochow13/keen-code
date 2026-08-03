@@ -184,22 +184,14 @@ var (
 	UserPromptStyle          = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor)
 	UserPromptSelectionStyle = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
 
-	SuggestionContainerStyle = lipgloss.NewStyle().
-					BorderStyle(lipgloss.RoundedBorder()).
-					BorderForeground(MutedColor).
-					Padding(0, 1)
-	SuggestionCmdStyle  = lipgloss.NewStyle().Foreground(SecondaryColor)
-	SuggestionDescStyle = lipgloss.NewStyle().
-				Foreground(MutedColor).
-				PaddingLeft(2)
-	SuggestionSelectedCmdStyle = lipgloss.NewStyle().
-					Foreground(WhiteColor).
-					Background(PrimaryColor).
-					Bold(true)
-	SuggestionSelectedDescStyle = lipgloss.NewStyle().
-					Foreground(WhiteColor).
-					Background(PrimaryColor).
-					PaddingLeft(2)
+	SuggestionContainerStyle    = lipgloss.NewStyle().Padding(0, 1)
+	SuggestionSelectedStyle     = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
+	SuggestionCmdStyle          = lipgloss.NewStyle().Foreground(PrimaryColor)
+	SuggestionSelectedCmdStyle  = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
+	SuggestionDescStyle         = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true).PaddingLeft(2)
+	SuggestionSelectedDescStyle = lipgloss.NewStyle().Foreground(TextDimColor).Bold(true).PaddingLeft(2)
+	SuggestionFileStyle         = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	SuggestionSelectedFileStyle = lipgloss.NewStyle().Foreground(TextDimColor).Bold(true)
 
 	MetaLabelStyle                    = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
 	ContextStatusLabelStyle           = lipgloss.NewStyle().Foreground(TextDimColor)

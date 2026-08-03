@@ -2,8 +2,10 @@ package widgets
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
 )
 
@@ -141,9 +143,22 @@ func TestSuggestionHeight(t *testing.T) {
 	if expected > maxVisibleItems {
 		expected = maxVisibleItems
 	}
-	expected += 2
 	if s.Height() != expected {
 		t.Errorf("expected %d, got %d", expected, s.Height())
+	}
+}
+
+func TestSuggestionViewMarksSelectedItem(t *testing.T) {
+	s := NewSuggestionModel()
+	s.RefreshFiles([]string{"first.go", "second.go"})
+	s.MoveDown()
+
+	lines := strings.Split(ansi.Strip(s.View(80)), "\n")
+	if !strings.HasPrefix(lines[0], "   ") {
+		t.Errorf("expected unselected first row to have an empty marker, got %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], " ▸ ") {
+		t.Errorf("expected selected second row to have an arrow marker, got %q", lines[1])
 	}
 }
 
