@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/user/keen-code/internal/cli/repl/appstate"
+	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
 	reploutput "github.com/user/keen-code/internal/cli/repl/output"
 	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
@@ -401,6 +402,13 @@ func (m *replModel) handleFileModeSelection() (replModel, tea.Cmd) {
 	return *m, nil
 }
 
+func suggestionValue(item *replwidgets.SuggestionItem) string {
+	if item.Value != "" {
+		return item.Value
+	}
+	return item.Name
+}
+
 func (m *replModel) handleSuggestionKeyMsg(keyMsg tea.KeyPressMsg) (bool, replModel, tea.Cmd) {
 	switch keyMsg.String() {
 	case keyEnter, keyTab:
@@ -408,15 +416,28 @@ func (m *replModel) handleSuggestionKeyMsg(keyMsg tea.KeyPressMsg) (bool, replMo
 			result, cmd := m.handleFileModeSelection()
 			return true, result, cmd
 		}
+		if keyMsg.String() == keyEnter && !m.suggestion.IsModelMode() && (m.textarea.Value() == replcommands.Model || m.suggestion.Current().Name == replcommands.Model) {
+			m.textarea.SetValue(replcommands.Model)
+			m.suggestion.Hide()
+			m.refreshSuggestions(m.textarea.Value())
+			m.adjustTextareaHeight()
+			return true, *m, nil
+		}
+		if keyMsg.String() == keyEnter && m.textarea.Value() == replcommands.Model && m.suggestion.IsModelMode() && m.suggestion.IsFirstSelected() {
+			m.suggestion.Hide()
+			m.adjustTextareaHeight()
+			result, cmd := m.handleEnterKey()
+			return true, result, cmd
+		}
 		if cur := m.suggestion.Current(); cur != nil {
-			m.textarea.SetValue(cur.Name)
+			m.textarea.SetValue(suggestionValue(cur))
 		} else if first := m.suggestion.First(); first != nil {
-			m.textarea.SetValue(first.Name)
+			m.textarea.SetValue(suggestionValue(first))
 		}
 		if keyMsg.String() == keyEnter {
-			m.suggestion.Refresh("")
+			m.suggestion.Hide()
 		} else {
-			m.suggestion.Refresh(m.textarea.Value())
+			m.refreshSuggestions(m.textarea.Value())
 		}
 		m.adjustTextareaHeight()
 		return true, *m, nil
@@ -503,9 +524,7 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 			var textCmd tea.Cmd
 			m.textarea, textCmd = m.textarea.Update(keyMsg)
 			input := m.textarea.Value()
-			if !m.refreshFileSuggestions(input) && strings.HasPrefix(input, "/") {
-				m.suggestion.RefreshWithSkills(input, m.skillSuggestions())
-			}
+			m.refreshSuggestions(input)
 			m.adjustTextareaHeight()
 			return *m, tea.Batch(cmd, textCmd)
 		}
@@ -625,11 +644,39 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	var cmd tea.Cmd
 	m.textarea, cmd = m.textarea.Update(keyMsg)
 	input := m.textarea.Value()
-	if !m.refreshFileSuggestions(input) && strings.HasPrefix(input, "/") {
-		m.suggestion.RefreshWithSkills(input, m.skillSuggestions())
-	}
+	m.refreshSuggestions(input)
 	m.adjustTextareaHeight()
 	return *m, cmd
+}
+
+func (m *replModel) refreshSuggestions(input string) {
+	if input == "" {
+		m.suggestion.Hide()
+		return
+	}
+	if m.refreshFileSuggestions(input) {
+		return
+	}
+	if strings.HasPrefix(input, replcommands.Model) && (input == replcommands.Model || strings.HasPrefix(input, replcommands.Model+" ")) {
+		m.suggestion.RefreshModels(input, m.modelPairs())
+		return
+	}
+	if strings.HasPrefix(input, "/") {
+		m.suggestion.RefreshWithSkills(input, m.skillSuggestions())
+	}
+}
+
+func (m *replModel) modelPairs() []string {
+	if m.ctx == nil || m.ctx.registry == nil {
+		return nil
+	}
+	pairs := make([]string, 0)
+	for _, provider := range m.ctx.registry.Providers {
+		for _, model := range provider.Models {
+			pairs = append(pairs, provider.ID+"/"+model.ID)
+		}
+	}
+	return pairs
 }
 
 func (m *replModel) skillSuggestions() []replwidgets.SuggestionItem {

@@ -13,6 +13,7 @@ type suggestionMode int
 const (
 	commandMode suggestionMode = iota
 	fileMode
+	modelMode
 )
 
 const maxVisibleItems = 6
@@ -20,6 +21,7 @@ const maxVisibleItems = 6
 // SuggestionItem is a generic suggestion entry used for both slash commands and file paths.
 type SuggestionItem struct {
 	Name        string
+	Value       string
 	Description string
 }
 
@@ -66,7 +68,29 @@ func (s *SuggestionModel) RefreshWithSkills(input string, skills []SuggestionIte
 	}
 }
 
-// RefreshFiles sets file path suggestions directly.
+// RefreshModels sets provider/model suggestions directly.
+func (s *SuggestionModel) RefreshModels(input string, pairs []string) {
+	s.mode = modelMode
+	query := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(input, "/model")))
+	s.items = make([]SuggestionItem, 0, len(pairs)+1)
+	if query == "" {
+		s.items = append(s.items, SuggestionItem{Name: "Pick from supported providers"})
+	}
+	for _, pair := range pairs {
+		if strings.Contains(strings.ToLower(pair), query) {
+			s.items = append(s.items, SuggestionItem{Name: pair, Value: "/model " + pair})
+		}
+	}
+	if len(s.items) > 0 {
+		s.visible = true
+		s.selected = 0
+		s.scrollOffset = 0
+		return
+	}
+	s.visible = false
+	s.items = nil
+}
+
 func (s *SuggestionModel) RefreshFiles(paths []string) {
 	s.mode = fileMode
 	if len(paths) == 0 {
@@ -128,6 +152,14 @@ func (s SuggestionModel) First() *SuggestionItem {
 
 func (s SuggestionModel) IsFileMode() bool {
 	return s.mode == fileMode
+}
+
+func (s SuggestionModel) IsFirstSelected() bool {
+	return s.selected == 0
+}
+
+func (s SuggestionModel) IsModelMode() bool {
+	return s.mode == modelMode
 }
 
 func (s SuggestionModel) Height() int {

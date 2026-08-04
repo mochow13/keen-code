@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
 	"github.com/user/keen-code/internal/session"
 )
 
@@ -46,7 +47,7 @@ func TestFormatSessionPickerCard_KeepsSelectedItemVisible(t *testing.T) {
 	picker.cursor = 9
 
 	card := FormatSessionPickerCard(picker, 80, 12)
-	if !strings.Contains(card, "▶ session 9") {
+	if !strings.Contains(card, stylePrefix(repltheme.ModelSelectionCursorStyle)+"▶ ") || !strings.Contains(card, stylePrefix(repltheme.ModelSelectionSelectedTextStyle)+"session 9") {
 		t.Fatalf("expected selected item to remain visible, got %q", card)
 	}
 }
@@ -60,6 +61,24 @@ func TestFormatSessionPickerCard_LongListFitsWidth(t *testing.T) {
 		if w := lipgloss.Width(line); w > width {
 			t.Fatalf("line exceeds expected width heuristic (%d > %d): %q", w, width, line)
 		}
+	}
+}
+
+func TestFormatSessionPickerCard_UsesModelSelectionStyles(t *testing.T) {
+	picker := NewSessionPicker(makeSessionSummaries(2))
+
+	card := FormatSessionPickerCard(picker, 80, 12)
+	if !strings.Contains(card, stylePrefix(repltheme.ModelSelectionTitleStyle)+"Saved Sessions") {
+		t.Fatalf("expected bold, dim, faint title, got %q", card)
+	}
+	if !strings.Contains(card, stylePrefix(repltheme.ModelSelectionCursorStyle)+"▶ ") || !strings.Contains(card, stylePrefix(repltheme.ModelSelectionSelectedTextStyle)+"session 0") {
+		t.Fatalf("expected suggestion-style cursor and selected session text, got %q", card)
+	}
+	if !strings.Contains(card, "  "+stylePrefix(repltheme.ModelSelectionTextStyle)+"session 1") {
+		t.Fatalf("expected dim, faint unselected session text, got %q", card)
+	}
+	if !strings.Contains(card, stylePrefix(repltheme.ModelSelectionRuleStyle)+"─") {
+		t.Fatalf("expected dim, faint rules, got %q", card)
 	}
 }
 

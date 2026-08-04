@@ -7,9 +7,7 @@ import (
 )
 
 func TestLoader_Load_NoConfigFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", t.TempDir())
 
 	loader := NewLoader()
 	cfg, err := loader.Load()
@@ -25,9 +23,7 @@ func TestLoader_Load_NoConfigFile(t *testing.T) {
 }
 
 func TestLoader_Load_ExistingConfigFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", t.TempDir())
 
 	os.MkdirAll(ConfigDir(), 0755)
 	configPath := ConfigPath()
@@ -67,9 +63,7 @@ func TestLoader_Load_ExistingConfigFile(t *testing.T) {
 }
 
 func TestLoader_Load_InvalidJSON(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", t.TempDir())
 
 	os.MkdirAll(ConfigDir(), 0755)
 	configPath := ConfigPath()
@@ -85,9 +79,7 @@ func TestLoader_Load_InvalidJSON(t *testing.T) {
 }
 
 func TestLoader_SaveAndLoad(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", t.TempDir())
 
 	loader := NewLoader()
 	cfg := &GlobalConfig{
@@ -141,9 +133,7 @@ func TestLoader_SaveAndLoad(t *testing.T) {
 }
 
 func TestLoader_Exists_False(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", t.TempDir())
 
 	loader := NewLoader()
 	if loader.Exists() {
@@ -152,9 +142,7 @@ func TestLoader_Exists_False(t *testing.T) {
 }
 
 func TestLoader_Exists_True(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.Setenv("HOME", tmpDir)
-	defer os.Unsetenv("HOME")
+	t.Setenv("HOME", t.TempDir())
 
 	os.MkdirAll(ConfigDir(), 0755)
 	configPath := ConfigPath()

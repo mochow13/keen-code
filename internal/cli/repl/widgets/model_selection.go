@@ -181,11 +181,11 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 			m.UpdateProviderConfigCursor = 1 - m.UpdateProviderConfigCursor
 		case "enter":
 			if m.UpdateProviderConfigCursor == 0 {
-				m.updatingProviderConfig = true
-				m.beginProviderConfigUpdate()
-				return m, nil
+				return m.complete()
 			}
-			return m.complete()
+			m.updatingProviderConfig = true
+			m.beginProviderConfigUpdate()
+			return m, nil
 		case "esc":
 			return m, func() tea.Msg { return modelSelectionCancelMsg{} }
 		}
@@ -281,17 +281,52 @@ func (m *Model) handleOAuthComplete(msg modelSelectionOAuthCompleteMsg) (*Model,
 		m.OAuthStatus = "Authentication failed."
 		return m, nil
 	}
-	provider, _ := m.registry.GetProvider(m.SelectedProvider)
-	m.ModelList = provider.Models
-	m.ModelCursor = 0
 	m.ErrorMessage = ""
 	m.OAuthStatus = ""
 	m.OAuthURL = ""
+	if m.SelectedModel != "" {
+		return m.complete()
+	}
+	provider, _ := m.registry.GetProvider(m.SelectedProvider)
+	m.ModelList = provider.Models
+	m.ModelCursor = 0
 	m.Step = StepModel
 	return m, nil
 }
 
+func (m *Model) Select(providerID, modelID string) (*Model, tea.Cmd, error) {
+	modelMeta, ok := m.registry.GetModel(providerID, modelID)
+	if !ok {
+		return m, nil, fmt.Errorf("unknown model: %s/%s", providerID, modelID)
+	}
+
+	m.SelectedProvider = providerID
+	m.SelectedModel = modelID
+	m.APIKeyInput = ""
+	m.BaseURLInput = ""
+	m.BaseURLError = ""
+	m.ErrorMessage = ""
+	m.updatingProviderConfig = false
+
+	if modelMeta.SupportsThinkingEffort() {
+		m.ThinkingOptions = modelMeta.ThinkingEfforts
+		m.ThinkingCursor = m.resolveThinkingCursor(m.ThinkingOptions)
+		m.Step = StepThinking
+		return m, nil, nil
+	}
+
+	if config.AuthModeForProvider(m.SelectedProvider) == config.AuthModeOAuth && !m.authManager.HasCredential(m.SelectedProvider) {
+		updated, cmd := m.startOAuth()
+		return updated, cmd, nil
+	}
+	updated, cmd := m.continueAfterModelSelection()
+	return updated, cmd, nil
+}
+
 func (m *Model) continueAfterModelSelection() (*Model, tea.Cmd) {
+	if config.AuthModeForProvider(m.SelectedProvider) == config.AuthModeOAuth && !m.authManager.HasCredential(m.SelectedProvider) {
+		return m.startOAuth()
+	}
 	if !promptsForAPIKey(m.SelectedProvider) {
 		return m.complete()
 	}
@@ -467,40 +502,44 @@ func (m *Model) ViewString() string {
 
 func (m *Model) renderProviderSelection() string {
 	var view strings.Builder
-	view.WriteString(repltheme.UserPromptStyle.Render("Select a provider:"))
+	view.WriteString(repltheme.ModelSelectionTitleStyle.Render("Select a provider:"))
 	view.WriteString("\n\n")
 	view.WriteString(m.renderList(m.ProviderCursor, func(i int) string { return m.ProviderList[i].Name }, len(m.ProviderList)))
-	view.WriteString("\n" + repltheme.HintStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
+	view.WriteString("\n")
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
 	return view.String()
 }
 
 func (m *Model) renderModelSelection() string {
 	var view strings.Builder
 	providerName := m.getProviderName(m.SelectedProvider)
-	view.WriteString(repltheme.UserPromptStyle.Render(fmt.Sprintf("Select a model for %s:", providerName)))
+	view.WriteString(repltheme.ModelSelectionTitleStyle.Render(fmt.Sprintf("Select a model for %s:", providerName)))
 	view.WriteString("\n\n")
 	view.WriteString(m.renderList(m.ModelCursor, func(i int) string { return m.ModelList[i].Name }, len(m.ModelList)))
-	view.WriteString("\n" + repltheme.HintStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
+	view.WriteString("\n")
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
 	return view.String()
 }
 
 func (m *Model) renderThinkingSelection() string {
 	var view strings.Builder
-	view.WriteString(repltheme.UserPromptStyle.Render("Select thinking effort:"))
+	view.WriteString(repltheme.ModelSelectionThinkingStyle.Render("Select thinking effort:"))
 	view.WriteString("\n\n")
 	view.WriteString(m.renderList(m.ThinkingCursor, func(i int) string { return m.ThinkingOptions[i] }, len(m.ThinkingOptions)))
-	view.WriteString("\n" + repltheme.HintStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
+	view.WriteString("\n")
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
 	return view.String()
 }
 
 func (m *Model) renderUpdateProviderConfigs() string {
 	var view strings.Builder
-	view.WriteString(repltheme.UserPromptStyle.Render("Update provider configs?"))
+	view.WriteString(repltheme.ModelSelectionTitleStyle.Render("Update provider configs?"))
 	view.WriteString("\n\n")
 	view.WriteString(m.renderList(m.UpdateProviderConfigCursor, func(i int) string {
-		return []string{"Yes", "No"}[i]
+		return []string{"No", "Yes"}[i]
 	}, 2))
-	view.WriteString("\n" + repltheme.HintStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
+	view.WriteString("\n")
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
 	return view.String()
 }
 
@@ -511,16 +550,19 @@ func (m *Model) renderBaseURLInput() string {
 
 	title := fmt.Sprintf("Base URL for %s (optional), empty means use default", providerName)
 	if existingURL != "" {
-		title += "\n" + repltheme.HintStyle.Render("current: "+existingURL)
+		title += "\n" + repltheme.ModelSelectionTextStyle.Render("current: "+existingURL)
 	}
-	view.WriteString(repltheme.UserPromptStyle.Render(title))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render(title))
 	view.WriteString("\n\n")
 
-	view.WriteString(repltheme.PromptStyle.Render(" ▶ ") + m.BaseURLInput)
-	view.WriteString("\n\n" + repltheme.HintStyle.Render("[Enter to confirm, Esc to cancel]"))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render(" ▶ "))
+	view.WriteString(m.BaseURLInput)
+	view.WriteString("\n\n")
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[Enter to confirm, Esc to cancel]"))
 
 	if m.BaseURLError != "" {
-		view.WriteString("\n" + repltheme.ErrorStyle.Render(m.BaseURLError))
+		view.WriteString("\n")
+		view.WriteString(repltheme.ErrorStyle.Render(m.BaseURLError))
 	}
 	return view.String()
 }
@@ -539,49 +581,55 @@ func (m *Model) renderAPIKeyInput() string {
 		hint = "Press enter to skip and use locally configured AWS credentials"
 	}
 	if hint != "" {
-		title += "\n" + repltheme.HintStyle.Render("("+hint+")")
+		title += "\n" + repltheme.ModelSelectionTextStyle.Render("("+hint+")")
 	}
-	view.WriteString(repltheme.UserPromptStyle.Render(title))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render(title))
 	view.WriteString("\n\n")
 
 	maskedKey := strings.Repeat("•", len(m.APIKeyInput))
-	view.WriteString(repltheme.PromptStyle.Render(" ▶ ") + maskedKey)
-	view.WriteString("\n\n" + repltheme.HintStyle.Render("[Enter to confirm, Esc to cancel]"))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render(" ▶ "))
+	view.WriteString(maskedKey)
+	view.WriteString("\n\n")
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[Enter to confirm, Esc to cancel]"))
 
 	if m.ErrorMessage != "" {
-		view.WriteString("\n" + repltheme.ErrorStyle.Render(m.ErrorMessage))
+		view.WriteString("\n")
+		view.WriteString(repltheme.ErrorStyle.Render(m.ErrorMessage))
 	}
 	return view.String()
 }
 
 func (m *Model) renderAPIKeyHelperStatus() string {
 	var view strings.Builder
-	view.WriteString(repltheme.UserPromptStyle.Render(fmt.Sprintf("Fetching credentials for %s", m.getProviderName(m.SelectedProvider))))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render(fmt.Sprintf("Fetching credentials for %s", m.getProviderName(m.SelectedProvider))))
 	view.WriteString("\n\n")
-	view.WriteString(repltheme.NormalStyle.Render("Fetching credentials..."))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("Fetching credentials..."))
 	view.WriteString("\n\n")
-	view.WriteString(repltheme.HintStyle.Render("[Please wait, Esc to cancel]"))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[Please wait, Esc to cancel]"))
 	return view.String()
 }
 
 func (m *Model) renderOAuthStatus() string {
 	var view strings.Builder
-	view.WriteString(repltheme.UserPromptStyle.Render("Sign in with OpenAI"))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("Sign in with OpenAI"))
 	view.WriteString("\n\n")
 	status := m.OAuthStatus
 	if status == "" {
 		status = "Waiting for authentication..."
 	}
-	view.WriteString(repltheme.NormalStyle.Render(status))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render(status))
 	view.WriteString("\n")
 	if m.OAuthURL != "" {
-		view.WriteString("\n" + repltheme.HintStyle.Render("URL:"))
-		view.WriteString("\n" + repltheme.NormalStyle.Render(m.OAuthURL))
+		view.WriteString("\n")
+		view.WriteString(repltheme.ModelSelectionTextStyle.Render("URL:"))
+		view.WriteString("\n")
+		view.WriteString(repltheme.ModelSelectionTextStyle.Render(m.OAuthURL))
 		view.WriteString("\n")
 	}
-	view.WriteString(repltheme.HintStyle.Render("After authentication succeeds, return to Keen Code. Press Esc to cancel."))
+	view.WriteString(repltheme.ModelSelectionTextStyle.Render("After authentication succeeds, return to Keen Code. Press Esc to cancel."))
 	if m.ErrorMessage != "" {
-		view.WriteString("\n\n" + repltheme.ErrorStyle.Render(m.ErrorMessage))
+		view.WriteString("\n\n")
+		view.WriteString(repltheme.ErrorStyle.Render(m.ErrorMessage))
 	}
 	return view.String()
 }
@@ -590,18 +638,23 @@ func (m *Model) renderList(cursor int, getName func(int) string, count int) stri
 	var view strings.Builder
 	start, end := visibleListRange(cursor, count, maxVisibleListItems)
 	if start > 0 {
-		view.WriteString(repltheme.HighlightStyle.Render("  ↑") + "\n")
+		view.WriteString(repltheme.ModelSelectionTextStyle.Render("  ↑"))
+		view.WriteString("\n")
 	}
 	for i := start; i < end; i++ {
 		if i == cursor {
-			view.WriteString(repltheme.ModelSelectionStyle.Render("▶ " + getName(i)))
+			view.WriteString(repltheme.ModelSelectionCursorStyle.Render("▶ "))
+			view.WriteString(repltheme.ModelSelectionSelectedTextStyle.Render(getName(i)))
 			view.WriteString("\n")
 			continue
 		}
-		view.WriteString("  " + repltheme.NormalStyle.Render(getName(i)) + "\n")
+		view.WriteString("  ")
+		view.WriteString(repltheme.ModelSelectionTextStyle.Render(getName(i)))
+		view.WriteString("\n")
 	}
 	if end < count {
-		view.WriteString(repltheme.HighlightStyle.Render("  ↓") + "\n")
+		view.WriteString(repltheme.ModelSelectionTextStyle.Render("  ↓"))
+		view.WriteString("\n")
 	}
 	return view.String()
 }

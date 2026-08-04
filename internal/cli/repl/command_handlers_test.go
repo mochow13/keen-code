@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -48,6 +49,9 @@ func TestHandleEnterKey_ActiveStream(t *testing.T) {
 
 	if cmd != nil {
 		t.Error("expected nil cmd when queueable input is sent during active stream")
+	}
+	if newM.suggestion.IsModelMode() {
+		t.Fatal("expected bare /model to open provider selection")
 	}
 	if newM.textarea.Value() != "" {
 		t.Error("expected textarea to be reset after queueing input during active stream")
@@ -151,6 +155,7 @@ func TestHandleEnterKey_CleanupCommand(t *testing.T) {
 }
 
 func TestHandleEnterKey_ModelCommand(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	m := newTestModel()
 	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{}}
 	m.ctx.globalCfg = &config.GlobalConfig{}
@@ -164,6 +169,117 @@ func TestHandleEnterKey_ModelCommand(t *testing.T) {
 	}
 	if newM.textarea.Value() != "" {
 		t.Error("expected textarea to be reset")
+	}
+}
+
+func TestHandleSuggestionEnter_ExpandsModelCommandToModelPairs(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{{
+		ID:     config.ProviderOpenAI,
+		Models: []providers.Model{{ID: "gpt-5.4"}},
+	}}}
+	m.textarea.SetValue("/mo")
+	m.suggestion.Refresh("/mo")
+
+	handled, newM, cmd := m.handleSuggestionKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !handled || cmd != nil {
+		t.Fatalf("handled = %t, cmd = %v", handled, cmd)
+	}
+	if newM.modelSelection != nil {
+		t.Fatal("did not expect provider selection")
+	}
+	if newM.textarea.Value() != replcommands.Model {
+		t.Fatalf("textarea = %q, want %q", newM.textarea.Value(), replcommands.Model)
+	}
+	if !newM.suggestion.IsModelMode() || newM.suggestion.Current() == nil {
+		t.Fatal("expected provider/model suggestions")
+	}
+}
+
+func TestHandleSuggestionEnter_SelectsModelPairAfterCursorMove(t *testing.T) {
+	m := newTestModel()
+	m.textarea.SetValue(replcommands.Model)
+	m.suggestion.RefreshModels(replcommands.Model, []string{"anthropic/claude-sonnet-4-6", "openai/gpt-5.4"})
+	m.suggestion.MoveDown()
+	m.suggestion.MoveDown()
+
+	handled, newM, cmd := m.handleSuggestionKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !handled || cmd != nil {
+		t.Fatalf("handled = %t, cmd = %v", handled, cmd)
+	}
+	if newM.modelSelection != nil {
+		t.Fatal("did not expect provider selection")
+	}
+	if newM.textarea.Value() != "/model openai/gpt-5.4" {
+		t.Fatalf("textarea = %q", newM.textarea.Value())
+	}
+}
+
+func TestHandleSuggestionEnter_PicksSupportedProviders(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.ctx.registry = &providers.Registry{}
+	m.ctx.globalCfg = &config.GlobalConfig{}
+	m.ctx.loader = config.NewLoader()
+	m.textarea.SetValue(replcommands.Model)
+	m.suggestion.RefreshModels(replcommands.Model, []string{"openai/gpt-5.4"})
+	if current := m.suggestion.Current(); current == nil || current.Name != "Pick from supported providers" {
+		t.Fatalf("unexpected first suggestion: %#v", current)
+	}
+
+	handled, newM, cmd := m.handleSuggestionKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !handled || cmd != nil {
+		t.Fatalf("handled = %t, cmd = %v", handled, cmd)
+	}
+	if newM.modelSelection == nil {
+		t.Fatal("expected bare /model to open model selection")
+	}
+	if newM.textarea.Value() != "" {
+		t.Fatalf("textarea = %q, want empty", newM.textarea.Value())
+	}
+}
+
+func TestHandleEnterKey_ModelPairCommand(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{{
+		ID: config.ProviderOpenAI,
+		Models: []providers.Model{{
+			ID:              "gpt-5.4",
+			ThinkingEfforts: []string{"low", "medium", "high"},
+		}},
+	}}}
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	m.ctx.loader = config.NewLoader()
+	m.textarea.SetValue("/model openai/gpt-5.4")
+
+	newM, _ := m.handleEnterKey()
+	if newM.modelSelection == nil {
+		t.Fatal("expected model selection")
+	}
+	if newM.modelSelection.SelectedProvider != config.ProviderOpenAI || newM.modelSelection.SelectedModel != "gpt-5.4" {
+		t.Fatalf("selected pair = %s/%s", newM.modelSelection.SelectedProvider, newM.modelSelection.SelectedModel)
+	}
+	if newM.modelSelection.Step != replwidgets.StepThinking {
+		t.Fatalf("step = %v, want StepThinking", newM.modelSelection.Step)
+	}
+}
+
+func TestHandleEnterKey_UnknownModelPair(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{{ID: config.ProviderOpenAI}}}
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	m.ctx.loader = config.NewLoader()
+	m.textarea.SetValue("/model openai/gpt-unknown")
+
+	newM, _ := m.handleEnterKey()
+	if newM.modelSelection != nil {
+		t.Fatal("expected model selection to close")
+	}
+	if !strings.Contains(newM.output.Join(), "unknown model: openai/gpt-unknown") {
+		t.Fatalf("expected unknown model error, got %q", newM.output.Join())
 	}
 }
 
@@ -1097,6 +1213,7 @@ func TestHandleEnterKey_ResumeCommand(t *testing.T) {
 }
 
 func TestStartModelSelection_CallsOnComplete(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	m := newTestModel()
 	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{}}
 	m.ctx.globalCfg = &config.GlobalConfig{}

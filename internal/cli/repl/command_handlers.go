@@ -59,6 +59,11 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		m.textarea.Reset()
 		return m.startModelSelection(), nil, true
 
+	case strings.HasPrefix(input, replcommands.Model+" "):
+		m.textarea.Reset()
+		pair := strings.TrimSpace(strings.TrimPrefix(input, replcommands.Model))
+		return m.startModelSelectionPair(pair)
+
 	case input == replcommands.MCP || strings.HasPrefix(input, replcommands.MCP+" "):
 		m.textarea.Reset()
 		result, cmd := m.handleMCPCommand(input)
@@ -193,6 +198,30 @@ func (m *replModel) startModelSelection() replModel {
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 	return *m
+}
+
+func (m *replModel) startModelSelectionPair(pair string) (replModel, tea.Cmd, bool) {
+	providerID, modelID, ok := strings.Cut(pair, "/")
+	if !ok || providerID == "" || modelID == "" || strings.Contains(modelID, "/") {
+		m.output.AddError("Usage: /model <provider/model-id>", repltheme.ErrorStyle)
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, nil, true
+	}
+
+	updated := m.startModelSelection()
+	selection, cmd, err := updated.modelSelection.Select(providerID, modelID)
+	updated.modelSelection = selection
+	if err != nil {
+		updated.output.AddError(err.Error(), repltheme.ErrorStyle)
+		updated.modelSelection = nil
+		updated.updateViewportContent()
+		updated.viewport.GotoBottom()
+		return updated, nil, true
+	}
+	updated.updateViewportContent()
+	updated.viewport.GotoBottom()
+	return updated, cmd, true
 }
 
 func (m *replModel) startCompaction(extraPrompt string) (replModel, tea.Cmd) {

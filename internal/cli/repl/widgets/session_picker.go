@@ -88,19 +88,14 @@ func FormatSessionPickerCard(picker *SessionPicker, width, maxHeight int) string
 	}
 	start, end := picker.visibleRange(maxItems)
 
-	rule := "  " + repltheme.RuleStyle.Render(strings.Repeat("─", ruleWidth))
+	rule := "  " + repltheme.ModelSelectionRuleStyle.Render(strings.Repeat("─", ruleWidth))
 	var body strings.Builder
-	body.WriteString(repltheme.UserPromptStyle.Render("Saved Sessions"))
+	body.WriteString(repltheme.ModelSelectionTitleStyle.Render("Saved Sessions"))
 	body.WriteString("\n\n")
 
 	for i := start; i < end; i++ {
 		summary := picker.summaries[i]
-		prefix := "  "
-		style := repltheme.NormalStyle
-		if i == picker.cursor {
-			prefix = "▶ "
-			style = repltheme.UserPromptSelectionStyle
-		}
+		selected := i == picker.cursor
 
 		preview := strings.TrimSpace(summary.LastUserMessage)
 		if preview == "" {
@@ -110,9 +105,15 @@ func FormatSessionPickerCard(picker *SessionPicker, width, maxHeight int) string
 			preview = preview[:69] + "..."
 		}
 
-		body.WriteString(style.Render(prefix + preview))
+		if selected {
+			body.WriteString(repltheme.ModelSelectionCursorStyle.Render("▶ "))
+			body.WriteString(repltheme.ModelSelectionSelectedTextStyle.Render(preview))
+		} else {
+			body.WriteString("  ")
+			body.WriteString(repltheme.ModelSelectionTextStyle.Render(preview))
+		}
 		body.WriteString("\n")
-		body.WriteString(repltheme.InputRuleBlurredStyle.Render(fmt.Sprintf(
+		body.WriteString(repltheme.ModelSelectionTextStyle.Render(fmt.Sprintf(
 			"    Created: %s   Updated: %s",
 			summary.CreatedAt.Local().Format("2006-01-02 15:04"),
 			summary.UpdatedAt.Local().Format("2006-01-02 15:04"),
@@ -120,7 +121,7 @@ func FormatSessionPickerCard(picker *SessionPicker, width, maxHeight int) string
 		body.WriteString("\n\n")
 	}
 
-	body.WriteString(repltheme.HintStyle.Render("[↑/↓ navigate  Enter to resume  Esc to cancel]"))
+	body.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ navigate  Enter to resume  Esc to cancel]"))
 
 	lines := strings.Split(strings.TrimRight(body.String(), "\n"), "\n")
 

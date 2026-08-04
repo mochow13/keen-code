@@ -21,7 +21,7 @@ var tips = []string{
 	"`/mcp connect <server>` re-authenticates by clearing the stored OAuth token, useful when your token has expired.",
 	"The `grep` tool supports `output_mode: file` to return only matching filenames instead of matched lines.",
 	"The `read_file` tool supports `offset` and `limit` so the model can read specific line ranges of large files.",
-	"Bash commands inside the working directory are auto-approved — only dangerous ones like `rm` or `git push` trigger a prompt.",
+	"Bash commands are auto-approved — only dangerous ones like `rm` or `git push` trigger a prompt.",
 	"`/adversary model` configures a separate model just for adversarial review, independent of your main model.",
 	"In plan mode the model cannot make file changes — it must describe the plan first. Switch with `/mode build` when ready.",
 	"`/skills list` shows all available skills including ones auto-generated from connected MCP servers.",

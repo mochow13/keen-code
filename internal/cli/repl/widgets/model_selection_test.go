@@ -6,12 +6,86 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/user/keen-code/internal/auth"
+	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/providers"
 )
 
+func TestModelSelectionUsesDimFaintStyle(t *testing.T) {
+	registry := &providers.Registry{Providers: []providers.Provider{
+		{ID: config.ProviderOpenAI, Name: "OpenAI"},
+		{ID: config.ProviderAnthropic, Name: "Anthropic"},
+	}}
+	m := New(registry, config.DefaultGlobalConfig(), config.NewLoader(), &config.ResolvedConfig{}, nil)
+
+	view := m.renderProviderSelection()
+	textPrefix := stylePrefix(repltheme.ModelSelectionTextStyle)
+	if !strings.Contains(view, stylePrefix(repltheme.ModelSelectionTitleStyle)+"Select a provider:") || !strings.Contains(view, "  "+textPrefix+"Anthropic") {
+		t.Fatalf("expected dim, faint provider-selection content, got %q", view)
+	}
+	if !strings.Contains(view, stylePrefix(repltheme.ModelSelectionCursorStyle)+"▶ ") || !strings.Contains(view, stylePrefix(repltheme.ModelSelectionSelectedTextStyle)+"OpenAI") {
+		t.Fatalf("expected suggestion-style cursor and selected provider text, got %q", view)
+	}
+}
+
+func stylePrefix(style lipgloss.Style) string {
+	rendered := style.Render("x")
+	if idx := strings.Index(rendered, "x"); idx >= 0 {
+		return rendered[:idx]
+	}
+	return rendered
+}
+
+func TestModelSelectionTitlesUseBoldDimFaintStyle(t *testing.T) {
+	m := &Model{ThinkingOptions: []string{"low", "medium"}}
+
+	view := m.renderThinkingSelection()
+	if !strings.Contains(view, stylePrefix(repltheme.ModelSelectionTitleStyle)+"Select thinking effort:") {
+		t.Fatalf("expected bold, dim, faint thinking-effort title, got %q", view)
+	}
+}
+
+func TestModelSelectionSelectSetsPairAndPromptsThinking(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	registry := &providers.Registry{Providers: []providers.Provider{{
+		ID: config.ProviderOpenAI,
+		Models: []providers.Model{{
+			ID:              "gpt-5.4",
+			ThinkingEfforts: []string{"low", "medium", "high"},
+		}},
+	}}}
+	m := New(registry, config.DefaultGlobalConfig(), config.NewLoader(), &config.ResolvedConfig{}, nil)
+
+	m, cmd, err := m.Select(config.ProviderOpenAI, "gpt-5.4")
+	if err != nil {
+		t.Fatalf("Select() error = %v", err)
+	}
+	if cmd != nil {
+		t.Fatal("Select() returned an unexpected command")
+	}
+	if m.SelectedProvider != config.ProviderOpenAI || m.SelectedModel != "gpt-5.4" {
+		t.Fatalf("selected pair = %s/%s", m.SelectedProvider, m.SelectedModel)
+	}
+	if m.Step != StepThinking {
+		t.Fatalf("step = %v, want StepThinking", m.Step)
+	}
+}
+
+func TestModelSelectionSelectRejectsUnknownPair(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	registry := &providers.Registry{Providers: []providers.Provider{{ID: config.ProviderOpenAI}}}
+	m := New(registry, config.DefaultGlobalConfig(), config.NewLoader(), &config.ResolvedConfig{}, nil)
+
+	_, _, err := m.Select(config.ProviderOpenAI, "gpt-unknown")
+	if err == nil || err.Error() != "unknown model: openai/gpt-unknown" {
+		t.Fatalf("Select() error = %v", err)
+	}
+}
+
 func TestModelSelectionHidesOpenAICompatibleProvider(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	registry := &providers.Registry{Providers: []providers.Provider{
 		{ID: config.ProviderOpenAICompatible, Name: "OpenAI Compatible"},
 		{ID: config.ProviderOpenAI, Name: "OpenAI"},
@@ -26,12 +100,14 @@ func TestModelSelectionHidesOpenAICompatibleProvider(t *testing.T) {
 }
 
 func TestIsValidBaseURL_Empty(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	if err := isValidBaseURL(""); err != nil {
 		t.Errorf("expected empty URL to be valid, got %v", err)
 	}
 }
 
 func TestIsValidBaseURL_ValidHTTPS(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	cases := []string{
 		"https://api.example.com",
 		"https://api.example.com/v1",
@@ -46,6 +122,7 @@ func TestIsValidBaseURL_ValidHTTPS(t *testing.T) {
 }
 
 func TestIsValidBaseURL_InvalidScheme(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	cases := []string{
 		"ftp://example.com",
 		"example.com",
@@ -59,6 +136,7 @@ func TestIsValidBaseURL_InvalidScheme(t *testing.T) {
 }
 
 func TestIsValidBaseURL_MissingHost(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	if err := isValidBaseURL("https://"); err == nil {
 		t.Error("expected URL with no host to be invalid")
 	}
@@ -205,6 +283,7 @@ func TestModelSelection_UsesAPIKeyHelperForResolvedKey(t *testing.T) {
 
 	var cmd tea.Cmd
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.Step != StepBaseURL {
 		t.Fatalf("expected StepBaseURL, got %v", m.Step)
@@ -303,6 +382,7 @@ func TestModelSelection_APIKeyHelperFailureReturnsToInput(t *testing.T) {
 }
 
 func TestModelSelection_LongModelListScrollsWithCursor(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	models := make([]providers.Model, 14)
 	for i := range models {
 		models[i] = providers.Model{
@@ -416,7 +496,6 @@ func TestModelSelection_SwitchProviderPreservesHeaders(t *testing.T) {
 	if m.Step != StepUpdateProviderConfigs {
 		t.Fatalf("expected StepUpdateProviderConfigs, got %v", m.Step)
 	}
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !cmdCalled(cmd) {
 		t.Fatal("expected completion command")
@@ -463,7 +542,6 @@ func TestModelSelection_ExistingAPIKeyPromptsBeforeUpdatingProviderConfig(t *tes
 		t.Fatalf("expected update config prompt, got %q", view)
 	}
 
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !cmdCalled(cmd) || !completed {
 		t.Fatal("expected model selection to complete")
@@ -477,6 +555,8 @@ func TestModelSelection_ExistingAPIKeyPromptsBeforeUpdatingProviderConfig(t *tes
 }
 
 func TestModelSelection_ExistingAPIKeyCanUpdateProviderConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	registry := &providers.Registry{Providers: []providers.Provider{{
 		ID:   config.ProviderDeepSeek,
 		Name: "DeepSeek",
@@ -499,6 +579,7 @@ func TestModelSelection_ExistingAPIKeyCanUpdateProviderConfig(t *testing.T) {
 	if m.Step != StepUpdateProviderConfigs {
 		t.Fatalf("expected StepUpdateProviderConfigs, got %v", m.Step)
 	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.Step != StepBaseURL {
 		t.Fatalf("expected StepBaseURL after selecting Yes, got %v", m.Step)
@@ -522,6 +603,7 @@ func cmdCalled(cmd tea.Cmd) bool {
 }
 
 func TestVisibleListRangeKeepsCursorVisible(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	tests := []struct {
 		name       string
 		cursor     int

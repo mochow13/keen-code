@@ -184,6 +184,61 @@ func TestSuggestionRefreshWithSkills(t *testing.T) {
 	}
 }
 
+func TestSuggestionRefreshModels(t *testing.T) {
+	s := NewSuggestionModel()
+	pairs := []string{"anthropic/claude-sonnet-4-6", "openai/gpt-5.4", "openai-codex/gpt-5.4"}
+	s.RefreshModels("/model", pairs)
+	if !s.visible || len(s.items) != len(pairs)+1 {
+		t.Fatalf("unexpected suggestions: %#v", s.items)
+	}
+	if s.items[0].Name != "Pick from supported providers" {
+		t.Fatalf("unexpected first suggestion: %#v", s.items[0])
+	}
+	if current := s.Current(); current == nil || current.Name != "Pick from supported providers" {
+		t.Fatalf("unexpected selected suggestion: %#v", current)
+	}
+	s.MoveDown()
+	if current := s.Current(); current == nil || current.Name != pairs[0] {
+		t.Fatalf("unexpected suggestion after moving down: %#v", current)
+	}
+	if s.items[2].Name != "openai/gpt-5.4" || s.items[2].Value != "/model openai/gpt-5.4" {
+		t.Fatalf("unexpected model suggestion: %#v", s.items[2])
+	}
+
+	s.RefreshModels("/model codex", pairs)
+	if len(s.items) != 1 || s.items[0].Name != "openai-codex/gpt-5.4" {
+		t.Fatalf("unexpected filtered models: %#v", s.items)
+	}
+}
+
+func TestSuggestionModelFlowAndPairs(t *testing.T) {
+	s := NewSuggestionModel()
+	pairs := []string{"anthropic/claude-sonnet-4-6", "openai/gpt-5.4"}
+
+	s.RefreshModels("/model", pairs)
+	if !s.visible || len(s.items) != len(pairs)+1 {
+		t.Fatalf("unexpected suggestions: %#v", s.items)
+	}
+	if s.items[0].Name != "Pick from supported providers" {
+		t.Fatalf("unexpected first suggestion: %#v", s.items[0])
+	}
+	if current := s.Current(); current == nil || current.Name != "Pick from supported providers" {
+		t.Fatalf("unexpected selected suggestion: %#v", current)
+	}
+	s.MoveDown()
+	if current := s.Current(); current == nil || current.Name != pairs[0] {
+		t.Fatalf("unexpected suggestion after moving down: %#v", current)
+	}
+	if s.items[2].Name != "openai/gpt-5.4" || s.items[2].Value != "/model openai/gpt-5.4" {
+		t.Fatalf("unexpected model suggestion: %#v", s.items[2])
+	}
+
+	s.RefreshModels("/model openai", pairs)
+	if len(s.items) != 1 || s.items[0].Name != "openai/gpt-5.4" {
+		t.Fatalf("unexpected filtered suggestions: %#v", s.items)
+	}
+}
+
 func TestSuggestionRefreshEmpty(t *testing.T) {
 	s := NewSuggestionModel()
 	s.Refresh("/")
@@ -192,8 +247,6 @@ func TestSuggestionRefreshEmpty(t *testing.T) {
 		t.Error("expected not visible after refresh('')")
 	}
 }
-
-// File mode tests
 
 func TestRefreshFilesVisible(t *testing.T) {
 	s := NewSuggestionModel()

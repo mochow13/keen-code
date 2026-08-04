@@ -177,12 +177,16 @@ var (
 	DiffLineNumStyle = lipgloss.NewStyle().Foreground(TextDimColor)
 	RuleStyle        = lipgloss.NewStyle().Foreground(RuleColor)
 
-	ModelChipStyle           = lipgloss.NewStyle().Background(PrimaryColor).Foreground(WhiteColor).Bold(true).Padding(0, 1)
-	ModelSelectionStyle      = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
-	ModelSelectionRuleStyle  = lipgloss.NewStyle().Foreground(SecondaryColor)
-	UserPromptCardStyle      = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(SecondaryColor).Padding(1, 2)
-	UserPromptStyle          = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor)
-	UserPromptSelectionStyle = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
+	ModelChipStyle                  = lipgloss.NewStyle().Background(PrimaryColor).Foreground(WhiteColor).Bold(true).Padding(0, 1)
+	ModelSelectionCursorStyle       = SuggestionSelectedStyle
+	ModelSelectionSelectedTextStyle = SuggestionSelectedFileStyle
+	ModelSelectionTextStyle         = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	ModelSelectionTitleStyle        = ModelSelectionTextStyle.Bold(true)
+	ModelSelectionThinkingStyle     = ModelSelectionTitleStyle
+	ModelSelectionRuleStyle         = ModelSelectionTextStyle
+	UserPromptCardStyle             = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(SecondaryColor).Padding(1, 2)
+	UserPromptStyle                 = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor)
+	UserPromptSelectionStyle        = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
 
 	SuggestionContainerStyle    = lipgloss.NewStyle().Padding(0, 1)
 	SuggestionSelectedStyle     = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)

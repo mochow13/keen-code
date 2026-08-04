@@ -361,6 +361,9 @@ func TestFormatModelSelectionCard_UsesViewportWidthRules(t *testing.T) {
 	if !strings.Contains(nonEmpty[0], "─") || !strings.Contains(nonEmpty[len(nonEmpty)-1], "─") {
 		t.Fatalf("expected top and bottom rules, got %q", card)
 	}
+	if !strings.Contains(nonEmpty[0], styleColorPrefix(repltheme.ModelSelectionRuleStyle)) {
+		t.Fatalf("expected model selection rule style, got %q", nonEmpty[0])
+	}
 	if ruleWidth := lipgloss.Width(nonEmpty[0]); ruleWidth != 24 {
 		t.Fatalf("expected rules to match viewport width, got width %d", ruleWidth)
 	}
