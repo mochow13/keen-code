@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.41.1] - 2026-08-04
+## [0.42.0] - 2026-08-04
+
+### Added
+- Add thinking support and refreshed model entries across supported providers.
+- Add provider model configuration loading and validation coverage.
 
 ### Changed
+- Refresh provider documentation and model registry entries.
+- Improve provider-specific thinking configuration across Anthropic, Bedrock, Genkit, OpenAI, and Responses clients.
 - Streamline REPL model selection and improve input metadata and suggestions.
 
 ## [0.41.0] - 2026-08-03
@@ -850,7 +856,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.41.1...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/mochow13/keen-code/compare/v0.41.1...v0.42.0
 [0.41.1]: https://github.com/mochow13/keen-code/compare/v0.41.0...v0.41.1
 [0.41.0]: https://github.com/mochow13/keen-code/compare/v0.40.0...v0.41.0
 [0.40.0]: https://github.com/mochow13/keen-code/compare/v0.39.0...v0.40.0
