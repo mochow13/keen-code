@@ -3,6 +3,7 @@ package repl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -22,18 +23,24 @@ const (
 	HeadlessFormatJSON = "json"
 )
 
+// ErrCompletionSignalMissing is returned when a --completion-signal was
+// configured but the final response did not contain it. The caller should
+// continue the loop with another iteration.
+var ErrCompletionSignalMissing = errors.New("completion signal not found in response")
+
 type HeadlessRunOptions struct {
-	WorkingDir   string
-	Config       *config.ResolvedConfig
-	GlobalConfig *config.GlobalConfig
-	MCPRuntime   keenmcp.Runtime
-	Client       llm.LLMClient
-	SessionID    string
-	Prompt       string
-	Format       string
-	Out          io.Writer
+	WorkingDir       string
+	Config           *config.ResolvedConfig
+	GlobalConfig     *config.GlobalConfig
+	MCPRuntime       keenmcp.Runtime
+	Client           llm.LLMClient
+	SessionID        string
+	Prompt           string
+	Format           string
+	CompletionSignal string
+	Out              io.Writer
 	// Progress, when set and Format is text, receives live text chunks and
-	// tool start lines as the run happens.
+	// tool end lines as the run happens.
 	Progress io.Writer
 }
 
@@ -119,7 +126,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 			close(diffReq.Done)
 		case event, ok := <-eventCh:
 			if !ok {
-				return finishHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage)
+				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turnMemory, completedText.String(), lastUsage)
 			}
 			switch event.Type {
 			case llm.StreamEventTypeChunk:
@@ -152,7 +159,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 				}
 				lastUsage = nil
 			case llm.StreamEventTypeDone:
-				return finishHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage)
+				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turnMemory, completedText.String(), lastUsage)
 			case llm.StreamEventTypeIncomplete:
 				return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, event.Error)
 			case llm.StreamEventTypeError:
@@ -236,6 +243,7 @@ func checkpointHeadlessAutoCompaction(
 func finishHeadlessRun(
 	out io.Writer,
 	format string,
+	completionSignal string,
 	sessions *replSessionState,
 	handler *StreamHandler,
 	turnMemory *turnMemoryAccumulator,
@@ -260,7 +268,13 @@ func finishHeadlessRun(
 		Text:              completedText + currentResponse,
 		Usage:             cloneHeadlessUsage(usage),
 	}
-	return result, writeHeadlessResult(out, format, result)
+	if err := writeHeadlessResult(out, format, result); err != nil {
+		return result, err
+	}
+	if completionSignal != "" && !strings.Contains(result.Text, completionSignal) {
+		return result, ErrCompletionSignalMissing
+	}
+	return result, nil
 }
 
 func failHeadlessRun(

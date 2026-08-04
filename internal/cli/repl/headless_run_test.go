@@ -77,7 +77,7 @@ func TestRunHeadless_StreamsProgress(t *testing.T) {
 		t.Fatalf("progress missing text: %q", progressText)
 	}
 	if !strings.Contains(progressText, "Read") {
-		t.Fatalf("progress missing tool start: %q", progressText)
+		t.Fatalf("progress missing tool end: %q", progressText)
 	}
 	if !strings.Contains(progressText, " Done.") {
 		t.Fatalf("progress missing trailing text: %q", progressText)
@@ -225,6 +225,57 @@ func TestRunHeadless_PersistsHistoricalToolActivity(t *testing.T) {
 	activity := memory.ToolActivity[0]
 	if activity.Tool != "read_file" || activity.Input["path"] != "a.go" || activity.TextOffset != len("Let me inspect.") {
 		t.Fatalf("unexpected historical tool activity %#v", activity)
+	}
+}
+
+func TestRunHeadless_CompletionSignalPresent(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []llm.StreamEvent{
+		{Type: llm.StreamEventTypeChunk, Content: "done <promise>COMPLETE</promise>"},
+		{Type: llm.StreamEventTypeDone},
+	}}
+	var out bytes.Buffer
+
+	result, err := RunHeadless(context.Background(), HeadlessRunOptions{
+		WorkingDir:       workingDir,
+		Config:           headlessTestConfig(),
+		Client:           client,
+		Prompt:           "task",
+		CompletionSignal: "<promise>COMPLETE</promise>",
+		Out:              &out,
+	})
+	if err != nil {
+		t.Fatalf("RunHeadless() error = %v", err)
+	}
+	if !strings.Contains(result.Text, "<promise>COMPLETE</promise>") {
+		t.Fatalf("result text missing signal: %q", result.Text)
+	}
+}
+
+func TestRunHeadless_CompletionSignalMissing(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []llm.StreamEvent{
+		{Type: llm.StreamEventTypeChunk, Content: "done but not complete"},
+		{Type: llm.StreamEventTypeDone},
+	}}
+	var out bytes.Buffer
+
+	result, err := RunHeadless(context.Background(), HeadlessRunOptions{
+		WorkingDir:       workingDir,
+		Config:           headlessTestConfig(),
+		Client:           client,
+		Prompt:           "task",
+		CompletionSignal: "<promise>COMPLETE</promise>",
+		Out:              &out,
+	})
+	if !errors.Is(err, ErrCompletionSignalMissing) {
+		t.Fatalf("RunHeadless() error = %v, want ErrCompletionSignalMissing", err)
+	}
+	if result == nil || result.Text == "" {
+		t.Fatalf("expected result with partial text, got %#v", result)
+	}
+	if !strings.Contains(out.String(), "done but not complete") {
+		t.Fatalf("expected output to be written despite missing signal: %q", out.String())
 	}
 }
 

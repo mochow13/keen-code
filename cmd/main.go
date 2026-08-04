@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -51,8 +52,17 @@ func run() int {
 	}()
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		var exitCoder interface{ ExitCode() int }
+		code := 1
+		if errors.As(err, &exitCoder) {
+			code = exitCoder.ExitCode()
+		}
+		if code == 2 {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
+		return code
 	}
 	return 0
 }

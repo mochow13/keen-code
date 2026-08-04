@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -94,6 +95,7 @@ func newRunCommand() *cobra.Command {
 	var format string
 	var providerID string
 	var modelID string
+	var completionSignal string
 
 	runCmd := &cobra.Command{
 		Use:   "run [flags] <message...>",
@@ -142,17 +144,21 @@ func newRunCommand() *cobra.Command {
 			}
 
 			_, err = repl.RunHeadless(context.Background(), repl.HeadlessRunOptions{
-				WorkingDir:   wd,
-				Config:       resolvedCfg,
-				GlobalConfig: globalCfg,
-				MCPRuntime:   mcpRuntime,
-				Client:       client,
-				SessionID:    sessionID,
-				Prompt:       prompt,
-				Format:       format,
-				Out:          cmd.OutOrStdout(),
-				Progress:     cmd.ErrOrStderr(),
+				WorkingDir:       wd,
+				Config:           resolvedCfg,
+				GlobalConfig:     globalCfg,
+				MCPRuntime:       mcpRuntime,
+				Client:           client,
+				SessionID:        sessionID,
+				Prompt:           prompt,
+				Format:           format,
+				CompletionSignal: completionSignal,
+				Out:              cmd.OutOrStdout(),
+				Progress:         cmd.ErrOrStderr(),
 			})
+			if errors.Is(err, repl.ErrCompletionSignalMissing) {
+				return &runExitError{err: err, exitCode: 2}
+			}
 			return err
 		},
 	}
@@ -160,8 +166,18 @@ func newRunCommand() *cobra.Command {
 	runCmd.Flags().StringVar(&format, "format", repl.HeadlessFormatText, "output format: text or json")
 	runCmd.Flags().StringVar(&providerID, "provider", "", "provider to use for this run")
 	runCmd.Flags().StringVar(&modelID, "model", "", "model to use for this run")
+	runCmd.Flags().StringVar(&completionSignal, "completion-signal", "", "if set, exit 2 unless the response contains this string")
 	return runCmd
 }
+
+type runExitError struct {
+	err      error
+	exitCode int
+}
+
+func (e *runExitError) Error() string { return e.err.Error() }
+
+func (e *runExitError) ExitCode() int { return e.exitCode }
 
 func loadRootRuntime() (*providers.Registry, *config.Loader, *config.GlobalConfig, *config.ResolvedConfig, bool, error) {
 	registry, err := providers.Load()
