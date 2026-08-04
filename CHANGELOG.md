@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-08-06
+
+### Added
+- `keen run` now streams live text chunks and tool completion lines to stderr while a headless turn is in flight.
+- `keen run --completion-signal` lets Ralph-style loops know when to stop: exit 0 when the marker is present, exit 2 (without the `Error:` prefix) when it is missing so the loop can continue.
+
 ## [0.42.0] - 2026-08-04
 
 ### Added
@@ -856,7 +862,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.42.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.43.0...HEAD
+[0.43.0]: https://github.com/mochow13/keen-code/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/mochow13/keen-code/compare/v0.41.1...v0.42.0
 [0.41.1]: https://github.com/mochow13/keen-code/compare/v0.41.0...v0.41.1
 [0.41.0]: https://github.com/mochow13/keen-code/compare/v0.40.0...v0.41.0
