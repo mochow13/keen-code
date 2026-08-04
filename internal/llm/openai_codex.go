@@ -134,7 +134,7 @@ func (c *OpenAICodexClient) StreamChat(ctx context.Context, messages []Message, 
 			}
 			if c.thinkingEffort != "" {
 				params.Reasoning = shared.ReasoningParam{
-					Effort: reasoningEffortForLevel(c.thinkingEffort),
+					Effort: shared.ReasoningEffort(c.thinkingEffort),
 				}
 			}
 			if len(responseTools) > 0 {

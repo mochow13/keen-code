@@ -64,6 +64,15 @@ type OpenAICompatibleClient struct {
 	headers                 map[string]string
 }
 
+type openAIThinkingParamMode uint8
+
+const (
+	openAIThinkingParamNone openAIThinkingParamMode = iota
+	openAIThinkingParamReasoningEffort
+	openAIThinkingParamType
+	openAIThinkingParamToggleAndReasoningEffort
+)
+
 func NewOpenAICompatibleClient(cfg *ClientConfig) (*OpenAICompatibleClient, error) {
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
@@ -427,38 +436,62 @@ func (c *OpenAICompatibleClient) buildChatParams(oaiMessages []openai.ChatComple
 	if len(oaiTools) > 0 {
 		params.Tools = oaiTools
 	}
-	if (c.provider == Provider(config.ProviderDeepSeek) || (c.provider == Provider(config.ProviderOpenCodeGo) && isOpenCodeGoDeepSeekModel(c.model))) && c.thinkingEffort != "" {
-		if c.thinkingEffort == "off" {
-			params.SetExtraFields(map[string]any{
-				"thinking": map[string]any{
-					"type": "disabled",
-				},
-			})
-		} else {
-			params.ReasoningEffort = shared.ReasoningEffort(c.thinkingEffort)
-			params.SetExtraFields(map[string]any{
-				"thinking": map[string]any{
-					"type": "enabled",
-				},
-			})
-		}
-	}
-	if (c.provider == Provider(config.ProviderZAI) || (c.provider == Provider(config.ProviderOpenCodeGo) && (isOpenCodeGoGLMModel(c.model) || isOpenCodeGoKimiModel(c.model)))) && c.thinkingEffort != "" {
-		params.SetExtraFields(map[string]any{
-			"thinking": map[string]any{
-				"type": c.thinkingEffort,
-			},
-		})
-	}
-	if c.provider == Provider(config.ProviderOpenCodeGo) && isOpenCodeGoQwenModel(c.model) && c.thinkingEffort != "" {
-		switch c.thinkingEffort {
-		case "enabled":
-			params.SetExtraFields(map[string]any{"enable_thinking": true})
-		case "disabled":
-			params.SetExtraFields(map[string]any{"enable_thinking": false})
-		}
+	if c.thinkingEffort != "" {
+		applyOpenAIThinking(&params, openAIThinkingMode(c.provider, c.model), c.thinkingEffort)
 	}
 	return params
+}
+
+func setThinkingType(params *openai.ChatCompletionNewParams, thinkingType string) {
+	params.SetExtraFields(map[string]any{"thinking": map[string]any{"type": thinkingType}})
+}
+
+func applyOpenAIThinking(params *openai.ChatCompletionNewParams, mode openAIThinkingParamMode, option string) {
+	switch mode {
+	case openAIThinkingParamReasoningEffort:
+		params.ReasoningEffort = shared.ReasoningEffort(option)
+	case openAIThinkingParamType:
+		setThinkingType(params, option)
+	case openAIThinkingParamToggleAndReasoningEffort:
+		if option == "disabled" {
+			setThinkingType(params, option)
+			return
+		}
+		params.ReasoningEffort = shared.ReasoningEffort(option)
+		setThinkingType(params, "enabled")
+	}
+}
+
+func openAIThinkingMode(provider Provider, model string) openAIThinkingParamMode {
+	switch provider {
+	case Provider(config.ProviderDeepSeek):
+		return openAIThinkingParamToggleAndReasoningEffort
+	case Provider(config.ProviderMoonshotAI):
+		switch model {
+		case "kimi-k3":
+			return openAIThinkingParamReasoningEffort
+		case "kimi-k2.6":
+			return openAIThinkingParamType
+		}
+	case Provider(config.ProviderZAI):
+		if model == "glm-5.2" {
+			return openAIThinkingParamToggleAndReasoningEffort
+		}
+		if model == "glm-5.1" {
+			return openAIThinkingParamType
+		}
+	case Provider(config.ProviderOpenCodeGo):
+		if isOpenCodeGoDeepSeekModel(model) {
+			return openAIThinkingParamToggleAndReasoningEffort
+		}
+		if isOpenCodeGoReasoningEffortModel(model) {
+			return openAIThinkingParamReasoningEffort
+		}
+		if isOpenCodeGoGLMModel(model) || isOpenCodeGoKimiModel(model) {
+			return openAIThinkingParamType
+		}
+	}
+	return openAIThinkingParamNone
 }
 
 func (c *OpenAICompatibleClient) exitIncomplete(eventCh chan<- StreamEvent, oaiMessages []openai.ChatCompletionMessageParamUnion, turnStartLen int, injectedPending []openai.ChatCompletionMessageParamUnion, err error, oneShot bool) {

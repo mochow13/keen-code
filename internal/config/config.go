@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/user/keen-code/internal/providers"
 )
 
 const (
@@ -183,10 +185,14 @@ func ResolveProvider(global *GlobalConfig, provider, model, thinkingEffort strin
 	if err != nil {
 		return nil, err
 	}
+	thinkingEffort, err = providers.ResolveThinkingEffort(provider, model, thinkingEffort)
+	if err != nil {
+		return nil, err
+	}
 	return &ResolvedConfig{
 		Provider:       provider,
 		Model:          model,
-		ThinkingEffort: strings.TrimSpace(thinkingEffort),
+		ThinkingEffort: thinkingEffort,
 		APIKey:         apiKey,
 		APIKeyHelper:   provCfg.APIKeyHelper,
 		BaseURL:        provCfg.BaseURL,

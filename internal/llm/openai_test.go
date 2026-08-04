@@ -12,6 +12,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/respjson"
+	"github.com/openai/openai-go/shared"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/tools"
 )
@@ -493,11 +494,11 @@ func TestOpenAICompatibleClient_DeepSeek_ThinkingEffort(t *testing.T) {
 	}
 }
 
-func TestOpenAICompatibleClient_DeepSeek_ThinkingOff(t *testing.T) {
+func TestOpenAICompatibleClient_DeepSeek_ThinkingDisabled(t *testing.T) {
 	client := &OpenAICompatibleClient{
 		provider:       Provider(config.ProviderDeepSeek),
 		model:          "deepseek-v4-pro",
-		thinkingEffort: "off",
+		thinkingEffort: "disabled",
 	}
 
 	var capturedParams openai.ChatCompletionNewParams
@@ -518,7 +519,7 @@ func TestOpenAICompatibleClient_DeepSeek_ThinkingOff(t *testing.T) {
 	}
 
 	if capturedParams.ReasoningEffort != "" {
-		t.Fatalf("expected empty reasoning_effort when thinking is off, got %q", capturedParams.ReasoningEffort)
+		t.Fatalf("expected empty reasoning_effort when thinking is disabled, got %q", capturedParams.ReasoningEffort)
 	}
 	extra := capturedParams.ExtraFields()
 	if extra == nil {
@@ -632,11 +633,11 @@ func TestOpenAICompatibleClient_OpenCodeGoDeepSeekThinkingEffort(t *testing.T) {
 	}
 }
 
-func TestOpenAICompatibleClient_OpenCodeGoDeepSeekThinkingOff(t *testing.T) {
+func TestOpenAICompatibleClient_OpenCodeGoDeepSeekThinkingDisabled(t *testing.T) {
 	client := &OpenAICompatibleClient{
 		provider:       Provider(config.ProviderOpenCodeGo),
 		model:          "deepseek-v4-flash",
-		thinkingEffort: "off",
+		thinkingEffort: "disabled",
 	}
 
 	params := client.buildChatParams(nil, nil)
@@ -673,6 +674,58 @@ func TestOpenAICompatibleClient_OpenCodeGoGLMThinkingEnabled(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatibleClient_OpenCodeGoReasoningEffortModels(t *testing.T) {
+	for _, model := range []string{"grok-4.5", "glm-5.2", "kimi-k3", "hy3"} {
+		t.Run(model, func(t *testing.T) {
+			params := (&OpenAICompatibleClient{
+				provider:       Provider(config.ProviderOpenCodeGo),
+				model:          model,
+				thinkingEffort: "max",
+			}).buildChatParams(nil, nil)
+
+			if params.ReasoningEffort != shared.ReasoningEffort("max") {
+				t.Fatalf("expected reasoning_effort max, got %q", params.ReasoningEffort)
+			}
+			if extra := params.ExtraFields(); extra != nil {
+				t.Fatalf("expected no additional thinking fields, got %#v", extra)
+			}
+		})
+	}
+}
+
+func TestOpenAICompatibleClient_MoonshotThinkingParameters(t *testing.T) {
+	k3 := (&OpenAICompatibleClient{
+		provider:       Provider(config.ProviderMoonshotAI),
+		model:          "kimi-k3",
+		thinkingEffort: "high",
+	}).buildChatParams(nil, nil)
+	if k3.ReasoningEffort != shared.ReasoningEffort("high") {
+		t.Fatalf("expected Kimi K3 reasoning_effort high, got %q", k3.ReasoningEffort)
+	}
+
+	k26 := (&OpenAICompatibleClient{
+		provider:       Provider(config.ProviderMoonshotAI),
+		model:          "kimi-k2.6",
+		thinkingEffort: "disabled",
+	}).buildChatParams(nil, nil)
+	thinking := k26.ExtraFields()["thinking"].(map[string]any)
+	if thinking["type"] != "disabled" {
+		t.Fatalf("expected Kimi K2.6 disabled thinking, got %#v", thinking)
+	}
+}
+
+func TestOpenAICompatibleClient_ZAIGLM52ThinkingParameters(t *testing.T) {
+	params := (&OpenAICompatibleClient{
+		provider:       Provider(config.ProviderZAI),
+		model:          "glm-5.2",
+		thinkingEffort: "max",
+	}).buildChatParams(nil, nil)
+	thinking := params.ExtraFields()["thinking"].(map[string]any)
+	if thinking["type"] != "enabled" || params.ReasoningEffort != shared.ReasoningEffort("max") {
+		t.Fatalf("unexpected GLM-5.2 thinking params: thinking=%#v effort=%q", thinking, params.ReasoningEffort)
+	}
+}
+
 func TestOpenAICompatibleClient_OpenCodeGoKimiThinkingDisabled(t *testing.T) {
 	client := &OpenAICompatibleClient{
 		provider:       Provider(config.ProviderOpenCodeGo),
@@ -689,34 +742,6 @@ func TestOpenAICompatibleClient_OpenCodeGoKimiThinkingDisabled(t *testing.T) {
 	}
 	if thinking["type"] != "disabled" {
 		t.Fatalf("expected thinking disabled, got %#v", thinking)
-	}
-}
-
-func TestOpenAICompatibleClient_OpenCodeGoQwenThinking(t *testing.T) {
-	tests := []struct {
-		effort string
-		want   bool
-	}{
-		{effort: "enabled", want: true},
-		{effort: "disabled", want: false},
-	}
-
-	for _, tt := range tests {
-		client := &OpenAICompatibleClient{
-			provider:       Provider(config.ProviderOpenCodeGo),
-			model:          "qwen3.6-plus",
-			thinkingEffort: tt.effort,
-		}
-
-		params := client.buildChatParams(nil, nil)
-		extra := params.ExtraFields()
-		got, ok := extra["enable_thinking"].(bool)
-		if !ok {
-			t.Fatalf("effort %q: expected enable_thinking bool, got %#v", tt.effort, extra["enable_thinking"])
-		}
-		if got != tt.want {
-			t.Fatalf("effort %q: expected %v, got %v", tt.effort, tt.want, got)
-		}
 	}
 }
 

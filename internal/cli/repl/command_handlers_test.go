@@ -1231,6 +1231,59 @@ func TestStartModelSelection_CallsOnComplete(t *testing.T) {
 	}
 }
 
+func TestStartAdversaryModelSelectionRestoresPrimaryThinkingEffort(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	m := newTestModel()
+	m.ctx.globalCfg = &config.GlobalConfig{
+		ActiveProvider: config.ProviderAnthropic,
+		ActiveModel:    "claude-sonnet-5",
+		ThinkingEffort: "high",
+		Providers: map[string]config.ProviderConfig{
+			config.ProviderMoonshotAI: {APIKey: "moonshot-key"},
+		},
+	}
+	m.ctx.loader = config.NewLoader()
+	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{
+		{
+			ID: config.ProviderMoonshotAI,
+			Models: []providers.Model{{
+				ID:              "kimi-k2.6",
+				ThinkingEfforts: []string{"enabled", "disabled"},
+			}},
+		},
+	}}
+
+	m = m.startAdversaryModelSelection()
+	var cmd tea.Cmd
+	m.adversary.modelSelection, cmd = m.adversary.modelSelection.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil || m.adversary.modelSelection.Step != replwidgets.StepModel {
+		t.Fatalf("expected model selection after provider selection, got step %v", m.adversary.modelSelection.Step)
+	}
+	m.adversary.modelSelection, cmd = m.adversary.modelSelection.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil || m.adversary.modelSelection.Step != replwidgets.StepThinking {
+		t.Fatalf("expected thinking selection after model selection, got step %v", m.adversary.modelSelection.Step)
+	}
+	m.adversary.modelSelection, cmd = m.adversary.modelSelection.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil || m.adversary.modelSelection.Step != replwidgets.StepUpdateProviderConfigs {
+		t.Fatalf("expected provider-config confirmation after thinking selection, got step %v", m.adversary.modelSelection.Step)
+	}
+	m.adversary.modelSelection, cmd = m.adversary.modelSelection.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected completion command")
+	}
+
+	if m.ctx.globalCfg.ActiveProvider != config.ProviderAnthropic || m.ctx.globalCfg.ActiveModel != "claude-sonnet-5" {
+		t.Fatalf("primary model changed to %s/%s", m.ctx.globalCfg.ActiveProvider, m.ctx.globalCfg.ActiveModel)
+	}
+	if m.ctx.globalCfg.ThinkingEffort != "high" {
+		t.Fatalf("primary thinking effort = %q, want high", m.ctx.globalCfg.ThinkingEffort)
+	}
+	if m.ctx.globalCfg.AdversaryProvider != config.ProviderMoonshotAI || m.ctx.globalCfg.AdversaryModel != "kimi-k2.6" {
+		t.Fatalf("unexpected adversary model: %s/%s", m.ctx.globalCfg.AdversaryProvider, m.ctx.globalCfg.AdversaryModel)
+	}
+}
+
 func TestHandleShowThinkingCommand_On(t *testing.T) {
 	m := newTestModel()
 	m.showThinking = false

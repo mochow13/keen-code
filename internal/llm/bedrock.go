@@ -49,6 +49,7 @@ type BedrockClient struct {
 	streamImpl              bedrockStreamFactory
 	pendingState            []brtypes.Message
 	contextWindowTokenCount int
+	thinkingEffort          string
 	headers                 map[string]string
 }
 
@@ -92,6 +93,7 @@ func NewBedrockClient(cfg *ClientConfig) (*BedrockClient, error) {
 		model:                   cfg.Model,
 		maxRetries:              retryCount(cfg.MaxRetries),
 		contextWindowTokenCount: cfg.ContextWindowTokens,
+		thinkingEffort:          cfg.ThinkingEffort,
 		headers:                 cfg.Headers,
 	}
 	c.streamImpl = func(ctx context.Context, params *bedrockruntime.ConverseStreamInput) (bedrockStream, error) {
@@ -165,6 +167,18 @@ func bedrockTextMessage(role brtypes.ConversationRole, text string) brtypes.Mess
 		Content: []brtypes.ContentBlock{
 			&brtypes.ContentBlockMemberText{Value: text},
 		},
+	}
+}
+
+func bedrockThinkingFields(effort string) document.Interface {
+	switch effort {
+	case "low", "medium", "high", "xhigh", "max":
+		return document.NewLazyDocument(map[string]any{
+			"thinking":      map[string]any{"type": "adaptive"},
+			"output_config": map[string]any{"effort": effort},
+		})
+	default:
+		return nil
 	}
 }
 
@@ -292,8 +306,9 @@ func (c *BedrockClient) StreamChat(
 			turnMessages := applyBedrockMessageCaching(msgParams, turnStartLen, oneShot)
 
 			params := &bedrockruntime.ConverseStreamInput{
-				ModelId:  aws.String(c.model),
-				Messages: turnMessages,
+				ModelId:                      aws.String(c.model),
+				Messages:                     turnMessages,
+				AdditionalModelRequestFields: bedrockThinkingFields(c.thinkingEffort),
 				InferenceConfig: &brtypes.InferenceConfiguration{
 					MaxTokens: aws.Int32(bedrockMaxTokens),
 				},

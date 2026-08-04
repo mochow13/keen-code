@@ -60,7 +60,7 @@ type OpenAIResponsesClient struct {
 }
 
 func NewOpenAIResponsesClient(cfg *ClientConfig) (*OpenAIResponsesClient, error) {
-	if cfg.Provider != Provider(config.ProviderOpenAI) {
+	if cfg.Provider != Provider(config.ProviderOpenAI) && cfg.Provider != Provider(config.ProviderOpenCodeGo) {
 		return nil, fmt.Errorf("unsupported Responses API provider: %s. %s", cfg.Provider, config.ConfigFixHint)
 	}
 
@@ -136,23 +136,6 @@ func toOpenAIResponseTools(registry *tools.Registry) []responses.ToolUnionParam 
 		return nil
 	}
 	return result
-}
-
-func reasoningEffortForLevel(effort string) shared.ReasoningEffort {
-	switch effort {
-	case "low":
-		return shared.ReasoningEffortLow
-	case "medium":
-		return shared.ReasoningEffortMedium
-	case "high":
-		return shared.ReasoningEffortHigh
-	case "xhigh":
-		return shared.ReasoningEffort("xhigh")
-	case "none":
-		return shared.ReasoningEffort("none")
-	default:
-		return ""
-	}
 }
 
 func (c *OpenAIResponsesClient) compactHistory(
@@ -297,16 +280,16 @@ func (c *OpenAIResponsesClient) StreamChat(
 			if key := promptCacheKey(sessionID); key != "" {
 				params.PromptCacheKey = param.NewOpt(key)
 			}
-			if c.thinkingEffort != "" && c.thinkingEffort != "off" {
+			if c.thinkingEffort != "" {
 				params.Reasoning = shared.ReasoningParam{
-					Effort: reasoningEffortForLevel(c.thinkingEffort),
+					Effort: shared.ReasoningEffort(c.thinkingEffort),
 				}
 			}
 			if len(responseTools) > 0 {
 				params.Tools = responseTools
 			}
 
-			completed, streamedContent, toolCalls, err := c.collectTurnWithRetry(ctx, params, eventCh, c.requestOptions()...)
+			completed, streamedContent, toolCalls, err := c.collectTurnWithRetry(ctx, params, eventCh, c.requestOptions(sessionID)...)
 			if err != nil {
 				c.exitIncomplete(eventCh, input, turnStartLen, replayedPendingInput, err, oneShot)
 				return
@@ -365,10 +348,13 @@ func (c *OpenAIResponsesClient) Reset() {
 	c.pendingState = nil
 }
 
-func (c *OpenAIResponsesClient) requestOptions() []option.RequestOption {
+func (c *OpenAIResponsesClient) requestOptions(sessionID string) []option.RequestOption {
 	var requestOpts []option.RequestOption
 	for k, v := range c.headers {
 		requestOpts = append(requestOpts, option.WithHeader(k, v))
+	}
+	if c.provider == Provider(config.ProviderOpenCodeGo) && sessionID != "" {
+		requestOpts = append(requestOpts, option.WithHeader("x-opencode-session", opencodeSessionID(sessionID)))
 	}
 	return requestOpts
 }

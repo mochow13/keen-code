@@ -123,7 +123,7 @@ func TestNewClient_OpenAI(t *testing.T) {
 func TestNewClient_Gemini(t *testing.T) {
 	cfg := &config.ResolvedConfig{
 		Provider: "googleai",
-		Model:    "gemini-3-flash-preview",
+		Model:    "gemini-3.6-flash",
 		APIKey:   "test-api-key",
 	}
 
@@ -145,8 +145,8 @@ func TestNewClient_Gemini(t *testing.T) {
 		t.Errorf("expected provider googleai, got %s", genkitClient.provider)
 	}
 
-	if genkitClient.model != "googleai/gemini-3-flash-preview" {
-		t.Errorf("expected model googleai/gemini-3-flash-preview, got %s", genkitClient.model)
+	if genkitClient.model != "googleai/gemini-3.6-flash" {
+		t.Errorf("expected model googleai/gemini-3.6-flash, got %s", genkitClient.model)
 	}
 	if genkitClient.contextWindowTokenCount != 1048576 {
 		t.Errorf("expected context window 1048576, got %d", genkitClient.contextWindowTokenCount)
@@ -179,18 +179,20 @@ func TestNewClient_OpenCodeGoOpenAICompatibleModel(t *testing.T) {
 	if oaiClient.thinkingEffort != "enabled" {
 		t.Fatalf("expected thinking effort enabled, got %q", oaiClient.thinkingEffort)
 	}
-	if oaiClient.contextWindowTokenCount != 256000 {
-		t.Fatalf("expected context window 256000, got %d", oaiClient.contextWindowTokenCount)
+	if oaiClient.contextWindowTokenCount != 262144 {
+		t.Fatalf("expected context window 262144, got %d", oaiClient.contextWindowTokenCount)
 	}
 }
 
 func TestNewClient_OpenCodeGoAnthropicModel(t *testing.T) {
 	tests := []struct {
-		name  string
-		model string
+		name           string
+		model          string
+		thinkingEffort string
 	}{
 		{name: "minimax", model: "minimax-m2.7"},
-		{name: "qwen max", model: "qwen3.7-max"},
+		{name: "minimax m3", model: "minimax-m3", thinkingEffort: "adaptive"},
+		{name: "qwen max", model: "qwen3.7-max", thinkingEffort: "enabled"},
 	}
 
 	for _, tt := range tests {
@@ -199,7 +201,7 @@ func TestNewClient_OpenCodeGoAnthropicModel(t *testing.T) {
 				Provider:       config.ProviderOpenCodeGo,
 				Model:          tt.model,
 				APIKey:         "test-api-key",
-				ThinkingEffort: "enabled",
+				ThinkingEffort: tt.thinkingEffort,
 			}
 
 			client, err := NewClient(cfg)
@@ -214,8 +216,8 @@ func TestNewClient_OpenCodeGoAnthropicModel(t *testing.T) {
 			if anthropicClient.model != tt.model {
 				t.Fatalf("expected model %s, got %s", tt.model, anthropicClient.model)
 			}
-			if anthropicClient.thinkingEffort != "" {
-				t.Fatalf("expected no Anthropic thinking effort for OpenCode Go %s, got %q", tt.model, anthropicClient.thinkingEffort)
+			if anthropicClient.thinkingEffort != tt.thinkingEffort {
+				t.Fatalf("expected Anthropic thinking effort %q for OpenCode Go %s, got %q", tt.thinkingEffort, tt.model, anthropicClient.thinkingEffort)
 			}
 			if anthropicClient.contextWindowTokenCount <= 0 {
 				t.Fatalf("expected context window to be populated")
@@ -224,12 +226,43 @@ func TestNewClient_OpenCodeGoAnthropicModel(t *testing.T) {
 	}
 }
 
+func TestNewClient_RejectsUnsupportedThinkingEffort(t *testing.T) {
+	_, err := NewClient(&config.ResolvedConfig{
+		Provider:       config.ProviderDeepSeek,
+		Model:          "deepseek-v4-pro",
+		APIKey:         "test-api-key",
+		ThinkingEffort: "medium",
+	})
+	if err == nil {
+		t.Fatal("expected unsupported thinking effort error")
+	}
+}
+
+func TestNewClient_OpenCodeGoResponsesModel(t *testing.T) {
+	client, err := NewClient(&config.ResolvedConfig{
+		Provider:       config.ProviderOpenCodeGo,
+		Model:          "gpt-5.6-luna",
+		APIKey:         "test-api-key",
+		ThinkingEffort: "max",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	responsesClient, ok := client.(*OpenAIResponsesClient)
+	if !ok {
+		t.Fatalf("expected *OpenAIResponsesClient, got %T", client)
+	}
+	if responsesClient.provider != Provider(config.ProviderOpenCodeGo) {
+		t.Fatalf("expected provider opencode-go, got %s", responsesClient.provider)
+	}
+}
+
 func TestNewClient_MiniMax(t *testing.T) {
 	cfg := &config.ResolvedConfig{
 		Provider:       config.ProviderMiniMax,
-		Model:          "MiniMax-M2.7",
+		Model:          "MiniMax-M3",
 		APIKey:         "test-api-key",
-		ThinkingEffort: "enabled",
+		ThinkingEffort: "adaptive",
 	}
 
 	client, err := NewClient(cfg)
@@ -244,14 +277,14 @@ func TestNewClient_MiniMax(t *testing.T) {
 	if anthropicClient.provider != Provider(config.ProviderMiniMax) {
 		t.Fatalf("expected provider minimax, got %s", anthropicClient.provider)
 	}
-	if anthropicClient.model != "MiniMax-M2.7" {
-		t.Fatalf("expected model MiniMax-M2.7, got %s", anthropicClient.model)
+	if anthropicClient.model != "MiniMax-M3" {
+		t.Fatalf("expected model MiniMax-M3, got %s", anthropicClient.model)
 	}
-	if anthropicClient.thinkingEffort != "" {
-		t.Fatalf("expected no Anthropic thinking effort for MiniMax, got %q", anthropicClient.thinkingEffort)
+	if anthropicClient.thinkingEffort != "adaptive" {
+		t.Fatalf("expected adaptive MiniMax thinking effort, got %q", anthropicClient.thinkingEffort)
 	}
-	if anthropicClient.contextWindowTokenCount != defaultContextWindowTokenCount {
-		t.Fatalf("expected fallback context window %d, got %d", defaultContextWindowTokenCount, anthropicClient.contextWindowTokenCount)
+	if anthropicClient.contextWindowTokenCount != 1000000 {
+		t.Fatalf("expected context window 1000000, got %d", anthropicClient.contextWindowTokenCount)
 	}
 }
 

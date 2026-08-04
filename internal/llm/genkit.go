@@ -121,30 +121,30 @@ func toGenkitMessages(messages []Message) []*ai.Message {
 	return aiMessages
 }
 
-func budgetForEffort(effort string) *int32 {
-	var b int32
+func thinkingLevelForEffort(effort string) genai.ThinkingLevel {
 	switch effort {
+	case "minimal":
+		return genai.ThinkingLevelMinimal
 	case "low":
-		b = 1024
+		return genai.ThinkingLevelLow
 	case "medium":
-		b = 8192
+		return genai.ThinkingLevelMedium
 	case "high":
-		b = 24576
+		return genai.ThinkingLevelHigh
 	default:
-		return nil
+		return genai.ThinkingLevelUnspecified
 	}
-	return &b
 }
 
 func buildGenkitGenerateConfig(thinkingEffort string, provider Provider, headers map[string]string) *genai.GenerateContentConfig {
 	var cfg *genai.GenerateContentConfig
-	if thinkingEffort != "" && thinkingEffort != "off" && provider == Provider(config.ProviderGoogleAI) {
-		budget := budgetForEffort(thinkingEffort)
-		if budget != nil {
+	if thinkingEffort != "" && provider == Provider(config.ProviderGoogleAI) {
+		level := thinkingLevelForEffort(thinkingEffort)
+		if level != genai.ThinkingLevelUnspecified {
 			cfg = &genai.GenerateContentConfig{
 				ThinkingConfig: &genai.ThinkingConfig{
 					IncludeThoughts: true,
-					ThinkingBudget:  budget,
+					ThinkingLevel:   level,
 				},
 			}
 		}

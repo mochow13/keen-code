@@ -1064,12 +1064,14 @@ func (m *replModel) handleAdversaryCommand(input string) (replModel, tea.Cmd) {
 func (m *replModel) startAdversaryModelSelection() replModel {
 	savedProvider := m.ctx.globalCfg.ActiveProvider
 	savedModel := m.ctx.globalCfg.ActiveModel
+	savedThinkingEffort := m.ctx.globalCfg.ThinkingEffort
 
 	onComplete := func(provider, model, apiKey string) error {
 		m.ctx.globalCfg.AdversaryProvider = provider
 		m.ctx.globalCfg.AdversaryModel = model
 		m.ctx.globalCfg.ActiveProvider = savedProvider
 		m.ctx.globalCfg.ActiveModel = savedModel
+		m.ctx.globalCfg.ThinkingEffort = savedThinkingEffort
 		if err := m.ctx.loader.Save(m.ctx.globalCfg); err != nil {
 			return err
 		}

@@ -927,7 +927,7 @@ func TestBuildGenkitGenerateConfig_HeadersWithThinking(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("expected config")
 	}
-	if cfg.ThinkingConfig == nil || cfg.ThinkingConfig.ThinkingBudget == nil {
+	if cfg.ThinkingConfig == nil || cfg.ThinkingConfig.ThinkingLevel != genai.ThinkingLevelLow {
 		t.Fatal("expected thinking config")
 	}
 	if cfg.HTTPOptions == nil {

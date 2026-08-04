@@ -2,6 +2,9 @@ package providers
 
 import (
 	"embed"
+	"fmt"
+	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,6 +45,29 @@ func Load() (*Registry, error) {
 	}
 
 	return &reg, nil
+}
+
+func ResolveThinkingEffort(provider, model, effort string) (string, error) {
+	effort = strings.TrimSpace(effort)
+	if effort == "" {
+		return "", nil
+	}
+
+	registry, err := Load()
+	if err != nil {
+		return "", fmt.Errorf("load provider registry: %w", err)
+	}
+	modelMeta, ok := registry.GetModel(provider, model)
+	if !ok {
+		return effort, nil
+	}
+	if !slices.Contains(modelMeta.ThinkingEfforts, effort) {
+		if len(modelMeta.ThinkingEfforts) == 0 {
+			return "", fmt.Errorf("model %s/%s does not support configurable thinking", provider, model)
+		}
+		return "", fmt.Errorf("unsupported thinking effort %q for %s/%s; expected one of: %s", effort, provider, model, strings.Join(modelMeta.ThinkingEfforts, ", "))
+	}
+	return effort, nil
 }
 
 func (r *Registry) GetProvider(id string) (Provider, bool) {

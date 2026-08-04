@@ -702,24 +702,8 @@ func TestToAnthropicTools(t *testing.T) {
 	}
 }
 
-func TestAnthropicThinkingParams_OffByDefault(t *testing.T) {
-	thinking, outCfg, maxTok := anthropicThinkingParams("")
-	if thinking.OfDisabled == nil {
-		t.Error("expected OfDisabled to be set when effort is empty")
-	}
-	if thinking.OfAdaptive != nil {
-		t.Error("expected OfAdaptive to be nil when effort is empty")
-	}
-	if outCfg.Effort != "" {
-		t.Errorf("expected empty effort in OutputConfig, got %q", outCfg.Effort)
-	}
-	if maxTok != anthropicMaxTokens {
-		t.Errorf("expected anthropicMaxTokens %d, got %d", anthropicMaxTokens, maxTok)
-	}
-}
-
 func TestAnthropicThinkingParams_EnabledEfforts(t *testing.T) {
-	for _, effort := range []string{"low", "medium", "high", "max"} {
+	for _, effort := range []string{"low", "medium", "high", "xhigh", "max"} {
 		thinking, outCfg, maxTok := anthropicThinkingParams(effort)
 		if thinking.OfAdaptive == nil {
 			t.Errorf("effort %q: expected OfAdaptive to be set", effort)
@@ -732,6 +716,62 @@ func TestAnthropicThinkingParams_EnabledEfforts(t *testing.T) {
 		}
 		if maxTok != anthropicMaxTokens {
 			t.Errorf("effort %q: expected maxTok %d, got %d", effort, anthropicMaxTokens, maxTok)
+		}
+	}
+}
+
+func TestAnthropicThinkingParams_Modes(t *testing.T) {
+	enabled, _, _ := anthropicThinkingParams("enabled")
+	body, err := json.Marshal(enabled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != `{"type":"enabled"}` {
+		t.Fatalf("expected enabled thinking without a budget, got %s", body)
+	}
+	adaptive, _, _ := anthropicThinkingParams("adaptive")
+	if adaptive.OfAdaptive == nil {
+		t.Fatal("expected adaptive thinking")
+	}
+	disabled, _, _ := anthropicThinkingParams("disabled")
+	if disabled.OfDisabled == nil {
+		t.Fatal("expected disabled thinking")
+	}
+}
+
+func TestAnthropicThinkingParamsForMiniMaxM3(t *testing.T) {
+	models := []struct {
+		provider Provider
+		model    string
+	}{
+		{provider: Provider(config.ProviderMiniMax), model: "MiniMax-M3"},
+		{provider: Provider(config.ProviderOpenCodeGo), model: "minimax-m3"},
+	}
+
+	for _, model := range models {
+		thinking, _, _ := anthropicThinkingParamsForModel(model.provider, model.model, "enabled")
+		body, err := json.Marshal(thinking)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(body) != `{"type":"enabled"}` {
+			t.Fatalf("provider %s: expected enabled thinking without a budget, got %s", model.provider, body)
+		}
+	}
+}
+
+func TestAnthropicThinkingParamsForMiniMaxM27OmitsThinking(t *testing.T) {
+	for _, provider := range []Provider{Provider(config.ProviderMiniMax), Provider(config.ProviderOpenCodeGo)} {
+		model := "MiniMax-M2.7"
+		if provider == Provider(config.ProviderOpenCodeGo) {
+			model = "minimax-m2.7"
+		}
+		thinking, outCfg, _ := anthropicThinkingParamsForModel(provider, model, "enabled")
+		if thinking.OfDisabled != nil || thinking.OfAdaptive != nil || thinking.OfEnabled != nil {
+			t.Fatalf("provider %s: expected M2.7 to omit thinking", provider)
+		}
+		if outCfg.Effort != "" {
+			t.Fatalf("provider %s: expected M2.7 to omit effort", provider)
 		}
 	}
 }
@@ -769,7 +809,7 @@ func TestAnthropicClient_ThinkingEffort_UsedInParams(t *testing.T) {
 	}
 }
 
-func TestAnthropicClient_NoThinkingEffort_DisablesThinking(t *testing.T) {
+func TestAnthropicClient_NoThinkingOption_OmitsThinking(t *testing.T) {
 	var capturedParams anthropic.MessageNewParams
 
 	c := &AnthropicClient{
@@ -791,8 +831,8 @@ func TestAnthropicClient_NoThinkingEffort_DisablesThinking(t *testing.T) {
 	for range eventCh {
 	}
 
-	if capturedParams.Thinking.OfDisabled == nil {
-		t.Error("expected OfDisabled to be set when thinkingEffort is empty")
+	if capturedParams.Thinking.OfDisabled != nil || capturedParams.Thinking.OfAdaptive != nil || capturedParams.Thinking.OfEnabled != nil {
+		t.Error("expected thinking to be omitted when no effort is configured")
 	}
 	if capturedParams.MaxTokens != anthropicMaxTokens {
 		t.Errorf("expected anthropicMaxTokens %d, got %d", anthropicMaxTokens, capturedParams.MaxTokens)

@@ -142,13 +142,14 @@ Common supported efforts include:
 
 | Provider/model family | Efforts |
 |-----------------------|---------|
-| Anthropic Claude Opus/Sonnet | `low`, `medium`, `high`, `max` |
-| OpenAI / Codex GPT models | `none`, `low`, `medium`, `high`, `xhigh` |
+| Anthropic Claude Opus/Fable/Sonnet | `low`, `medium`, `high`, `xhigh`, `max` |
+| OpenAI GPT models | `none`, `low`, `medium`, `high`, `xhigh` (some models also support `max`) |
+| Codex GPT models | `low`, `medium`, `high`, `xhigh` (some models also support `max` or `ultra`) |
 | Google AI Gemini Pro | `low`, `medium`, `high` |
 | Google AI Gemini Flash / Flash-Lite | `minimal`, `low`, `medium`, `high` |
-| DeepSeek V4 | `off`, `high`, `max` |
-| Amazon Bedrock Claude | `low`, `medium`, `high`, `max` |
-| OpenCode Go selected models | varies by model, including `enabled`/`disabled` or `off`/`high`/`max` |
+| DeepSeek V4 | `disabled`, `high`, `max` |
+| Amazon Bedrock Claude | varies by model; includes `low`, `medium`, `high`, `xhigh`, and `max` |
+| OpenCode Go models | varies by model; examples include `enabled`/`disabled`, `none` through `max`, and `low`/`high`/`max` |
 
 ```text
 /thinking high

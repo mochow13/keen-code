@@ -3,6 +3,7 @@ package llm
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -480,6 +481,32 @@ func TestNewClient_Bedrock(t *testing.T) {
 	}
 	if bedrockClient.contextWindowTokenCount != 1000000 {
 		t.Fatalf("expected Bedrock context window 1000000, got %d", bedrockClient.contextWindowTokenCount)
+	}
+}
+
+func TestBedrockThinkingFields(t *testing.T) {
+	fields := bedrockThinkingFields("xhigh")
+	if fields == nil {
+		t.Fatal("expected Bedrock thinking fields")
+	}
+	body, err := fields.MarshalSmithyDocument()
+	if err != nil {
+		t.Fatalf("marshal Bedrock thinking fields: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("unmarshal Bedrock thinking fields: %v", err)
+	}
+	thinking := got["thinking"].(map[string]any)
+	if thinking["type"] != "adaptive" {
+		t.Fatalf("expected adaptive thinking, got %#v", thinking)
+	}
+	outputConfig := got["output_config"].(map[string]any)
+	if outputConfig["effort"] != "xhigh" {
+		t.Fatalf("expected xhigh effort, got %#v", outputConfig)
+	}
+	if bedrockThinkingFields("") != nil {
+		t.Fatal("expected empty effort to omit additional fields")
 	}
 }
 

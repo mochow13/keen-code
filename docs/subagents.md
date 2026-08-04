@@ -56,7 +56,7 @@ Profiles specifying only one of `provider` or `model` are rejected and reported 
 
 ### Choosing `thinking_effort`
 
-`thinking_effort` is model-specific, not merely provider-specific. Use only a value listed in that exact provider/model entry's `thinking_efforts` array in [`internal/providers/registry.yaml`](../internal/providers/registry.yaml). The registry is the source of truth because models from the same provider can support different values; a model with no `thinking_efforts` entry does not expose a configurable thinking effort in Keen.
+`thinking_effort` is model-specific, not merely provider-specific. Use only a value listed in that exact provider/model entry's `thinking_efforts` array in [`internal/providers/registry.yaml`](../internal/providers/registry.yaml). The registry preserves each provider's own terminology because models from the same provider can expose effort levels, mode values, or omission. A model with no `thinking_efforts` entry does not expose configurable thinking in Keen.
 
 For example:
 
@@ -73,14 +73,16 @@ At the time of writing, registry values use these provider and model-family conv
 | Anthropic | `low`, `medium`, `high`, and `max`; selected models also list `xhigh` |
 | Amazon Bedrock Anthropic | `low`, `medium`, `high`, and `max`; selected models also list `xhigh` |
 | OpenAI | Model-dependent subsets of `none`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra` |
-| OpenAI Codex | Model-dependent subsets of `none`, `low`, `medium`, `high`, `xhigh`, and `max` |
+| OpenAI Codex | Model-dependent subsets of `low`, `medium`, `high`, `xhigh`, `max`, and `ultra` |
 | Google AI | `low`, `medium`, and `high`; selected Flash models also list `minimal` |
-| Z.ai and OpenCode Go GLM/Kimi/Qwen models with thinking controls | `enabled`, `disabled` |
-| DeepSeek and OpenCode Go DeepSeek | `off`, `high`, `max` |
+| Z.ai | GLM-5.2 uses `disabled`, `high`, and `max`; GLM-5.1 uses `enabled` and `disabled` |
+| DeepSeek | `disabled`, `high`, and `max` |
+| MiniMax M3 | `enabled`, `adaptive`, and `disabled` |
+| OpenCode Go | Model-specific values listed in the registry |
 
 These are conventions, not a substitute for checking the exact model entry. For example, one Anthropic model may support `max` but not `xhigh`, and models such as Anthropic Haiku, Moonshot, MiniMax, or some OpenCode Go models may omit configurable efforts entirely.
 
-Subagent profile parsing does not currently validate `thinking_effort` against the registry. An unsupported value can be ignored by an adapter, disable thinking, be forwarded to the provider, or cause the child request to fail, depending on the provider/model path. Keen does not automatically retry the child without that value. When a model is absent from the registry, such as a custom `openai-compatible` model, omit `thinking_effort` unless that model's provider documentation confirms the accepted value and parameter behavior.
+When a subagent is resolved, Keen validates `thinking_effort` against the selected registry model and rejects unsupported values. Models absent from the registry, such as custom `openai-compatible` models, pass their configured value through unchanged.
 
 See [AI Providers: Thinking Efforts](ai-providers.md#thinking-efforts) for provider adapter details. When that overview and the registry differ, follow the exact model entry in the registry.
 

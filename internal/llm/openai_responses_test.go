@@ -102,6 +102,38 @@ func TestOpenAIResponsesClient_StreamChat_CustomHeaders(t *testing.T) {
 	}
 }
 
+func TestOpenAIResponsesClient_OpenCodeGoSessionHeader(t *testing.T) {
+	var gotSession string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSession = r.Header.Get("x-opencode-session")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(`data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_1","created_at":0,"metadata":{},"model":"gpt-5.6-luna","object":"response","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1}}` + "\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	client := &OpenAIResponsesClient{
+		provider: Provider(config.ProviderOpenCodeGo),
+		model:    "gpt-5.6-luna",
+		client:   openai.NewClient(option.WithBaseURL(server.URL), option.WithAPIKey("test-key")),
+	}
+	client.responseStreamImpl = func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) responseStream {
+		return &sdkResponseStream{stream: client.client.Responses.NewStreaming(ctx, params, opts...)}
+	}
+
+	sessionID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	eventCh, err := client.StreamChat(context.Background(), []Message{{Role: RoleUser, Content: "hi"}}, nil, StreamOptions{SessionID: sessionID})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for range eventCh {
+	}
+
+	if expected := opencodeSessionID(sessionID); gotSession != expected {
+		t.Fatalf("expected x-opencode-session %q, got %q", expected, gotSession)
+	}
+}
+
 func TestOpenAIResponsesClient_StreamChat_ToolLoop(t *testing.T) {
 	client := &OpenAIResponsesClient{
 		provider:   Provider(config.ProviderOpenAI),
@@ -715,27 +747,6 @@ func TestOpenAIResponsesClient_NoThinkingEffort_OmitsReasoning(t *testing.T) {
 
 	if capturedParams.Reasoning.Effort != "" {
 		t.Errorf("expected empty Reasoning.Effort when thinkingEffort is empty, got %q", capturedParams.Reasoning.Effort)
-	}
-}
-
-func TestReasoningEffortForLevel(t *testing.T) {
-	cases := []struct {
-		input    string
-		expected shared.ReasoningEffort
-	}{
-		{"low", shared.ReasoningEffortLow},
-		{"medium", shared.ReasoningEffortMedium},
-		{"high", shared.ReasoningEffortHigh},
-		{"xhigh", shared.ReasoningEffort("xhigh")},
-		{"none", shared.ReasoningEffort("none")},
-		{"", ""},
-		{"invalid", ""},
-	}
-	for _, tc := range cases {
-		got := reasoningEffortForLevel(tc.input)
-		if got != tc.expected {
-			t.Errorf("reasoningEffortForLevel(%q) = %q, want %q", tc.input, got, tc.expected)
-		}
 	}
 }
 

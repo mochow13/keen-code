@@ -543,20 +543,45 @@ type toolUseEntry struct {
 
 func anthropicThinkingParams(effort string) (anthropic.ThinkingConfigParamUnion, anthropic.OutputConfigParam, int64) {
 	switch effort {
-	case "low", "medium", "high", "max":
-		thinking := anthropic.ThinkingConfigParamUnion{
+	case "low", "medium", "high", "xhigh", "max":
+		return anthropic.ThinkingConfigParamUnion{
+				OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
+			}, anthropic.OutputConfigParam{
+				Effort: anthropic.OutputConfigEffort(effort),
+			}, anthropicMaxTokens
+	case "adaptive":
+		return anthropic.ThinkingConfigParamUnion{
 			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
-		}
-		outCfg := anthropic.OutputConfigParam{
-			Effort: anthropic.OutputConfigEffort(effort),
-		}
-		return thinking, outCfg, anthropicMaxTokens
-	default:
-		thinking := anthropic.ThinkingConfigParamUnion{
-			OfDisabled: &anthropic.ThinkingConfigDisabledParam{},
-		}
+		}, anthropic.OutputConfigParam{}, anthropicMaxTokens
+	case "enabled":
+		thinking := param.Override[anthropic.ThinkingConfigParamUnion](json.RawMessage(`{"type":"enabled"}`))
 		return thinking, anthropic.OutputConfigParam{}, anthropicMaxTokens
+	case "disabled":
+		return anthropic.ThinkingConfigParamUnion{
+			OfDisabled: &anthropic.ThinkingConfigDisabledParam{},
+		}, anthropic.OutputConfigParam{}, anthropicMaxTokens
+	default:
+		return anthropic.ThinkingConfigParamUnion{}, anthropic.OutputConfigParam{}, anthropicMaxTokens
 	}
+}
+
+func anthropicThinkingParamsForModel(provider Provider, model, effort string) (anthropic.ThinkingConfigParamUnion, anthropic.OutputConfigParam, int64) {
+	if provider == Provider(config.ProviderMiniMax) {
+		if model == "MiniMax-M3" {
+			return anthropicThinkingParams(effort)
+		}
+		return anthropic.ThinkingConfigParamUnion{}, anthropic.OutputConfigParam{}, anthropicMaxTokens
+	}
+	if provider == Provider(config.ProviderOpenCodeGo) {
+		if model == "minimax-m3" {
+			return anthropicThinkingParams(effort)
+		}
+		if isOpenCodeGoMiniMaxModel(model) {
+			return anthropic.ThinkingConfigParamUnion{}, anthropic.OutputConfigParam{}, anthropicMaxTokens
+		}
+	}
+
+	return anthropicThinkingParams(effort)
 }
 
 func (c *AnthropicClient) proactivelyCompactHistory(
@@ -696,13 +721,13 @@ func (c *AnthropicClient) StreamChat(
 				turnSystem, turnTools, turnMessages = applyAnthropicBlockCacheControl(systemBlocks, anthropicTools, msgParams, turnStartLen)
 			}
 
-			thinking, outCfg, maxTok := anthropicThinkingParams(c.thinkingEffort)
 			params := anthropic.MessageNewParams{
-				Model:        c.model,
-				MaxTokens:    maxTok,
-				Messages:     turnMessages,
-				Thinking:     thinking,
-				OutputConfig: outCfg,
+				Model:     c.model,
+				MaxTokens: anthropicMaxTokens,
+				Messages:  turnMessages,
+			}
+			if c.thinkingEffort != "" {
+				params.Thinking, params.OutputConfig, params.MaxTokens = anthropicThinkingParamsForModel(c.provider, c.model, c.thinkingEffort)
 			}
 			if len(turnSystem) > 0 {
 				params.System = turnSystem

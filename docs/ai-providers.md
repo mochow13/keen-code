@@ -6,16 +6,16 @@ Keen Code supports multiple AI providers through a plugin-like architecture. The
 
 | Provider | ID | Authentication | Models |
 |----------|-----|----------------|--------|
-| Anthropic | `anthropic` | API Key | Claude Fable 5, Sonnet 5, Opus 4.8, Opus 4.6, Sonnet 4.6, Haiku 4.5 |
+| Anthropic | `anthropic` | API Key | Claude Opus 5, Fable 5, Sonnet 5, Opus 4.8, Haiku 4.5 |
 | OpenAI | `openai` | API Key | GPT-5.6 Sol, GPT-5.6 Luna, GPT-5.6 Terra, GPT-5.5, GPT-5.4 |
 | Codex | `openai-codex` | OAuth | GPT-5.6 Sol, GPT-5.6 Terra, GPT-5.6 Luna, GPT-5.5, GPT-5.4 |
-| Google AI | `googleai` | API Key | Gemini 3.1 Pro, 3.1 Flash-Lite, 3 Flash |
-| Moonshot AI | `moonshotai` | API Key | Kimi K2.7 Code, K2.6, K2.5, K2 Thinking, K2 Thinking Turbo |
+| Google AI | `googleai` | API Key | Gemini 3.1 Pro, 3.6 Flash, 3.5 Flash, 3.5 Flash-Lite |
+| Moonshot AI | `moonshotai` | API Key | Kimi K3, K2.7 Code, K2.7 Code High-Speed, K2.6, K2.5 |
 | Z.ai | `zai` | API Key | GLM-5.2, GLM-5.1 |
 | DeepSeek | `deepseek` | API Key | DeepSeek V4 Flash, V4 Pro |
-| MiniMax | `minimax` | API Key | MiniMax M3, M2.7 |
+| MiniMax | `minimax` | API Key | MiniMax M3, M2.7, M2.7 High-Speed |
 | Amazon Bedrock | `amazon-bedrock` | AWS credentials | Claude Fable 5, Sonnet 5, Opus 4.8, Opus 4.6, Sonnet 4.6, Haiku 4.5 |
-| OpenCode Go | `opencode-go` | API Key | GLM-5.2, GLM-5.1, Kimi K2.7 Code, K2.6, DeepSeek V4 Pro, DeepSeek V4 Flash, MiMo-V2.5 Pro, MiMo-V2.5, MiniMax M3, M2.7, Qwen3.7 Max, Qwen3.7 Plus, Qwen3.6 Plus |
+| OpenCode Go | `opencode-go` | API Key | Grok 4.5, GPT-5.6 Luna, GLM-5.2, GLM-5.1, Kimi K3, Kimi K2.7 Code, Kimi K2.6, MiMo V2.5 Pro, MiMo V2.5, Qwen3.8 Max, Qwen3.7 Max, Qwen3.7 Plus, Qwen3.6 Plus, MiniMax M3, MiniMax M2.7, DeepSeek V4 Pro, DeepSeek V4 Flash, Hy3 |
 | OpenAI Compatible | `openai-compatible` | API Key | Any OpenAI-compatible model |
 
 ## OpenAI-Compatible Providers
@@ -88,7 +88,7 @@ type Model struct {
   "thinking_effort": "enabled",
   "show_thinking": true,
   "adversary_provider": "anthropic",
-  "adversary_model": "claude-sonnet-4-6",
+  "adversary_model": "claude-sonnet-5",
   "providers": {
     "opencode-go": {
       "models": ["kimi-k2.6"],
@@ -150,10 +150,10 @@ Instead of storing a key, a provider can define `api_key_helper`. Keen executes 
 ```json
 {
   "active_provider": "anthropic",
-  "active_model": "claude-sonnet-4-6",
+  "active_model": "claude-sonnet-5",
   "providers": {
     "anthropic": {
-      "models": ["claude-sonnet-4-6"],
+      "models": ["claude-sonnet-5"],
       "api_key": "",
       "api_key_helper": "example-auth token || (example-auth login > /dev/null 2>&1 && example-auth token)"
     }
@@ -165,7 +165,7 @@ Instead of storing a key, a provider can define `api_key_helper`. Keen executes 
 
 MiniMax uses its Anthropic-compatible API. Users normally leave `base_url` unset. Keen uses `https://api.minimax.io/anthropic`, which the Anthropic SDK extends to `/v1/messages`.
 
-OpenCode Go also uses API key authentication. Users normally leave `base_url` unset. Keen uses `https://opencode.ai/zen/go/v1/` for OpenAI-compatible models and `https://opencode.ai/zen/go` for MiniMax models through the Anthropic SDK, which appends `/v1/messages`.
+OpenCode Go also uses API key authentication. Users normally leave `base_url` unset. Keen follows OpenCode's model-specific endpoints: GPT-5.6 Luna uses `/v1/responses`, MiniMax and Qwen use `/v1/messages`, and the other curated models use `/v1/chat/completions`.
 
 ### OAuth Authentication (OpenAI Codex)
 
@@ -219,10 +219,10 @@ Three client implementations:
 Direct integration with Anthropic SDK:
 - Streaming via `ssestream.Stream`
 - Tool conversion to Anthropic tool format
-- Thinking budget support (low/medium/high/max)
+- Adaptive thinking and model-specific effort support
 - Cached token tracking
-- MiniMax models (`MiniMax-M2.7`, `MiniMax-M2.5`) through MiniMax's Anthropic-compatible `/messages` endpoint
-- OpenCode Go MiniMax models (`minimax-m2.*`) and `qwen3.7-max` through the Anthropic-compatible `/messages` endpoint
+- MiniMax models through MiniMax's Anthropic-compatible `/messages` endpoint
+- OpenCode Go MiniMax and Qwen models through the Anthropic-compatible `/messages` endpoint
 
 ### BedrockClient (`internal/llm/bedrock.go`)
 
@@ -232,11 +232,13 @@ AWS SDK integration for Amazon Bedrock:
 - Reasoning content support (thinking text, signatures, redacted content)
 - Prompt caching with cache points on system prompts, tools, and messages
 - Cached token tracking
+- Adaptive thinking through `additionalModelRequestFields`
 
 ### OpenAIResponsesClient (`internal/llm/openai_responses.go`)
 
 OpenAI Responses API for:
 - OpenAI (GPT models)
+- OpenCode Go GPT-5.6 Luna
 
 ### OpenAICompatibleClient (`internal/llm/openai.go`)
 
@@ -244,7 +246,9 @@ OpenAI-compatible API for:
 - DeepSeek
 - Moonshot AI (Kimi)
 - Z.ai (GLM)
-- OpenCode Go GLM, Kimi, DeepSeek, MiMo, and OpenAI-compatible Qwen models
+- OpenCode Go Grok, GLM, Kimi, DeepSeek, MiMo, and Hy3 models
+
+OpenCode Go Qwen and MiniMax models use the Anthropic-compatible client.
 
 Handles provider-specific features like the `reasoning_content` extension and thinking controls for compatible providers.
 
@@ -280,23 +284,27 @@ Event types:
 
 ## Thinking Efforts
 
-Models support different thinking effort levels:
+Models expose their provider-specific thinking values without normalizing them to a common scale:
 
 | Provider | Efforts |
 |----------|---------|
 | Anthropic | low, medium, high, xhigh, max |
 | OpenAI | none, low, medium, high, xhigh, max |
 | Google AI | low, medium, high, minimal |
-| DeepSeek | off, high, max |
+| Moonshot AI | K3: low, high, max; K2.6: enabled, disabled |
+| DeepSeek | disabled, high, max |
 | Amazon Bedrock | low, medium, high, xhigh, max |
-| Z.ai | enabled, disabled |
-| OpenCode Go DeepSeek | off, high, max |
-| OpenCode Go GLM/Kimi/Qwen3.6 Plus | enabled, disabled |
+| Z.ai | GLM-5.2: disabled, high, max; GLM-5.1: enabled, disabled |
+| MiniMax | M3: enabled, adaptive, disabled |
+| OpenCode Go | Model-specific; see `internal/providers/registry.yaml` |
 
-The thinking effort is set via config and passed to the LLM client, which configures the provider's thinking parameters.
+The selected effort is stored in `thinking_effort` and passed to the provider without changing its meaning.
 
 OpenCode Go thinking controls are model-family specific:
-- DeepSeek sends `thinking.type` plus `reasoning_effort` for enabled efforts.
-- GLM and Kimi send `thinking.type`.
-- OpenAI-compatible Qwen sends `enable_thinking`.
-- MiMo and MiniMax do not receive a Keen-sent thinking control; returned reasoning is still streamed when the provider exposes it.
+- GPT-5.6 Luna uses the Responses API. Kimi K3 and Hy3 send their documented `reasoning_effort` values.
+- DeepSeek sends `thinking.type` plus `reasoning_effort`.
+- Qwen uses the Anthropic-compatible endpoint with an enabled/disabled thinking toggle.
+- MiniMax M3 sends `thinking.type` as enabled, adaptive, or disabled.
+- Models without a registry `thinking_efforts` entry do not receive a Keen-sent thinking control; returned reasoning is still streamed when the provider exposes it.
+
+GPT-5.4 in Codex OAuth and Kimi K2.5 are retained for existing users and are scheduled for removal after their August 31, 2026 retirements.

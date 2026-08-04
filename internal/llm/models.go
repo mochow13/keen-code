@@ -37,6 +37,13 @@ func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
 	if cfg.Model == "" {
 		return nil, fmt.Errorf("model is required. %s", config.ConfigFixHint)
 	}
+	thinkingEffort, err := providers.ResolveThinkingEffort(cfg.Provider, cfg.Model, cfg.ThinkingEffort)
+	if err != nil {
+		return nil, err
+	}
+	resolved := *cfg
+	resolved.ThinkingEffort = thinkingEffort
+	cfg = &resolved
 
 	contextWindowTokenCount := contextWindowForProviderModel(Provider(cfg.Provider), cfg.Model)
 
@@ -57,6 +64,7 @@ func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
 			Provider:            Provider(cfg.Provider),
 			APIKey:              cfg.APIKey,
 			Model:               cfg.Model,
+			ThinkingEffort:      cfg.ThinkingEffort,
 			BaseURL:             cfg.BaseURL,
 			ContextWindowTokens: contextWindowTokenCount,
 			Headers:             cfg.Headers,
@@ -113,12 +121,28 @@ func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
 			Headers:             cfg.Headers,
 		})
 	case config.ProviderOpenCodeGo:
+		if cfg.Model == "gpt-5.6-luna" {
+			baseURL := cfg.BaseURL
+			if baseURL == "" {
+				baseURL = openCodeGoBaseURL + "/v1/"
+			}
+			return NewOpenAIResponsesClient(&ClientConfig{
+				Provider:            Provider(cfg.Provider),
+				APIKey:              cfg.APIKey,
+				Model:               cfg.Model,
+				ThinkingEffort:      cfg.ThinkingEffort,
+				BaseURL:             baseURL,
+				ContextWindowTokens: contextWindowTokenCount,
+				Headers:             cfg.Headers,
+			})
+		}
 		if isOpenCodeGoAnthropicModel(cfg.Model) {
 			return NewAnthropicClient(&ClientConfig{
 				Provider:            Provider(cfg.Provider),
 				APIKey:              cfg.APIKey,
 				Model:               cfg.Model,
 				BaseURL:             cfg.BaseURL,
+				ThinkingEffort:      cfg.ThinkingEffort,
 				ContextWindowTokens: contextWindowTokenCount,
 				Headers:             cfg.Headers,
 			})
@@ -150,11 +174,11 @@ func contextWindowForProviderModel(provider Provider, model string) int {
 }
 
 func isOpenCodeGoMiniMaxModel(model string) bool {
-	return strings.HasPrefix(model, "minimax-m2.")
+	return strings.HasPrefix(model, "minimax-")
 }
 
 func isOpenCodeGoAnthropicModel(model string) bool {
-	return isOpenCodeGoMiniMaxModel(model) || model == "qwen3.7-max"
+	return isOpenCodeGoMiniMaxModel(model) || isOpenCodeGoQwenModel(model)
 }
 
 func isOpenCodeGoDeepSeekModel(model string) bool {
@@ -171,4 +195,11 @@ func isOpenCodeGoKimiModel(model string) bool {
 
 func isOpenCodeGoQwenModel(model string) bool {
 	return strings.HasPrefix(model, "qwen")
+}
+
+func isOpenCodeGoReasoningEffortModel(model string) bool {
+	return model == "grok-4.5" ||
+		model == "glm-5.2" ||
+		model == "kimi-k3" ||
+		model == "hy3"
 }
