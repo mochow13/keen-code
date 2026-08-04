@@ -151,6 +151,7 @@ func newRunCommand() *cobra.Command {
 				Prompt:       prompt,
 				Format:       format,
 				Out:          cmd.OutOrStdout(),
+				Progress:     cmd.ErrOrStderr(),
 			})
 			return err
 		},

@@ -42,6 +42,74 @@ func (c *recordingHeadlessClient) StreamChat(ctx context.Context, messages []llm
 
 func (c *recordingHeadlessClient) Reset() {}
 
+func TestRunHeadless_StreamsProgress(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []llm.StreamEvent{
+		{Type: llm.StreamEventTypeChunk, Content: "Let me check."},
+		{Type: llm.StreamEventTypeToolStart, ToolCall: &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "foo.go"}}},
+		{Type: llm.StreamEventTypeToolEnd, ToolCall: &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "foo.go"}}},
+		{Type: llm.StreamEventTypeChunk, Content: " Done."},
+		{Type: llm.StreamEventTypeDone},
+	}}
+	var out bytes.Buffer
+	var progress bytes.Buffer
+
+	result, err := RunHeadless(context.Background(), HeadlessRunOptions{
+		WorkingDir: workingDir,
+		Config:     headlessTestConfig(),
+		Client:     client,
+		Prompt:     "inspect",
+		Out:        &out,
+		Progress:   &progress,
+	})
+	if err != nil {
+		t.Fatalf("RunHeadless() error = %v", err)
+	}
+	if result.Text != "Let me check. Done." {
+		t.Fatalf("result text = %q", result.Text)
+	}
+	if out.String() != "Let me check. Done.\n" {
+		t.Fatalf("out = %q", out.String())
+	}
+
+	progressText := progress.String()
+	if !strings.Contains(progressText, "Let me check.") {
+		t.Fatalf("progress missing text: %q", progressText)
+	}
+	if !strings.Contains(progressText, "Read") {
+		t.Fatalf("progress missing tool start: %q", progressText)
+	}
+	if !strings.Contains(progressText, " Done.") {
+		t.Fatalf("progress missing trailing text: %q", progressText)
+	}
+}
+
+func TestRunHeadless_ProgressDisabledForJSON(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []llm.StreamEvent{
+		{Type: llm.StreamEventTypeChunk, Content: "json response"},
+		{Type: llm.StreamEventTypeDone},
+	}}
+	var out bytes.Buffer
+	var progress bytes.Buffer
+
+	_, err := RunHeadless(context.Background(), HeadlessRunOptions{
+		WorkingDir: workingDir,
+		Config:     headlessTestConfig(),
+		Client:     client,
+		Prompt:     "prompt",
+		Format:     HeadlessFormatJSON,
+		Out:        &out,
+		Progress:   &progress,
+	})
+	if err != nil {
+		t.Fatalf("RunHeadless() error = %v", err)
+	}
+	if progress.String() != "" {
+		t.Fatalf("progress emitted for JSON format: %q", progress.String())
+	}
+}
+
 func TestRunHeadless_CreatesSessionAndWritesText(t *testing.T) {
 	workingDir := setupHeadlessTestHome(t)
 	client := &recordingHeadlessClient{events: []llm.StreamEvent{

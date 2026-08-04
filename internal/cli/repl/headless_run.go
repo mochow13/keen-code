@@ -32,6 +32,9 @@ type HeadlessRunOptions struct {
 	Prompt       string
 	Format       string
 	Out          io.Writer
+	// Progress, when set and Format is text, receives live text chunks and
+	// tool start lines as the run happens.
+	Progress io.Writer
 }
 
 type HeadlessRunResult struct {
@@ -64,6 +67,12 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	if format != HeadlessFormatText && format != HeadlessFormatJSON {
 		return nil, fmt.Errorf("unsupported format %q", format)
 	}
+
+	progress := newHeadlessProgress(nil, "")
+	if format == HeadlessFormatText && opts.Progress != nil {
+		progress = newHeadlessProgress(opts.Progress, opts.WorkingDir)
+	}
+	defer progress.newLine()
 
 	appState := replappstate.New(opts.Client, opts.WorkingDir)
 	permissionRequester := replpermissions.NewAutoApproveRequester()
@@ -115,17 +124,22 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 			switch event.Type {
 			case llm.StreamEventTypeChunk:
 				handler.HandleChunk(event.Content)
+				progress.writeText(event.Content)
 			case llm.StreamEventTypeReasoningChunk:
 				handler.HandleReasoningChunk(event.Content)
 			case llm.StreamEventTypeToolStart:
 				handleHeadlessToolStart(handler, event.ToolCall)
+				progress.newLine()
 			case llm.StreamEventTypeToolEnd:
 				handleHeadlessToolEnd(handler, event.ToolCall)
+				progress.writeToolEnd(event.ToolCall)
 			case llm.StreamEventTypeUsage:
 				lastUsage = event.Usage
 			case llm.StreamEventTypeRetry:
 				handler.RewindForRetry()
+				progress.newLine()
 			case llm.StreamEventTypeAutoCompactionApplied:
+				progress.newLine()
 				if err := checkpointHeadlessAutoCompaction(
 					sessions,
 					appState,
