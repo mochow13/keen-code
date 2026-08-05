@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-08-05
+
+### Changed
+- Migrate OpenAI, OpenAI Responses, and Codex clients to the `openai-go` v3 SDK, converting tools and tool calls to v3 union types.
+- Replay Responses reasoning items across tool continuations so reasoning models retain their full reasoning state.
+- Surface `response.failed` and `response.incomplete` terminal events as stream errors instead of silent success.
+- Handle array-backed Responses function-call outputs in the context reducer.
+
+### Fixed
+- Handle the v3 `response.reasoning_text.delta` streaming event in Responses and Codex clients.
+- Filter Chat Completions tool calls by non-empty function name so OpenAI-compatible providers without a union type still execute tools.
+
 ## [0.43.0] - 2026-08-06
 
 ### Added
@@ -862,7 +874,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.43.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.44.0...HEAD
+[0.44.0]: https://github.com/mochow13/keen-code/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/mochow13/keen-code/compare/v0.42.0...v0.43.0
 [0.42.0]: https://github.com/mochow13/keen-code/compare/v0.41.1...v0.42.0
 [0.41.1]: https://github.com/mochow13/keen-code/compare/v0.41.0...v0.41.1
