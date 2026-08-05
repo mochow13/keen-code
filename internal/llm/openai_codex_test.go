@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/responses"
-	"github.com/openai/openai-go/shared"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
 	"github.com/user/keen-code/internal/auth"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/tools"
@@ -316,6 +316,58 @@ func TestOpenAICodexClientOutputItemDoneDoesNotDuplicateDeltas(t *testing.T) {
 	}
 }
 
+func TestOpenAICodexClientTerminalResponseEvents(t *testing.T) {
+	tests := []struct {
+		name    string
+		event   string
+		wantErr []string
+	}{
+		{
+			name:    "failed",
+			event:   `{"type":"response.failed","sequence_number":1,"response":{"id":"resp_1","created_at":0,"error":{"code":"invalid_prompt","message":"prompt rejected"},"metadata":{},"model":"gpt-5.4","object":"response","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"failed"}}`,
+			wantErr: []string{"prompt rejected", "invalid_prompt"},
+		},
+		{
+			name:    "incomplete",
+			event:   `{"type":"response.incomplete","sequence_number":1,"response":{"id":"resp_1","created_at":0,"incomplete_details":{"reason":"content_filter"},"metadata":{},"model":"gpt-5.4","object":"response","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"incomplete"}}`,
+			wantErr: []string{"response incomplete", "content_filter"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := newTestCodexClient(t)
+			client.maxRetries = 1
+			client.responseStreamImpl = func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) responseStream {
+				return &fakeResponseStream{events: []responses.ResponseStreamEventUnion{mustResponseEvent(t, tt.event)}}
+			}
+
+			ch, err := client.StreamChat(context.Background(), []Message{{Role: RoleUser, Content: "hello"}}, nil)
+			if err != nil {
+				t.Fatalf("StreamChat() failed: %v", err)
+			}
+
+			var terminalErr error
+			for ev := range ch {
+				switch ev.Type {
+				case StreamEventTypeError:
+					terminalErr = ev.Error
+				case StreamEventTypeDone:
+					t.Fatal("expected error event, got done")
+				}
+			}
+			if terminalErr == nil {
+				t.Fatal("expected terminal error")
+			}
+			for _, want := range tt.wantErr {
+				if !strings.Contains(terminalErr.Error(), want) {
+					t.Fatalf("expected error to contain %q, got %q", want, terminalErr)
+				}
+			}
+		})
+	}
+}
+
 func TestOpenAICodexClientToolCallsReplayItemsWithoutPreviousResponseID(t *testing.T) {
 	client := newTestCodexClient(t)
 
@@ -327,7 +379,7 @@ func TestOpenAICodexClientToolCallsReplayItemsWithoutPreviousResponseID(t *testi
 				events: []responses.ResponseStreamEventUnion{
 					mustResponseEvent(t, `{"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"I'll inspect that.","annotations":[]}]},"sequence_number":1}`),
 					mustResponseEvent(t, `{"type":"response.output_item.done","output_index":1,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"go.mod\"}","status":"completed"},"sequence_number":2}`),
-					mustResponseEvent(t, `{"type":"response.completed","sequence_number":3,"response":{"id":"resp_1","created_at":0,"metadata":{},"model":"gpt-5.4","object":"response","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"I'll inspect that.","annotations":[]}]},{"type":"function_call","id":"fc_1","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"go.mod\"}","status":"completed"}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1}}`),
+					mustResponseEvent(t, `{"type":"response.completed","sequence_number":3,"response":{"id":"resp_1","created_at":0,"metadata":{},"model":"gpt-5.4","object":"response","output":[{"type":"reasoning","id":"rs_1","summary":[],"encrypted_content":"encrypted-reasoning","status":"completed"},{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"I'll inspect that.","annotations":[]}]},{"type":"function_call","id":"fc_1","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"go.mod\"}","status":"completed"}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1}}`),
 				},
 			}
 		}
@@ -386,6 +438,9 @@ func TestOpenAICodexClientToolCallsReplayItemsWithoutPreviousResponseID(t *testi
 	for _, want := range []string{
 		"read go.mod",
 		"I'll inspect that.",
+		`"type":"reasoning"`,
+		`"id":"rs_1"`,
+		`"encrypted_content":"encrypted-reasoning"`,
 		`"type":"message"`,
 		`"role":"assistant"`,
 		`"type":"function_call"`,

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/packages/respjson"
-	"github.com/openai/openai-go/shared"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/respjson"
+	"github.com/openai/openai-go/v3/shared"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/tools"
 )
@@ -146,11 +146,13 @@ func toOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUni
 					am.Content.OfString = openai.String(step.Text)
 				}
 				for _, invocation := range step.Activities {
-					am.ToolCalls = append(am.ToolCalls, openai.ChatCompletionMessageToolCallParam{
-						ID: invocation.ID,
-						Function: openai.ChatCompletionMessageToolCallFunctionParam{
-							Name:      invocation.Activity.Tool,
-							Arguments: historicalToolArguments(invocation.Activity),
+					am.ToolCalls = append(am.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
+						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+							ID: invocation.ID,
+							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+								Name:      invocation.Activity.Tool,
+								Arguments: historicalToolArguments(invocation.Activity),
+							},
 						},
 					})
 				}
@@ -167,20 +169,22 @@ func toOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUni
 	return result
 }
 
-func toOpenAITools(registry *tools.Registry) []openai.ChatCompletionToolParam {
+func toOpenAITools(registry *tools.Registry) []openai.ChatCompletionToolUnionParam {
 	if registry == nil {
 		return nil
 	}
 
 	all := registry.All()
-	result := make([]openai.ChatCompletionToolParam, 0, len(all))
+	result := make([]openai.ChatCompletionToolUnionParam, 0, len(all))
 	for _, t := range all {
-		result = append(result, openai.ChatCompletionToolParam{
-			Function: openai.FunctionDefinitionParam{
-				Name:        t.Name(),
-				Description: openai.String(t.Description()),
-				Parameters:  openai.FunctionParameters(t.InputSchema()),
-				Strict:      openai.Bool(false),
+		result = append(result, openai.ChatCompletionToolUnionParam{
+			OfFunction: &openai.ChatCompletionFunctionToolParam{
+				Function: shared.FunctionDefinitionParam{
+					Name:        t.Name(),
+					Description: openai.String(t.Description()),
+					Parameters:  openai.FunctionParameters(t.InputSchema()),
+					Strict:      openai.Bool(false),
+				},
 			},
 		})
 	}
@@ -262,21 +266,37 @@ func isRetryableError(err error) bool {
 	return true
 }
 
-func (c *OpenAICompatibleClient) buildAssistantMessage(message openai.ChatCompletionMessage, reasoningContent string) openai.ChatCompletionAssistantMessageParam {
+func functionToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []openai.ChatCompletionMessageFunctionToolCall {
+	result := make([]openai.ChatCompletionMessageFunctionToolCall, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		if strings.TrimSpace(toolCall.Function.Name) == "" {
+			continue
+		}
+		result = append(result, openai.ChatCompletionMessageFunctionToolCall{
+			ID:       toolCall.ID,
+			Function: toolCall.Function,
+		})
+	}
+	return result
+}
+
+func (c *OpenAICompatibleClient) buildAssistantMessage(message openai.ChatCompletionMessage, reasoningContent string, toolCalls []openai.ChatCompletionMessageFunctionToolCall) openai.ChatCompletionAssistantMessageParam {
 	assistant := openai.ChatCompletionAssistantMessageParam{}
 	if message.Content != "" {
 		assistant.Content.OfString = openai.String(message.Content)
 	}
-	if len(message.ToolCalls) > 0 {
-		assistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallParam, len(message.ToolCalls))
-		for i, tc := range message.ToolCalls {
-			assistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallParam{
-				ID: tc.ID,
-				Function: openai.ChatCompletionMessageToolCallFunctionParam{
-					Name:      tc.Function.Name,
-					Arguments: tc.Function.Arguments,
+	if len(toolCalls) > 0 {
+		assistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnionParam, 0, len(toolCalls))
+		for _, toolCall := range toolCalls {
+			assistant.ToolCalls = append(assistant.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
+				OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+					ID: toolCall.ID,
+					Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+						Name:      toolCall.Function.Name,
+						Arguments: toolCall.Function.Arguments,
+					},
 				},
-			}
+			})
 		}
 	}
 	if reasoningContent != "" {
@@ -425,7 +445,9 @@ func (c *OpenAICompatibleClient) injectPendingState(oaiMessages []openai.ChatCom
 	return oaiMessages, injectedPending
 }
 
-func (c *OpenAICompatibleClient) buildChatParams(oaiMessages []openai.ChatCompletionMessageParamUnion, oaiTools []openai.ChatCompletionToolParam) openai.ChatCompletionNewParams {
+func (c *OpenAICompatibleClient) buildChatParams(
+	oaiMessages []openai.ChatCompletionMessageParamUnion,
+	oaiTools []openai.ChatCompletionToolUnionParam) openai.ChatCompletionNewParams {
 	params := openai.ChatCompletionNewParams{
 		Model:    c.model,
 		Messages: oaiMessages,
@@ -590,9 +612,10 @@ func (c *OpenAICompatibleClient) StreamChat(
 				}
 			}
 			emitMissingFinalContent(eventCh, message.Content, streamedContent)
-			assistant := c.buildAssistantMessage(message, reasoningContent)
+			toolCalls := functionToolCalls(message.ToolCalls)
+			assistant := c.buildAssistantMessage(message, reasoningContent, toolCalls)
 
-			if len(message.ToolCalls) == 0 {
+			if len(toolCalls) == 0 {
 				eventCh <- StreamEvent{Type: StreamEventTypeDone}
 				return
 			}
@@ -601,7 +624,7 @@ func (c *OpenAICompatibleClient) StreamChat(
 				OfAssistant: &assistant,
 			})
 
-			toolMsgs, activities := c.executeTools(ctx, message.ToolCalls, toolRegistry, eventCh)
+			toolMsgs, activities := c.executeTools(ctx, toolCalls, toolRegistry, eventCh)
 			if len(toolMsgs) > 0 {
 				oaiMessages = append(oaiMessages, toolMsgs...)
 			}
@@ -760,7 +783,7 @@ func (c *OpenAICompatibleClient) emitTerminalEvent(eventCh chan<- StreamEvent, o
 
 func (c *OpenAICompatibleClient) executeTools(
 	ctx context.Context,
-	toolCalls []openai.ChatCompletionMessageToolCall,
+	toolCalls []openai.ChatCompletionMessageFunctionToolCall,
 	registry *tools.Registry,
 	eventCh chan<- StreamEvent,
 ) ([]openai.ChatCompletionMessageParamUnion, []HistoricalToolActivity) {

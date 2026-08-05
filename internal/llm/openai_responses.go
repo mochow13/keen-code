@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/packages/param"
-	"github.com/openai/openai-go/packages/ssestream"
-	"github.com/openai/openai-go/responses"
-	"github.com/openai/openai-go/shared"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/packages/ssestream"
+	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/tools"
 )
@@ -458,12 +458,12 @@ func (c *OpenAIResponsesClient) collectTurn(
 
 		switch ev.Type {
 		case "response.output_text.delta":
-			if ev.Delta.OfString != "" {
-				streamedContent.WriteString(ev.Delta.OfString)
-				emitChunk(eventCh, ev.Delta.OfString)
+			if ev.Delta != "" {
+				streamedContent.WriteString(ev.Delta)
+				emitChunk(eventCh, ev.Delta)
 			}
-		case "response.reasoning.delta", "response.reasoning_summary.delta", "response.reasoning_summary_text.delta":
-			reasoning := ev.Delta.OfString
+		case "response.reasoning.delta", "response.reasoning_summary.delta", "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+			reasoning := ev.Delta
 			if reasoning == "" {
 				reasoning = ev.Text
 			}
@@ -482,6 +482,10 @@ func (c *OpenAIResponsesClient) collectTurn(
 				msg += " (" + ev.Code + ")"
 			}
 			return nil, streamedContent.String(), nil, fmt.Errorf("%s", msg)
+		case "response.failed":
+			return nil, streamedContent.String(), nil, responseFailedError(ev.AsResponseFailed().Response)
+		case "response.incomplete":
+			return nil, streamedContent.String(), nil, responseIncompleteError(ev.AsResponseIncomplete().Response)
 		case "response.completed":
 			v := ev.AsResponseCompleted()
 			completed = &v.Response
@@ -521,6 +525,9 @@ func responseOutputInputs(output []responses.ResponseOutputItemUnion, fallbackTo
 			messageParam := message.ToParam()
 			result = append(result, responses.ResponseInputItemUnionParam{OfOutputMessage: &messageParam})
 			seenMessage = true
+		case "reasoning":
+			reasoningParam := item.AsReasoning().ToParam()
+			result = append(result, responses.ResponseInputItemUnionParam{OfReasoning: &reasoningParam})
 		case "function_call":
 			toolCall := item.AsFunctionCall()
 			result = append(result, responseFunctionCallInput(toolCall))
@@ -537,6 +544,25 @@ func responseOutputInputs(output []responses.ResponseOutputItemUnion, fallbackTo
 		result = append(result, responseFunctionCallInput(tc))
 	}
 	return result
+}
+
+func responseFailedError(response responses.Response) error {
+	message := strings.TrimSpace(response.Error.Message)
+	if message == "" {
+		message = "response failed"
+	}
+	if response.Error.Code != "" {
+		message += " (" + string(response.Error.Code) + ")"
+	}
+	return fmt.Errorf("%s", message)
+}
+
+func responseIncompleteError(response responses.Response) error {
+	message := "response incomplete"
+	if reason := strings.TrimSpace(response.IncompleteDetails.Reason); reason != "" {
+		message += " (" + reason + ")"
+	}
+	return fmt.Errorf("%s", message)
 }
 
 func responseFunctionCallInput(tc responses.ResponseFunctionToolCall) responses.ResponseInputItemUnionParam {

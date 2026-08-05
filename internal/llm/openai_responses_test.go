@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/responses"
-	"github.com/openai/openai-go/shared"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
 	"github.com/user/keen-code/internal/config"
 	"github.com/user/keen-code/internal/tools"
 )
@@ -225,7 +225,7 @@ func TestOpenAIResponsesClient_StreamChat_ReplaysAssistantMessageBeforeTools(t *
 		if callCount == 1 {
 			return &fakeResponseStream{
 				events: []responses.ResponseStreamEventUnion{
-					mustResponseEvent(t, `{"type":"response.completed","sequence_number":1,"response":{"id":"resp_1","created_at":0,"metadata":{},"model":"gpt-5.4","object":"response","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"I'll inspect that.","annotations":[]}]},{"type":"function_call","id":"fc_1","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"go.mod\"}","status":"completed"}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1}}`),
+					mustResponseEvent(t, `{"type":"response.completed","sequence_number":1,"response":{"id":"resp_1","created_at":0,"metadata":{},"model":"gpt-5.4","object":"response","output":[{"type":"reasoning","id":"rs_1","summary":[],"encrypted_content":"encrypted-reasoning","status":"completed"},{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"I'll inspect that.","annotations":[]}]},{"type":"function_call","id":"fc_1","call_id":"call_1","name":"read_file","arguments":"{\"path\":\"go.mod\"}","status":"completed"}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1}}`),
 				},
 			}
 		}
@@ -257,10 +257,84 @@ func TestOpenAIResponsesClient_StreamChat_ReplaysAssistantMessageBeforeTools(t *
 		t.Fatalf("marshal second request input: %v", err)
 	}
 	inputJSON := string(body)
-	for _, want := range []string{"I'll inspect that.", `"type":"message"`, `"role":"assistant"`, `"type":"function_call"`, `"type":"function_call_output"`} {
+	for _, want := range []string{"I'll inspect that.", `"type":"reasoning"`, `"id":"rs_1"`, `"encrypted_content":"encrypted-reasoning"`, `"type":"message"`, `"role":"assistant"`, `"type":"function_call"`, `"type":"function_call_output"`} {
 		if !strings.Contains(inputJSON, want) {
 			t.Fatalf("expected second request input to contain %q, got %s", want, inputJSON)
 		}
+	}
+}
+
+func TestResponseOutputInputsPreservesReasoning(t *testing.T) {
+	var output []responses.ResponseOutputItemUnion
+	if err := json.Unmarshal([]byte(`[{"type":"reasoning","id":"rs_1","summary":[{"type":"summary_text","text":"Inspect the file"}],"content":[{"type":"reasoning_text","text":"Need the module name"}],"encrypted_content":"encrypted-reasoning","status":"completed"}]`), &output); err != nil {
+		t.Fatalf("unmarshal reasoning output: %v", err)
+	}
+
+	input := responseOutputInputs(output, nil, "")
+	body, err := json.Marshal(input)
+	if err != nil {
+		t.Fatalf("marshal response input: %v", err)
+	}
+	inputJSON := string(body)
+	for _, want := range []string{`"type":"reasoning"`, `"id":"rs_1"`, `"encrypted_content":"encrypted-reasoning"`, "Inspect the file", "Need the module name"} {
+		if !strings.Contains(inputJSON, want) {
+			t.Fatalf("expected replayed reasoning to contain %q, got %s", want, inputJSON)
+		}
+	}
+}
+
+func TestOpenAIResponsesClient_StreamChat_TerminalResponseEvents(t *testing.T) {
+	tests := []struct {
+		name    string
+		event   string
+		wantErr []string
+	}{
+		{
+			name:    "failed",
+			event:   `{"type":"response.failed","sequence_number":1,"response":{"id":"resp_1","created_at":0,"error":{"code":"invalid_prompt","message":"prompt rejected"},"metadata":{},"model":"gpt-5.4","object":"response","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"failed"}}`,
+			wantErr: []string{"prompt rejected", "invalid_prompt"},
+		},
+		{
+			name:    "incomplete",
+			event:   `{"type":"response.incomplete","sequence_number":1,"response":{"id":"resp_1","created_at":0,"incomplete_details":{"reason":"max_output_tokens"},"metadata":{},"model":"gpt-5.4","object":"response","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"status":"incomplete"}}`,
+			wantErr: []string{"response incomplete", "max_output_tokens"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &OpenAIResponsesClient{
+				provider:   Provider(config.ProviderOpenAI),
+				model:      "gpt-5.4",
+				maxRetries: 1,
+			}
+			client.responseStreamImpl = func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) responseStream {
+				return &fakeResponseStream{events: []responses.ResponseStreamEventUnion{mustResponseEvent(t, tt.event)}}
+			}
+
+			eventCh, err := client.StreamChat(context.Background(), []Message{{Role: RoleUser, Content: "hello"}}, nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var terminalErr error
+			for ev := range eventCh {
+				switch ev.Type {
+				case StreamEventTypeError:
+					terminalErr = ev.Error
+				case StreamEventTypeDone:
+					t.Fatal("expected error event, got done")
+				}
+			}
+			if terminalErr == nil {
+				t.Fatal("expected terminal error")
+			}
+			for _, want := range tt.wantErr {
+				if !strings.Contains(terminalErr.Error(), want) {
+					t.Fatalf("expected error to contain %q, got %q", want, terminalErr)
+				}
+			}
+		})
 	}
 }
 

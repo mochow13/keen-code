@@ -9,9 +9,9 @@ import (
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	brtypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/firebase/genkit/go/ai"
-	openai "github.com/openai/openai-go"
-	openaiParam "github.com/openai/openai-go/packages/param"
-	"github.com/openai/openai-go/responses"
+	openai "github.com/openai/openai-go/v3"
+	openaiParam "github.com/openai/openai-go/v3/packages/param"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 const (
@@ -165,19 +165,34 @@ func reduceResponsesContextForRequest(
 
 	targets := make([]toolResultReductionTarget, 0)
 	for i, item := range next {
-		if item.OfFunctionCallOutput == nil || item.OfFunctionCallOutput.Output == removedToolResultPlaceholder {
+		if item.OfFunctionCallOutput == nil {
+			continue
+		}
+		content, ok := responsesToolOutputContent(item.OfFunctionCallOutput.Output)
+		if !ok || content == removedToolResultPlaceholder {
 			continue
 		}
 		idx := i
 		targets = append(targets, toolResultReductionTarget{
-			tokenCount: estimateContextTokenCount(item.OfFunctionCallOutput.Output),
+			tokenCount: estimateContextTokenCount(content),
 			remove: func() {
-				next[idx].OfFunctionCallOutput.Output = removedToolResultPlaceholder
+				next[idx].OfFunctionCallOutput.Output.OfString = openaiParam.NewOpt(removedToolResultPlaceholder)
+				next[idx].OfFunctionCallOutput.Output.OfResponseFunctionCallOutputItemArray = nil
 			},
 		})
 	}
 
 	return next, reduceToolResultsForRequest(contextWindowTokenCount, estimatedInputTokenCount, targets)
+}
+
+func responsesToolOutputContent(output responses.ResponseInputItemFunctionCallOutputOutputUnionParam) (string, bool) {
+	if output.OfString.Valid() {
+		return output.OfString.Value, true
+	}
+	if output.OfResponseFunctionCallOutputItemArray != nil {
+		return string(marshalContextOrEmpty(output.OfResponseFunctionCallOutputItemArray)), true
+	}
+	return "", false
 }
 
 func estimateResponsesInputTokenCount(input []responses.ResponseInputItemUnionParam) int {
