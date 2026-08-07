@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/user/keen-code/internal/llm"
 )
 
@@ -156,5 +157,49 @@ func TestFormatCompactTokens(t *testing.T) {
 		if got := formatCompactTokens(tt.n); got != tt.want {
 			t.Errorf("formatCompactTokens(%d) = %q, want %q", tt.n, got, tt.want)
 		}
+	}
+}
+
+func TestHandleContextCommand_RendersBreakdown(t *testing.T) {
+	m := newTestModel()
+	m.appState.AppendMessage(llm.Message{Role: llm.RoleUser, Content: "hello world"})
+	m.appState.AppendMessage(llm.Message{Role: llm.RoleAssistant, Content: "hi there"})
+	m.appState.SetLastUsage(&llm.TokenUsage{InputTokens: 10000, OutputTokens: 100})
+
+	_, _, handled := m.dispatchCommand("/context")
+	if !handled {
+		t.Fatal("expected /context to be handled")
+	}
+
+	out := ansi.Strip(m.output.Join())
+	for _, want := range []string{"Context Usage", "System prompt", "Tool definitions", "User messages", "Assistant messages", "Tool results", "Total", "10k"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected output to contain %q, got:\n%s", want, out)
+		}
+	}
+}
+
+func TestHandleContextCommand_NoUsageShowsEstimateNote(t *testing.T) {
+	m := newTestModel()
+	m.appState.AppendMessage(llm.Message{Role: llm.RoleUser, Content: "hi"})
+
+	m.handleContextCommand()
+
+	out := ansi.Strip(m.output.Join())
+	if !strings.Contains(out, "Estimated (chars/3 heuristic)") {
+		t.Errorf("expected estimate note, got:\n%s", out)
+	}
+}
+
+func TestHandleContextCommand_UnknownWindowOmitsFreeRow(t *testing.T) {
+	m := newTestModel()
+	m.appState.AppendMessage(llm.Message{Role: llm.RoleUser, Content: "hi"})
+	m.appState.SetLastUsage(&llm.TokenUsage{InputTokens: 5000})
+
+	m.handleContextCommand()
+
+	out := ansi.Strip(m.output.Join())
+	if strings.Contains(out, "Free") {
+		t.Errorf("expected no Free row with unknown window, got:\n%s", out)
 	}
 }

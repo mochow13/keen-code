@@ -17,8 +17,8 @@ func TestFilterCommandsEmpty(t *testing.T) {
 
 func TestFilterCommandsC(t *testing.T) {
 	got := replcommands.Filter("/c")
-	if len(got) != 3 || got[0].Name != "/clear" || got[1].Name != "/compact" || got[2].Name != "/cleanup" {
-		t.Errorf("expected /clear, /compact, and /cleanup, got %v", got)
+	if len(got) != 4 || got[0].Name != "/clear" || got[1].Name != "/compact" || got[2].Name != "/context" || got[3].Name != "/cleanup" {
+		t.Errorf("expected /clear, /compact, /context, and /cleanup, got %v", got)
 	}
 }
 

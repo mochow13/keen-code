@@ -8,6 +8,7 @@ const (
 	Btw             = "/btw"
 	Clear           = "/clear"
 	Compact         = "/compact"
+	Context         = "/context"
 	Cleanup         = "/cleanup"
 	EmptyQueue      = "/emptyq"
 	Exit            = "/exit"
@@ -49,6 +50,7 @@ var All = []SlashCommand{
 	{Btw, "Ask a quick side question (not added to conversation)"},
 	{Clear, "Clear the session and create a new one (also /new)"},
 	{Compact, "Compact conversation context"},
+	{Context, "Show context window usage breakdown"},
 	{Cleanup, "Remove expired Keen data and trim input history"},
 	{EmptyQueue, "Clear all queued messages"},
 	{Exit, "Quit Keen"},
@@ -75,6 +77,7 @@ var Suggestions = []SlashCommand{
 	{Btw, "Ask a quick side question (not added to conversation)"},
 	{Clear, "Clear the session and create a new one (also /new)"},
 	{Compact, "Compact conversation context"},
+	{Context, "Show context window usage breakdown"},
 	{Cleanup, "Remove expired Keen data and trim input history"},
 	{EmptyQueue, "Clear all queued messages"},
 	{Exit, "Quit Keen"},

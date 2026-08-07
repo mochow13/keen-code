@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/table"
 	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
 	"github.com/user/keen-code/internal/llm"
 )
@@ -152,4 +153,79 @@ func renderContextStatus(status contextStatus) string {
 	}
 
 	return result
+}
+
+func (m *replModel) handleContextCommand() {
+	breakdown := m.appState.GetContextBreakdown()
+	status := m.computeContextStatus()
+
+	m.output.AddStyledLine("  "+repltheme.TitleStyle.Render("Context Usage"), lipgloss.NewStyle())
+	m.output.AddEmptyLine()
+
+	window := status.ContextWindow
+	knownWindow := status.KnownWindow && window > 0
+
+	percentOf := func(tokens int) string {
+		if !knownWindow {
+			return "-"
+		}
+		return formatPercent(usagePercent(tokens, window))
+	}
+
+	rows := [][]string{
+		{"System prompt", formatCompactTokens(breakdown.SystemPromptTokens), percentOf(breakdown.SystemPromptTokens)},
+		{"Tool definitions (" + strconv.Itoa(breakdown.ToolDefinitionCount) + ")", formatCompactTokens(breakdown.ToolDefTokens), percentOf(breakdown.ToolDefTokens)},
+		{"User messages", formatCompactTokens(breakdown.UserMessageTokens), percentOf(breakdown.UserMessageTokens)},
+		{"Assistant messages", formatCompactTokens(breakdown.AssistantTokens), percentOf(breakdown.AssistantTokens)},
+		{"Tool results", formatCompactTokens(breakdown.ToolResultTokens), percentOf(breakdown.ToolResultTokens)},
+		{"Total", formatCompactTokens(breakdown.TotalEstimated), percentOf(breakdown.TotalEstimated)},
+	}
+	if knownWindow {
+		free := max(0, window-breakdown.TotalEstimated)
+		rows = append(rows, []string{"Free", formatCompactTokens(free), formatPercent(usagePercent(free, window))})
+	}
+
+	m.addCommandTable([]string{"Category", "Tokens", "% of window"}, rows, func(row, col int, style lipgloss.Style) lipgloss.Style {
+		if row == table.HeaderRow {
+			return style
+		}
+		if row < 0 || row >= len(rows) {
+			return style
+		}
+		isTotalRow := rows[row][0] == "Total"
+		if col == 0 {
+			if isTotalRow {
+				style = style.Inherit(repltheme.PrimaryBoldStyle)
+			}
+			return style
+		}
+		if col == 1 {
+			style = style.Inherit(repltheme.MetaLabelStyle)
+			if isTotalRow {
+				style = style.Bold(true)
+			}
+			return style
+		}
+		if isTotalRow && knownWindow {
+			style = style.Inherit(contextPercentStyle(usagePercent(breakdown.TotalEstimated, window))).Bold(true)
+		}
+		return style
+	})
+
+	if status.KnownTokens && breakdown.TotalEstimated == status.CurrentTokens {
+		m.output.AddEmptyLine()
+		m.output.AddStyledLine("  Anchored to provider-reported input tokens; per-category splits are heuristic estimates.", repltheme.MutedStyle)
+	} else {
+		m.output.AddEmptyLine()
+		m.output.AddStyledLine("  Estimated (chars/3 heuristic); no provider-reported usage yet.", repltheme.MutedStyle)
+	}
+
+	if status.ShouldSuggestCompaction() {
+		m.output.AddEmptyLine()
+		m.output.AddStyledLine("  ⚠ Context is nearly full — consider running /compact.", repltheme.ContextStatusPercentWarnStyle)
+	}
+
+	m.output.AddEmptyLine()
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
 }

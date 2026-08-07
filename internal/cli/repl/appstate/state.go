@@ -361,3 +361,46 @@ func (s *AppState) GetLastUsage() *llm.TokenUsage {
 func (s *AppState) ClearContextMetrics() {
 	s.lastUsage = nil
 }
+
+// GetContextBreakdown estimates token usage per context category. When the
+// provider has reported input token usage, category counts are scaled so they
+// sum to the reported total; otherwise raw heuristic estimates are returned.
+func (s *AppState) GetContextBreakdown() llm.ContextBreakdown {
+	systemPrompt := llm.Build(s.workingDir, s.SkillsCatalog(), s.SubagentsCatalog(), s.Mode())
+
+	var toolDefs []llm.ContextToolDef
+	for _, tool := range s.EffectiveToolRegistry().All() {
+		toolDefs = append(toolDefs, llm.ContextToolDef{
+			Name:        tool.Name(),
+			Description: tool.Description(),
+			InputSchema: tool.InputSchema(),
+		})
+	}
+
+	messages := make([]llm.ContextMessage, 0, len(s.messages))
+	for _, msg := range s.messages {
+		cm := llm.ContextMessage{Role: msg.Role, Content: msg.Content}
+		if msg.TurnMemory != nil {
+			cm.ToolActivity = msg.TurnMemory.ToolActivity
+		}
+		messages = append(messages, cm)
+	}
+
+	breakdown := llm.EstimateContextBreakdown(systemPrompt, toolDefs, messages)
+
+	if usage := s.GetLastUsage(); usage != nil && usage.InputTokens > 0 && breakdown.TotalEstimated > 0 {
+		scale := float64(usage.InputTokens) / float64(breakdown.TotalEstimated)
+		breakdown.SystemPromptTokens = scaleTokens(breakdown.SystemPromptTokens, scale)
+		breakdown.ToolDefTokens = scaleTokens(breakdown.ToolDefTokens, scale)
+		breakdown.UserMessageTokens = scaleTokens(breakdown.UserMessageTokens, scale)
+		breakdown.AssistantTokens = scaleTokens(breakdown.AssistantTokens, scale)
+		breakdown.ToolResultTokens = scaleTokens(breakdown.ToolResultTokens, scale)
+		breakdown.TotalEstimated = usage.InputTokens
+	}
+
+	return breakdown
+}
+
+func scaleTokens(tokens int, scale float64) int {
+	return int(float64(tokens)*scale + 0.5)
+}

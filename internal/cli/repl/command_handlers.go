@@ -179,6 +179,11 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		result, cmd := m.startCompaction(extraPrompt)
 		return result, cmd, true
 
+	case input == replcommands.Context:
+		m.textarea.Reset()
+		m.handleContextCommand()
+		return *m, nil, true
+
 	default:
 		return *m, nil, false
 	}
