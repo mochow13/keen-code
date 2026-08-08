@@ -12,7 +12,7 @@ import (
 	"github.com/user/keen-code/internal/telemetry"
 )
 
-const version = "0.44.0"
+const version = "0.45.0"
 
 var (
 	telemetryMeasurementID string
