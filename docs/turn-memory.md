@@ -1,179 +1,183 @@
-# TurnMemory In Keen
+# Turn Memory in Keen
 
 ## Table of Contents
 
-- [The Idea](#the-idea)
-- [Memory Layers](#memory-layers)
-- [Lifecycle Of A Turn](#lifecycle-of-a-turn)
-- [What The Next Turn Gets](#what-the-next-turn-actually-gets)
-- [Historical Tool Activity](#historical-tool-activity)
-- [Why Keen Does This](#why-keen-does-this)
+- [Purpose](#purpose)
+- [The State Layers](#the-state-layers)
+- [What TurnMemory Contains](#what-turnmemory-contains)
+- [Turn Lifecycle](#turn-lifecycle)
+- [How Historical Activity Is Replayed](#how-historical-activity-is-replayed)
+- [Placement and Validation](#placement-and-validation)
+- [Pending Provider State](#pending-provider-state)
+- [Sessions, Retries, and Compaction](#sessions-retries-and-compaction)
 - [Tradeoffs](#tradeoffs)
-- [Assistant Turn Reliability](#assistant-turn-reliability)
-- [Bottom Line](#bottom-line)
+- [Summary](#summary)
 
-## The Idea
+## Purpose
 
-`TurnMemory` addresses a simple problem: a coding agent needs detailed tool state while it is actively working, but keeping every tool call and result forever makes later turns noisy, expensive, and harder to reason about.
+A coding agent needs the complete tool exchange while it is solving the current task. Carrying every tool request and result into every later turn, however, makes the prompt larger and leaves old observations looking more current than they are.
 
-Keen therefore treats the end of a turn as a compression boundary. The raw execution trace is discarded after successful completion and replaced by a small, provider-neutral summary.
+Keen separates the active tool loop from the conversation history used for later turns. `TurnMemory` is the compact historical activity attached to an assistant `Message`. It preserves that tools actually ran, where they occurred in the assistant's prose, the bounded inputs used to invoke them, and whether the invocation succeeded. It does not preserve the tool's result contents as durable model history.
 
-`TurnMemory` is not a transcript, hidden chain of thought, or planner database. It retains only:
+`TurnMemory` is not a transcript, hidden chain of thought, or planner database. It is also not the same as the session transcript: sessions retain a richer rendering of a turn for display and replay, while future model requests are projected from assistant prose and `TurnMemory`.
 
-- compact historical tool activity that preserves where real tool execution occurred between assistant prose segments
-- selected outcomes attached to that activity: changed files and failed bash commands
+## The State Layers
 
-It never retains file contents, search results, command output, arbitrary tool input, MCP arguments, or MCP result content.
-
-## Memory Layers
-
-Keen uses four related forms of state:
+Keen has several distinct representations of a turn:
 
 | Layer | Lifetime | Contents | Purpose |
 |---|---|---|---|
-| Current-turn execution | One active assistant turn | Provider-native tool calls and results | High-fidelity tool-loop reasoning |
-| Historical tool activity | Later turns and persisted sessions | Tool, bounded target, success/error status, prose offset, and selected outcomes | Preserve the protocol shape and materially useful outcomes of real execution |
-| Pending provider state | Until an interrupted turn resumes or completes | Provider-native in-progress messages | Recover incomplete tool loops without lossy conversion |
+| Provider-native active state | One `StreamChat` call and its tool-loop iterations | Native assistant messages, tool calls, tool results, reasoning, and provider-specific fields | Full-fidelity reasoning and tool chaining while the turn is active |
+| `TurnMemory` | Attached to an assistant message; persisted with the conversation | Ordered, bounded `HistoricalToolActivity` records | Compact cross-turn reconstruction of tool activity |
+| Session transcript | Persisted session events | Visible assistant text, reasoning, tool inputs and outputs, bash output, and diffs | UI rendering and session replay; not the normal future-turn model projection |
+| Pending provider state | In-memory until recovery, reset, or replacement | Provider-native messages accumulated by an incomplete tool loop | Resume an interrupted loop without converting it into lossy generic messages |
 
-The historical activity layer does not retain what a tool returned. A later turn that needs a file, command result, search result, MCP response, or external state must query it again.
+The session transcript can therefore contain raw tool details even though those details are not sent as part of ordinary later-turn conversation history. `TurnMemory` is JSON-serializable; its internal `RawOutput` fields are explicitly excluded from JSON.
 
-## Lifecycle Of A Turn
+## What `TurnMemory` Contains
 
-1. A new user turn starts with retained conversation messages and `TurnMemory` from earlier assistant turns.
-2. During the active turn, the provider may emit assistant prose, tool calls, and tool results over several loop iterations.
-3. The REPL keeps an ordered stream of assistant, tool, bash, permission, and diff segments.
-4. On completion, Keen walks those segments and records each completed tool at the number of assistant-text bytes emitted before it.
-5. Keen stores the flattened assistant prose separately from the compact `TurnMemory`.
-6. When formatting that assistant message for a later provider request, Keen inserts provider-native historical tool-call/result blocks at the saved offsets, including selected outcomes in the relevant tool results.
-7. The visible response and session transcript continue to show the original assistant prose and normal tool rendering, not the reconstructed blocks.
-8. If the turn fails mid-loop, provider-native pending state remains the recovery mechanism.
-
-## What The Next Turn Actually Gets
-
-On the next user turn, Keen sends:
-
-- prior user messages
-- prior assistant prose
-- provider-native historical tool-call/result blocks inserted between the relevant prior assistant prose segments, with selected outcomes retained in their results
-- pending provider-native state from a prior failed turn, when present
-
-This preserves a compact causal pattern:
-
-```text
-assistant intent
-→ historical record of an actual tool invocation
-→ assistant conclusion
-```
-
-It replays structured tool calls with empty placeholder arguments and a concise, status-aware result, not the original arguments or outputs. The model can see whether an earlier invocation completed or failed, but it cannot rely on the discarded result as current evidence.
-
-## Historical Tool Activity
-
-A provider-facing exchange is reconstructed conceptually like this:
-
-```text
-assistant: Let me update the stream handler.
-assistant tool call: edit_file({})
-tool result: {"status":"success","file_changed":"internal/cli/repl/stream_handler.go"}
-assistant: The terminal event is now handled after content blocks finish.
-```
-
-Ordinary successful invocations use `{"status":"success"}` and tool failures use `{"status":"error"}`. A bash command that executes but exits non-zero remains a successful tool invocation and retains `failed_command` with `exit_code`, for example `{"status":"success","failed_command":"go test ./...","exit_code":1}`. Unknown status values are treated as tool failures.
-
-The call and result use each provider's native protocol and are not part of `Message.Content`. Empty arguments are placeholders rather than valid examples; current-turn work still requires a real tool call with schema-valid arguments. Synthetic call IDs are generated while formatting so each provider can pair calls with results; original provider call IDs are not retained.
-
-### Placement
-
-Each activity stores a byte offset into the flattened assistant prose. The offset equals the cumulative byte length of assistant segments preceding the completed tool segment. Formatting uses that offset to restore the activity between prose segments without storing a duplicate copy of the prose in `TurnMemory`.
-
-Multiple tools may share an offset. Their original execution order is retained and they are replayed as one grouped batch at that point. Negative, out-of-range, out-of-order, non-UTF-8-boundary, or nameless persisted activities are ignored rather than causing formatting to fail.
-
-### Fields
+The persisted representation is a `TurnMemory` containing zero or more `HistoricalToolActivity` values:
 
 | Field | Meaning |
 |---|---|
-| `text_offset` | Byte position in assistant prose where native historical blocks are inserted |
-| `tool` | Keen tool name, or logical MCP tool name |
-| `status` | `success` when the invocation completed without a tool error; otherwise `error` |
-| `target` | Optional allowlisted, bounded target such as a path, pattern, command, URL, or subagent name |
-| `server` | MCP server name when the invocation used `call_mcp_tool` |
-| `file_changed` | Workspace-relative path returned by a successful `write_file` or `edit_file` that changed file content |
-| `failed_command` | Sanitized command returned by a successful `bash` invocation with a non-zero exit code |
-| `exit_code` | Non-zero exit code paired with `failed_command` |
+| `text_offset` | Byte offset in the flattened visible assistant prose where the activity is replayed |
+| `tool` | Tool name, including wrapper tools such as `call_mcp_tool` |
+| `input` | Bounded copy of the tool input, when the tool is eligible for retention |
+| `status` | `success` when the tool invocation completed without a tool error; otherwise `error` |
+| `exit_code` | Non-zero exit code extracted from a bash result, when available |
 
-Targets and retained outcomes are allowlisted by tool type and length-limited. File paths are made relative to the workspace when possible. Web URLs omit credentials, query parameters, and fragments. Raw outputs, complete errors, replacement text, written content, MCP arguments, and arbitrary input maps are not retained.
+The current REPL collector retains inputs for `read_file`, `grep`, `glob`, `web_fetch`, `bash`, `delegate_task`, `call_mcp_tool`, `write_file`, and `edit_file`. Each retained top-level field is bounded to 4 KiB: non-string values are kept only when their JSON encoding fits, while string fields for `write_file` and `edit_file` are truncated to 4 KiB at a valid UTF-8 boundary. Oversized fields are omitted. Absolute paths for the file and search tools are made relative to the working directory when possible. Other than those bounds and path relativization, inputs are not converted into a sanitized or redacted form.
 
-### MCP calls
+This means that turn memory can include a bounded portion of file content, replacement text, command text, URLs, MCP wrapper arguments, and other tool inputs. It does **not** include the corresponding tool output merely because the output contains useful metadata.
 
-MCP wrapper calls retain their logical server and tool in memory, but provider replay uses the registered `call_mcp_tool` wrapper with empty arguments. The retained server/tool values remain compact metadata and are not reconstructed into those placeholder arguments.
+In particular, `file_changed` and `failed_command` are tool-result fields and are not stored as separate `TurnMemory` fields. A changed file may still be recognizable from a retained `write_file` or `edit_file` input, but the collector does not infer or persist a change outcome. A bash command that runs and exits non-zero is still a successful tool invocation from Keen's perspective, so it is represented as `{"status":"success","exit_code":1}` rather than as a `failed_command` field. A tool execution error is represented as `{"status":"error"}` without the full error text.
 
-This records that the invocation occurred. It does not retain the MCP arguments, response, preview, or artifact path, and does not establish that the external information is still current or factually correct.
+The distinction between tool error and command failure is intentional:
 
-### What status means
+- `status: "error"` means the tool could not complete normally, such as an invalid tool request or execution error.
+- `status: "success"` means the tool invocation completed, not that its result was useful or that an external mutation had the desired effect.
+- A non-zero bash exit code describes the completed bash invocation and is retained separately.
 
-`success` means only that Keen completed the tool invocation without a reported tool error. It does not guarantee that:
+While an active provider loop is running, provider clients also use `HistoricalToolActivity` values containing `HasRawOutput` and `RawOutput` for in-memory context accounting and compaction. Those fields are not part of persisted `TurnMemory`; normal historical replay uses the compact status and exit-code result instead.
 
-- the tool output was factually correct
-- a search found useful results
-- an external mutation had the desired broader effect
-- the underlying workspace or service remains unchanged
+## Turn Lifecycle
 
-`error` records only failure, not the full error text.
+1. A new user turn starts with the projected conversation messages, any persisted `TurnMemory`, and possibly in-memory pending provider state from an earlier incomplete call.
+2. The LLM client sends provider-native messages and may loop through many assistant responses and tool executions.
+3. The REPL stream handler records visible assistant prose and an ordered segment stream. It also records tool ends and bash segments; permission prompts, diffs, reasoning, and subagent display segments are not themselves historical tool activities.
+4. When the stream reaches a terminal event, the REPL walks the final surviving segments and creates activities at the byte length of the preceding visible assistant segments.
+5. The assistant's visible response is stored as `Message.Content`, and the collected activities are attached as `Message.TurnMemory`.
+6. For a later provider request, Keen formats the assistant prose and inserts native tool-call and tool-result blocks at the recorded offsets.
+7. The session UI and transcript continue to use the original rendered segments. The reconstructed native blocks are a provider request representation, not a replacement for the visible response.
+8. If the provider reports an incomplete turn, provider-native pending state is kept separately so the next call can resume the unfinished exchange.
 
-## Why Keen Does This
+A normal historical exchange is therefore conceptually:
 
-The design balances three pressures:
+```text
+assistant: I will inspect the parser.
+assistant tool call: read_file({"path":"internal/parser.go"})
+tool result: {"status":"success"}
+assistant: The parser already handles the new token shape.
+```
 
-- the active agent needs high-fidelity tool state while solving the current task
-- later turns need continuity and a truthful record that actions actually occurred
-- conversation context should not accumulate large, stale, or untrusted tool outputs
+For a bash command that exits with code 1, the result is instead compactly represented as:
 
-Retaining prose while deleting every sign of tool activity can produce a misleading history in which the assistant appears to announce an action and then claim completion without executing anything. Provider-native historical blocks repair that protocol shape without turning `TurnMemory` into a raw execution archive.
+```json
+{"status":"success","exit_code":1}
+```
 
-Retained tool outcomes remain intentionally narrow. Changed files and failed commands carry useful continuity, while read/search/MCP results are expected to be refreshed when needed.
+The actual retained input is used in the historical tool call. Empty placeholder arguments are not used by the current implementation.
+
+## How Historical Activity Is Replayed
+
+`FormatMessageForProvider` deliberately returns only `Message.Content`. It does not append XML, JSON, or a textual memory block to the assistant message. Provider adapters call the shared historical-message formatter and translate its steps into their native protocols:
+
+- OpenAI Chat Completions uses assistant tool calls followed by tool messages.
+- OpenAI Responses and Codex use function-call and function-output items.
+- Anthropic uses assistant tool-use blocks followed by user tool-result blocks.
+- Bedrock uses assistant tool-use and user tool-result content blocks.
+- Genkit uses model tool-request and tool-response parts.
+
+Each replayed activity receives a synthetic ID of the form `historical_<message index>_<activity index>` so the provider can pair the call with its result. Original provider call IDs are not persisted in `TurnMemory`.
+
+Historical results normally contain only the compact status object and optional `exit_code`. If an in-memory activity has `HasRawOutput`, the provider formatter uses that raw output instead; this path is used for active-turn provider state and compaction, not for a persisted historical activity collected by the REPL.
+
+The model therefore receives evidence that an earlier invocation occurred and the bounded arguments that were used, but should refresh files, search results, command output, MCP responses, and other mutable state when it needs them again.
+
+## Placement and Validation
+
+`text_offset` is a byte offset, not a character or token offset. The REPL computes it by adding the byte lengths of visible `segmentAssistant` content before each completed `segmentToolEnd` or `segmentBash`. Reasoning segments do not contribute to the offset because reasoning is not part of `Message.Content`.
+
+Activities at the same offset are grouped into one native assistant tool-call batch and one corresponding result batch. Their original activity order is retained.
+
+When formatting a persisted message, Keen skips an activity when:
+
+- its offset is negative, beyond the assistant content, or earlier than the current cursor;
+- its tool name is empty; or
+- its offset falls inside a UTF-8 encoding rather than at a rune boundary.
+
+The formatter also ignores activities that arrive out of order by offset. Invalid persisted memory is therefore discarded locally rather than making provider formatting fail.
+
+## Pending Provider State
+
+A provider client keeps an incomplete native exchange separately from `TurnMemory`. The concrete type is provider-specific: for example, OpenAI-compatible clients keep chat message parameters, Responses and Codex clients keep response input items, Anthropic and Bedrock keep native message values, and Genkit keeps native Genkit messages.
+
+When a non-one-shot `StreamChat` call begins, pending state is inserted immediately before the newest user message and then cleared from the client. If the resumed call accumulates more native state and ends incompletely again, the combined pending exchange is saved again. This prevents the next call from treating a completed tool loop as a new request and executing its side effects again.
+
+The terminal event has these meanings:
+
+| Event | Meaning | Pending-state behavior |
+|---|---|---|
+| `done` | Normal completion with no remaining native exchange | No pending state remains |
+| `incomplete` | A native message exchange was accumulated but the turn ended abnormally, or the tool-loop limit was reached | Saved for the next non-one-shot call |
+| `error` | Failure before recoverable native exchange accumulated | Not saved; existing state is cleared in the corresponding failure path |
+
+Pending state is in-memory only. It does not survive a process crash or restart, and `Reset` clears it. One-shot calls, including automatic compaction requests, do not save pending state. Automatic compaction also replaces the provider history and clears pending state because the old native exchange is no longer the active context.
+
+The REPL can persist a partial assistant message and its `TurnMemory` for an incomplete or interrupted turn. That persistence is useful for the visible session history, but pending native state remains the authoritative mechanism for resuming the provider tool loop.
+
+## Sessions, Retries, and Compaction
+
+### Sessions
+
+When an assistant turn is persisted, Keen stores both a transcript event and the assistant message projection. The transcript event can contain the detailed tool rendering needed to display or replay the session. `session.BuildConversation` uses the user messages, assistant prose, and cloned `TurnMemory` values for ordinary future LLM requests; it does not reconstruct those requests from transcript outputs.
+
+`CloneMessage` and `CloneTurnMemory` deep-copy retained input maps and internal raw values so the active provider state and persisted message projection do not unintentionally share mutable maps.
+
+### Retries
+
+Provider retries can happen after a stream error. The REPL's `RewindForRetry` removes only trailing assistant and reasoning segments from the failed attempt. Completed tool, bash, permission, and diff segments from earlier tool-loop iterations remain. Historical activity is collected from the final surviving segment list, so abandoned retry prose is not included in the next `TurnMemory`.
+
+### Automatic compaction
+
+During a long active turn, provider clients maintain a separate compaction history. Activities generated by the active provider loop may include raw output in memory so the compaction request can preserve the information needed to summarize the current context. If compaction succeeds, the provider history is replaced by the generated summary and the native pending state is cleared. The REPL checkpoints the visible partial turn, persists its current activity summary, then starts a fresh segment and turn-memory accumulator for the remainder of the turn.
+
+Compaction is a separate context-reduction mechanism; it should not be confused with the ordinary cross-turn `TurnMemory` projection.
 
 ## Tradeoffs
 
 ### Benefits
 
-- Smaller context than full tool-trace retention
-- Better distinction between narrated intent and actual prior execution
-- No persistence of large or untrusted tool results
-- Native tool protocol shape for each provider
-- Status-aware placeholders distinguish completed and failed invocations
-- Fresh reads of mutable workspace and external state
-- Legible, bounded cross-turn memory
+- Smaller and less stale future-turn prompts than full raw tool-history replay.
+- Native provider protocol shape instead of an in-band memory string.
+- Enough input and status information to preserve the causal shape of previous work.
+- Fresh reads of mutable workspace and external state when details are needed again.
+- In-memory native recovery for incomplete tool loops.
 
-### Costs
+### Costs and limitations
 
-- Rich investigative details from prior outputs are still lost
-- Later turns may repeat reads, searches, commands, and MCP calls
-- Empty historical arguments may be imitated and fail schema validation
-- Byte offsets require validation when loading persisted state
-- Compact history can reduce prompt/KV-cache continuity compared with retaining a full trace
+- Retained inputs can still be significant: each eligible top-level field may occupy up to 4 KiB, and write/edit inputs can include bounded content or replacement text.
+- Historical tool outputs, full errors, search results, file contents returned by reads, bash stdout/stderr, MCP responses, and provider call IDs are not available through normal future-turn replay.
+- Later turns may repeat reads, searches, commands, and MCP calls.
+- Bounded historical arguments can be copied by a model into a new call, but they are historical context, not a substitute for a fresh schema-valid invocation.
+- Byte offsets and persisted input values require validation, which the formatter performs by skipping invalid activities.
+- Pending recovery is lost if the process crashes before the native state is consumed.
+- Keeping the session transcript and keeping model conversation history are different choices: the transcript may remain detailed even when the future prompt is intentionally lean.
 
-This design works best when the workspace is the source of truth, read-only tools are cheap to repeat, and lean context is preferred over exhaustive replay. A fuller trace or richer planner state may suit long investigations with expensive, irreproducible external observations.
+This design works best when the workspace is the source of truth, read-only and external observations can be refreshed, and compact context is more valuable than exhaustive replay. A richer durable result store would be more appropriate for expensive or irreproducible observations.
 
-## Assistant Turn Reliability
+## Summary
 
-### Pending Turn State
+`TurnMemory` is a bounded historical execution summary, not a raw transcript. For each retained completed tool activity, Keen stores its position in assistant prose, tool name, bounded invocation input, status, and—when applicable—the non-zero bash exit code. It does not persist tool outputs or infer file-change outcomes from them.
 
-A single assistant turn can involve many provider tool-loop iterations. If it ends abnormally after tool work has accumulated, converting that partial exchange into generic conversation messages would be lossy and could invite side-effect re-execution.
-
-Each LLM client therefore stores pending state in its provider-native message format. On the next `StreamChat` call, that state is injected before the new user message so the model can resume from the prior work.
-
-| Event | Meaning | Pending state action |
-|---|---|---|
-| `Done` | Normal completion | Cleared or never saved |
-| `Incomplete` | Turn ended abnormally after work occurred | Saved for the next call |
-| `Error` | Turn failed before recoverable provider work accumulated | Not saved |
-
-Pending state is in-memory only, does not survive process crashes, avoids re-executing completed tools, and is cleared after successful recovery. Persisted transcript and `TurnMemory` may still describe the visible partial turn, but provider-native pending state—not historical annotations—is authoritative for resuming the incomplete tool loop.
-
-Retries within the same active turn rewind trailing unsealed assistant/reasoning segments. Historical activity is collected only from the final surviving segment list, so abandoned retry prose is not retained.
-
-## Bottom Line
-
-`TurnMemory` is a compact execution summary rather than a transcript.
-
-Inside a turn, Keen keeps rich provider-native tool state. Across completed turns, it retains bounded records of where real tools ran, with changed-file and failed-command outcomes attached to the relevant tool results. The records establish prior invocation, not retained evidence or current state. Failed turns use temporary provider-native pending state for recovery.
+Within an active provider loop, Keen keeps native tool calls and results, including raw outputs where needed for compaction. Across turns, providers receive native historical call/result blocks reconstructed from assistant prose and `TurnMemory`. If a turn fails after native work has accumulated, temporary provider-native pending state is used for recovery; it is separate from and authoritative over the compact historical summary.

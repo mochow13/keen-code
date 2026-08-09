@@ -61,7 +61,8 @@ Tips:
 - Do not repeatedly grep to exhaust all matches unless the user asks for exhaustive coverage
 - If there are many matches, narrow by path/include before reading files
 - Use output_mode=file first when you only need candidate files
-- Results are capped at 1000 matches. Use include and path to stay within this limit`
+- Results are capped at 1000 matches. Use include and path to stay within this limit
+- Structured content matches include line_number and line_hash; the pair forms a LINE:HASH edit_file anchor. Read nearby context when you need it.`
 }
 
 func (t *GrepTool) InputSchema() map[string]any {
@@ -383,6 +384,7 @@ func (s *fileSearcher) scanContentForMatches(path string, content []byte) ([]map
 				"file":        path,
 				"line_number": lineNumber,
 				"line":        line,
+				"line_hash":   computeLineHash([]byte(line)),
 			})
 		}
 	}

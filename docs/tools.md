@@ -26,7 +26,7 @@ The registry manages all available tools and converts them to provider-specific 
 |------|---------|----------------|
 | `read_file` | Read file contents | `path`, `offset`, `limit` |
 | `write_file` | Create/overwrite files | `path`, `content` |
-| `edit_file` | Targeted string replacement | `path`, `oldString`, `newString` |
+| `edit_file` | Hash-anchored multi-op edits | `path`, `ops` |
 | `glob` | Find files by pattern | `pattern`, `path` |
 | `grep` | Search file contents | `pattern`, `path`, `include` |
 | `bash` | Execute shell commands | `command`, `isDangerous`, `summary` |
@@ -55,11 +55,15 @@ type ReadFileTool struct {
 - Binary files are rejected
 - Long lines are truncated to 1000 runes to keep tool results bounded
 
+**Anchors**
+
+Every displayed line is prefixed with an `N:HASH|` anchor: the 1-based line number and a three-character FNV-1a hash of that line's full raw content (excluding the line-ending delimiter; a CRLF `\r` is part of the delimiter). The hash is computed before display truncation, so it always covers the complete line and stays valid for `edit_file`. A terminal line ending creates no extra empty line, and there is no file-level hash footer.
+
 **Returns:**
 ```json
 {
   "path": "/absolute/path/to/file",
-  "content": "1: file contents...",
+  "content": "1:69c|package main\n2:811|\n3:9a9|import \"fmt\"",
   "bytes_read": 1234,
   "offset": 1,
   "limit": 1000,
@@ -102,7 +106,7 @@ type WriteFileTool struct {
 
 ## edit_file
 
-Performs targeted string replacement in existing files.
+Performs hash-anchored multi-op edits on existing files.
 
 ```go
 type EditFileTool struct {
@@ -114,15 +118,63 @@ type EditFileTool struct {
 
 **Parameters:**
 - `path` (string, required): Target file path
-- `oldString` (string, required): Exact text to find and replace
-- `newString` (string, required): Replacement text
-- `shouldReplaceAll` (boolean, optional): Replace all occurrences (default: false)
+- `ops` (array, required, non-empty): Edit operations for this one file. Every anchor validates against one file snapshot and the ops apply atomically.
+
+**Op fields:**
+- `op` (string, optional): `replace` (default), `insert_after`, `insert_before`, `insert_head`, or `insert_tail`
+- `start` (string, optional): `LINE:HASH` anchor. Required for `replace`, `insert_after`, and `insert_before`; not used by `insert_head`/`insert_tail`.
+- `end` (string, optional): Inclusive end `LINE:HASH` anchor for a range replacement; allowed only for `replace`.
+- `text` (string, optional): Replacement or inserted text; may be multiline; empty text deletes a `replace` range.
+
+**Anchors**
+
+Anchors come from `read_file` output (`N:HASH|` prefixes) or `grep` matches (`line_number` + `line_hash`). The line number is 1-based; the hash is the first three lowercase hex characters of an FNV-1a 32-bit digest over the line's raw content bytes, excluding the line-ending delimiter (a CRLF `\r` is part of the delimiter). There is **no file-level hash**: an unrelated change elsewhere in the file does not invalidate a valid local anchor.
 
 **Behavior:**
 - File must already exist
-- `oldString` must match exactly (including whitespace)
-- Uses `go-udiff` for unified diff output
-- Emits diff via `DiffEmitter`
+- All ops validate against one immutable pre-edit snapshot before anything is written: every anchor must be in range and hash-match its current line, overlapping replace ranges are rejected, and insertions at the same position are rejected
+- Validated ops apply bottom-up and the final content is written atomically (temporary file + rename)
+- Reversed `start`/`end` range anchors are normalized
+- Only `insert_head` is valid for an empty file
+- A plain full-file unified diff is emitted via `DiffEmitter` before any permission prompt and before writing
+- Memory files are secret-scanned before permission and writing
+
+**Example — single-line replacement and insertion:**
+
+```json
+{
+  "path": "internal/tools/example.go",
+  "ops": [
+    {"start": "6:dae", "text": "\treturn fmt.Sprintf(\"Hello, %s!\", name)"},
+    {"op": "insert_after", "start": "7:f80", "text": "\n// done"}
+  ]
+}
+```
+
+**Example — range replacement with empty text (deletion) and head insertion:**
+
+```json
+{
+  "path": "internal/tools/example.go",
+  "ops": [
+    {"op": "insert_head", "text": "// Package example demonstrates hashline edits.\n"},
+    {"start": "1:69c", "end": "3:9a9", "text": "package main"}
+  ]
+}
+```
+
+**Limits**
+
+- **No file hash** — a change far from an anchored line does not reject the edit.
+- **No anchor relocation** — a line/hash mismatch fails loudly; the tool never searches for a "close enough" line.
+- **One snapshot per call** — every op validates against the same pre-edit file state, so a failed op rejects the whole call and writes nothing.
+- **Re-read before a later same-file edit** — anchors come only from `read_file`/`grep`; put all known same-file edits in one `ops` array, and call `read_file` again before a later edit to the same file.
+
+**Errors** identify the failing op when an anchor is not present in the current snapshot:
+
+```
+Error: op 2: anchor "42:7f0" not found in file snapshot; re-read the file to obtain current anchors
+```
 
 **Returns:**
 ```json
@@ -132,6 +184,8 @@ type EditFileTool struct {
   "replacementCount": 1
 }
 ```
+
+`file_changed` is included in the result when the content actually changed. No fresh anchors are returned — call `read_file` again before another same-file edit.
 
 ## glob
 
@@ -188,12 +242,14 @@ type GrepTool struct {
   "base_path": "/project",
   "output_mode": "content",
   "matches": [
-    {"file": "/project/main.go", "line_number": 10, "line": "func foo() {"},
-    {"file": "/project/main.go", "line_number": 25, "line": "func foo() error {"}
+    {"file": "/project/main.go", "line_number": 10, "line": "func foo() {", "line_hash": "719"},
+    {"file": "/project/main.go", "line_number": 25, "line": "func foo() error {", "line_hash": "452"}
   ],
   "count": 2
 }
 ```
+
+The `line_number` and `line_hash` pair forms a `LINE:HASH` edit anchor usable directly in `edit_file` — a grep result needs no intermediate `read_file` purely to obtain global state. Read nearby context when you need it. Repeated lines share a hash but keep distinct line numbers.
 
 ## bash
 

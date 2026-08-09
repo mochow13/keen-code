@@ -170,7 +170,7 @@ func isHiddenToolFailure(toolCall *llm.ToolCall) bool {
 		return false
 	}
 	return toolCall.Name == "read_file" && strings.HasPrefix(toolCall.Error, "not found: file ") ||
-		toolCall.Name == "edit_file" && strings.HasPrefix(toolCall.Error, "oldString not found")
+		toolCall.Name == "edit_file" && strings.Contains(toolCall.Error, "line hash mismatch")
 }
 
 func (sh *StreamHandler) renderAssistantViewLines(content string, width int) []string {

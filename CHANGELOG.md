@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Hashline-style editing (issue #80): `read_file` emits `N:HASH|` line anchors (line number + 3-char FNV-1a hash), `edit_file` takes a multi-op `ops[]` array validated against one file snapshot and applied atomically, and structured `grep` matches include `line_hash`. No file-level hash; anchors never relocate; re-read before a later same-file edit.
+
 ## [0.45.0] - 2025-08-07
 
 ### Added

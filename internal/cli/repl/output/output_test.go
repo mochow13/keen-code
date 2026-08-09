@@ -420,10 +420,10 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 
 func TestFormatToolDone_ErrorShowsReasonAndDuration(t *testing.T) {
 	start := &llm.ToolCall{Name: "edit_file", Input: map[string]any{"path": "output.go"}}
-	end := &llm.ToolCall{Name: "edit_file", Error: "oldString not found", Duration: 2 * 1e6}
+	end := &llm.ToolCall{Name: "edit_file", Error: "op 1: line hash mismatch at 2:fff (actual a1b)", Duration: 2 * 1e6}
 	got := FormatToolDone(start, end, "/tmp/project")
 
-	for _, want := range []string{"✗ Edit", "output.go", "oldString not found", "2ms"} {
+	for _, want := range []string{"✗ Edit", "output.go", "line hash mismatch", "2ms"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("FormatToolDone() = %q, want it to contain %q", got, want)
 		}

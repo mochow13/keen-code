@@ -50,7 +50,7 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 - **Skills system** — Specialized workflows for planning, debugging, refactoring, code review, and more.
 - **Thinking mode** — Extended reasoning for complex tasks. Use `/thinking` to change the thinking effort level for the current model. All models that support thinking can be configured.
 - **Session management** — Persistent sessions with resume capability.
-- **Conservative context management** — Lean cross-turn memory via `TurnMemory` summaries instead of raw tool traces. More information can be found in [docs/turn-memory.md](docs/turn-memory.md). An analysis of the tradeoffs and rationale can be found in [docs/turn-memory-analysis.md](docs/turn-memory-analysis.md).
+- **Conservative context management** — Lean cross-turn memory via `TurnMemory` summaries instead of raw tool traces. More information can be found in [docs/turn-memory.md](docs/turn-memory.md).
 - **User-triggered compaction** - When the context window is nearing the limit, use `/compact` to compact the context.
 
 ## Telemetry
@@ -65,15 +65,15 @@ A random UUID is stored with user-only permissions at `~/.keen/telemetry.json`; 
 
 ## How Keen Handles Context
 
-Keen takes a deliberately lean approach to cross-turn context. Within a single assistant turn the model has full access to its tool calls and results, but once the turn completes Keen does **not** carry the raw tool trace forward. Instead, it distills a compact `TurnMemory` summary that records only the outcomes most likely to matter later — currently which files were changed and which bash commands failed.
+Keen takes a deliberately lean approach to cross-turn context. Within a single assistant turn the model has full access to its tool calls and results, but later model requests do not carry the raw tool results forward as conversation history. Instead, Keen attaches a bounded `TurnMemory` summary to assistant messages. It records where retained tools ran, their bounded invocation inputs, status, and non-zero bash exit codes; it does not persist tool outputs or infer file-change outcomes from them.
 
 Subsequent turns therefore receive:
 
 - prior user and assistant messages
-- the compact `TurnMemory` summary from earlier turns
-- any pending state from a turn that failed mid-loop, so the model can resume instead of starting over
+- provider-native historical tool-call/result blocks reconstructed from assistant prose and `TurnMemory`
+- any pending provider-native state from a turn that failed mid-loop, so the model can resume instead of starting over
 
-The tradeoff is intentional: smaller context and a better signal-to-noise ratio, at the cost of occasionally re-reading files or re-running searches when older observations are needed again. Read-only facts are cheap to recompute; mutated state and failures are what deserve durable memory.
+The tradeoff is intentional: smaller context and a better signal-to-noise ratio, at the cost of occasionally re-reading files or re-running searches when older observations are needed again. Read-only facts and external observations are refreshed when needed rather than treated as durable evidence.
 
 For the full rationale, lifecycle, and comparison with other coding agents, see [`docs/turn-memory.md`](docs/turn-memory.md).
 
@@ -193,11 +193,11 @@ OpenCode Go uses an API key and includes GLM, Kimi, DeepSeek, MiMo, MiniMax, and
 
 Keen Code aims to support minimal set of useful tools for coding. Currently, these tools are built in:
 
-- `read_file` — read a UTF-8 text file
+- `read_file` — read a UTF-8 text file with `N:HASH|` line anchors
 - `glob` — find files by glob patterns
 - `grep` — search for text patterns in files
 - `write_file` — create or overwrite files
-- `edit_file` — replace specific text in existing files
+- `edit_file` — hash-anchored multi-op edits (`LINE:HASH` anchors in one `ops` array, applied atomically)
 - `bash` — run shell commands
 
 ## Further Reading

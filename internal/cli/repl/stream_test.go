@@ -341,20 +341,20 @@ func TestStreamHandler_ReadFileNotFoundIsHidden(t *testing.T) {
 	}
 }
 
-func TestStreamHandler_EditFileOldStringNotFoundIsHidden(t *testing.T) {
+func TestStreamHandler_EditFileHashMismatchIsHidden(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
 	sh.HandleChunk("Trying an edit. ")
 	sh.HandleToolStart(&llm.ToolCall{Name: "edit_file", Input: map[string]any{"path": "output.go"}})
-	sh.HandleToolEnd(&llm.ToolCall{Name: "edit_file", Error: "oldString not found"})
+	sh.HandleToolEnd(&llm.ToolCall{Name: "edit_file", Error: "op 1: line hash mismatch at 2:fff (actual a1b)"})
 	sh.HandleChunk("The target changed.")
 
 	view := sh.View(80)
 	lines, _ := sh.HandleDone()
 	transcript := strings.Join(lines, "\n")
 	for _, rendered := range []string{view, transcript} {
-		if strings.Contains(rendered, "Edit") || strings.Contains(rendered, "output.go") || strings.Contains(rendered, "oldString not found") {
+		if strings.Contains(rendered, "Edit") || strings.Contains(rendered, "output.go") || strings.Contains(rendered, "line hash mismatch") {
 			t.Fatalf("expected failed edit to be hidden, got %q", rendered)
 		}
 		if !strings.Contains(rendered, "Trying an edit.") || !strings.Contains(rendered, "The target changed.") {

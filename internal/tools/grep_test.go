@@ -191,6 +191,154 @@ func TestGrepTool_Execute_ContentMode(t *testing.T) {
 	}
 }
 
+func TestGrepTool_Execute_ContentMode_LineHash(t *testing.T) {
+	tmpDir := t.TempDir()
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewGrepTool(guard, nil)
+	ctx := context.Background()
+
+	content := "line one\nfunc Test() {}\nline three\nfunc Another() {}\n"
+	err := os.WriteFile(filepath.Join(tmpDir, "test.go"), []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	input := map[string]any{
+		"pattern":     "^func",
+		"output_mode": "content",
+	}
+	result, err := tool.Execute(ctx, input)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		t.Fatal("result should be map[string]any")
+	}
+
+	matches, ok := resultMap["matches"].([]map[string]any)
+	if !ok {
+		t.Fatal("matches should be []map[string]any")
+	}
+
+	if len(matches) != 2 {
+		t.Fatalf("len(matches) = %d, want 2", len(matches))
+	}
+
+	wantLineNumbers := []int{2, 4}
+	for i, m := range matches {
+		if m["line_number"] != wantLineNumbers[i] {
+			t.Errorf("match %d line_number = %v, want %d", i, m["line_number"], wantLineNumbers[i])
+		}
+		line, ok := m["line"].(string)
+		if !ok {
+			t.Fatalf("match %d line should be string", i)
+		}
+		wantHash := computeLineHash([]byte(line))
+		if m["line_hash"] != wantHash {
+			t.Errorf("match %d line_hash = %v, want %q", i, m["line_hash"], wantHash)
+		}
+		if h, ok := m["line_hash"].(string); !ok || len(h) != 3 {
+			t.Errorf("match %d line_hash should be a 3-character string, got %v", i, m["line_hash"])
+		}
+	}
+}
+
+func TestGrepTool_Execute_ContentMode_RepeatedLines(t *testing.T) {
+	tmpDir := t.TempDir()
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewGrepTool(guard, nil)
+	ctx := context.Background()
+
+	content := "return nil\nreturn nil\nreturn nil\n"
+	err := os.WriteFile(filepath.Join(tmpDir, "test.go"), []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	input := map[string]any{
+		"pattern":     "return nil",
+		"output_mode": "content",
+	}
+	result, err := tool.Execute(ctx, input)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		t.Fatal("result should be map[string]any")
+	}
+
+	matches, ok := resultMap["matches"].([]map[string]any)
+	if !ok {
+		t.Fatal("matches should be []map[string]any")
+	}
+
+	if len(matches) != 3 {
+		t.Fatalf("len(matches) = %d, want 3", len(matches))
+	}
+
+	sharedHash := computeLineHash([]byte("return nil"))
+	for i, m := range matches {
+		if m["line_number"] != i+1 {
+			t.Errorf("match %d line_number = %v, want %d", i, m["line_number"], i+1)
+		}
+		if m["line_hash"] != sharedHash {
+			t.Errorf("match %d line_hash = %v, want %q (shared)", i, m["line_hash"], sharedHash)
+		}
+	}
+}
+
+func TestGrepTool_Execute_ContentMode_CRLFLineHash(t *testing.T) {
+	tmpDir := t.TempDir()
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewGrepTool(guard, nil)
+	ctx := context.Background()
+
+	content := "line one\r\nfunc Test() {}\r\nline three\r\n"
+	err := os.WriteFile(filepath.Join(tmpDir, "test.go"), []byte(content), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	input := map[string]any{
+		"pattern":     "^func",
+		"output_mode": "content",
+	}
+	result, err := tool.Execute(ctx, input)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		t.Fatal("result should be map[string]any")
+	}
+
+	matches, ok := resultMap["matches"].([]map[string]any)
+	if !ok {
+		t.Fatal("matches should be []map[string]any")
+	}
+
+	if len(matches) != 1 {
+		t.Fatalf("len(matches) = %d, want 1", len(matches))
+	}
+
+	// The scanner strips the CRLF delimiter, so the hash must match the
+	// hash over the line content without the trailing carriage return,
+	// consistent with splitRawLines used by read_file and edit_file.
+	line := "func Test() {}"
+	wantHash := computeLineHash([]byte(line))
+	if matches[0]["line"] != line {
+		t.Errorf("line = %q, want %q", matches[0]["line"], line)
+	}
+	if matches[0]["line_hash"] != wantHash {
+		t.Errorf("line_hash = %v, want %q", matches[0]["line_hash"], wantHash)
+	}
+}
+
 func TestGrepTool_Execute_FileMode(t *testing.T) {
 	tmpDir := t.TempDir()
 	guard := filesystem.NewGuard(tmpDir, nil)

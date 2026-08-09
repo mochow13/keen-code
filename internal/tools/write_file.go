@@ -158,8 +158,8 @@ func writeFileContent(path string, content string) (bool, error) {
 	_, err := os.Stat(path)
 	created := os.IsNotExist(err)
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		return false, fmt.Errorf("write failed: %w", err)
+	if err := writeFileAtomic(path, []byte(content)); err != nil {
+		return false, err
 	}
 
 	return created, nil

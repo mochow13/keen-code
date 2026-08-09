@@ -2,14 +2,31 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"os"
+	"log/slog"
+	"sort"
 	"strings"
 
 	udiff "github.com/aymanbagabas/go-udiff"
 	"github.com/user/keen-code/internal/filesystem"
 	"github.com/user/keen-code/internal/memory"
 )
+
+const (
+	opReplace      = "replace"
+	opInsertAfter  = "insert_after"
+	opInsertBefore = "insert_before"
+	opInsertHead   = "insert_head"
+	opInsertTail   = "insert_tail"
+)
+
+type EditOp struct {
+	Op    string
+	Start string
+	End   string
+	Text  string
+}
 
 type EditFileTool struct {
 	guard               *filesystem.Guard
@@ -30,18 +47,21 @@ func (t *EditFileTool) Name() string {
 }
 
 func (t *EditFileTool) Description() string {
-	return `Edit a file by replacing occurrences of a string. The file must already exist.
-
-Use this through the tool API whenever you say you will edit, patch, modify, replace text in, or update a file. Do not merely describe file editing in assistant text.
+	return `Edit a file with hash-anchored operations. The file must already exist.
 
 Use this for targeted modifications to existing files. Prefer this over write_file
 when you only need to change part of a file.
 
+Each op addresses lines with LINE:HASH anchors (line number + 3-character hash) taken from read_file or grep output:
+- replace (default): replaces the line at start, or the inclusive start..end range, with text. Empty text deletes the range.
+- insert_after / insert_before: insert text after or before the anchored line.
+- insert_head / insert_tail: insert text at the start or end of the file; these ops take no anchor.
+
 IMPORTANT:
-- Always read the file first to get the exact current content.
-- oldString must match the file content exactly, including whitespace and indentation.
-- If oldString is not found, the edit fails. Copy text precisely from read_file output.
-- read_file prefixes each line as "N: text". Do not include that line number prefix in oldString.`
+- Read the file first to obtain current N:HASH| anchors; a stale hash is rejected, so re-read after any change.
+- Put all edits to one file in one ops array. The tool validates every anchor against one file snapshot and applies the edits atomically.
+- You may emit separate calls for different files in one turn. Read the file again before making a later same-file edit.
+- On a line/hash mismatch, re-read the affected area and retry with fresh anchors.`
 }
 
 func (t *EditFileTool) InputSchema() map[string]any {
@@ -52,20 +72,36 @@ func (t *EditFileTool) InputSchema() map[string]any {
 				"type":        "string",
 				"description": "Absolute or relative path to the file to edit",
 			},
-			"oldString": map[string]any{
-				"type":        "string",
-				"description": "The exact text to find and replace. Must match file content precisely, including whitespace and indentation. Include enough surrounding context to make the match unique.",
-			},
-			"newString": map[string]any{
-				"type":        "string",
-				"description": "The replacement text. Can be empty to delete the matched text.",
-			},
-			"shouldReplaceAll": map[string]any{
-				"type":        "boolean",
-				"description": "Whether to replace all occurrences (default: false, replaces only the first). Only set to true when every occurrence should be changed.",
+			"ops": map[string]any{
+				"type":        "array",
+				"minItems":    1,
+				"description": "Non-empty array of edit operations for this one file, all validated against one file snapshot and applied atomically.",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"op": map[string]any{
+							"type":        "string",
+							"enum":        []string{opReplace, opInsertAfter, opInsertBefore, opInsertHead, opInsertTail},
+							"description": "Operation kind, defaults to \"replace\". replace swaps the anchored line (or start..end range) for text; insert_after and insert_before insert text relative to the anchored line; insert_head and insert_tail insert text at the file start/end and take no anchor.",
+						},
+						"start": map[string]any{
+							"type":        "string",
+							"description": "LINE:HASH anchor for replace, insert_after, and insert_before. Required for those ops; not used by insert_head/insert_tail.",
+						},
+						"end": map[string]any{
+							"type":        "string",
+							"description": "Optional inclusive end LINE:HASH anchor; allowed only for replace, making it a range replacement.",
+						},
+						"text": map[string]any{
+							"type":        "string",
+							"description": "Replacement or inserted text. May be multiline. Empty text deletes a replace range.",
+						},
+					},
+					"additionalProperties": false,
+				},
 			},
 		},
-		"required":             []string{"path", "oldString", "newString"},
+		"required":             []string{"path", "ops"},
 		"additionalProperties": false,
 	}
 }
@@ -82,14 +118,11 @@ func (t *EditFileTool) ValidateInput(_ context.Context, input any) error {
 		}
 		return fmt.Errorf("invalid input: path must be a non-empty string")
 	}
-	for _, name := range []string{"oldString", "newString"} {
-		value, exists := params[name]
-		if !exists {
-			return missingEditFileParameter(name)
-		}
-		if _, ok := value.(string); !ok {
-			return fmt.Errorf("invalid input: %s must be a string", name)
-		}
+	if _, exists := params["ops"]; !exists {
+		return missingEditFileParameter("ops")
+	}
+	if _, err := parseEditOps(params["ops"]); err != nil {
+		return err
 	}
 	return nil
 }
@@ -98,22 +131,52 @@ func missingEditFileParameter(name string) error {
 	return missingRequiredParameter(
 		"edit_file",
 		name,
-		`{"path":"<existing file path>","oldString":"<exact text from read_file without line prefixes>","newString":"<replacement text>"}`,
-		"Read the file first; newString may be empty, but it must be provided",
+		`{"path":"<existing file path>","ops":[{"start":"1:a3f","text":"<replacement text>"}]}`,
+		"Read the file first; put all edits to one file in one ops array, validated against one snapshot and applied atomically",
 	)
+}
+
+func applyEditOps(content []byte, ops []EditOp) ([]byte, error) {
+	validated, err := validateEditOps(content, ops)
+	if err != nil {
+		return nil, err
+	}
+	sort.SliceStable(validated, func(i, j int) bool {
+		if validated[i].start != validated[j].start {
+			return validated[i].start > validated[j].start
+		}
+		return validated[i].end > validated[j].end
+	})
+
+	lines := splitRawLines(content)
+	work := make([][]byte, len(lines))
+	copy(work, lines)
+	for _, v := range validated {
+		ins := splitRawLines([]byte(v.op.Text))
+		head := work[:v.start]
+		tail := work[v.end:]
+		merged := make([][]byte, 0, len(head)+len(ins)+len(tail))
+		merged = append(merged, head...)
+		merged = append(merged, ins...)
+		merged = append(merged, tail...)
+		work = merged
+	}
+	return joinLines(work, content), nil
 }
 
 func (t *EditFileTool) Execute(ctx context.Context, input any) (any, error) {
 	params := input.(map[string]any)
-	path := params["path"].(string)
-	oldString := params["oldString"].(string)
-	newString := params["newString"].(string)
 
-	shouldReplaceAll := false
-	if v, ok := params["shouldReplaceAll"]; ok {
-		if b, ok := v.(bool); ok {
-			shouldReplaceAll = b
-		}
+	requestJSON, err := json.MarshalIndent(params, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal edit_file request: %w", err)
+	}
+	slog.Debug("edit_file", "request", string(requestJSON))
+
+	path := params["path"].(string)
+	ops, err := parseEditOps(params["ops"])
+	if err != nil {
+		return nil, err
 	}
 
 	resolvedPath, err := t.guard.ResolvePath(path)
@@ -132,19 +195,11 @@ func (t *EditFileTool) Execute(ctx context.Context, input any) (any, error) {
 	}
 	oldContent := string(contentBytes)
 
-	if !strings.Contains(oldContent, oldString) {
-		return nil, fmt.Errorf("oldString not found in file %q", path)
+	finalContent, err := applyEditOps(contentBytes, ops)
+	if err != nil {
+		return nil, err
 	}
-
-	var newContent string
-	var replacementCount int
-	if shouldReplaceAll {
-		newContent = strings.ReplaceAll(oldContent, oldString, newString)
-		replacementCount = strings.Count(oldContent, oldString)
-	} else {
-		newContent = strings.Replace(oldContent, oldString, newString, 1)
-		replacementCount = 1
-	}
+	newContent := string(finalContent)
 
 	if t.guard.IsMemoryPath(resolvedPath) && memory.ContainsSecret(newContent) {
 		return nil, fmt.Errorf("refusing to write memory file: content appears to contain a secret, token, or credential")
@@ -165,19 +220,14 @@ func (t *EditFileTool) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	if err := os.WriteFile(resolvedPath, []byte(newContent), 0644); err != nil {
-		return nil, fmt.Errorf("write failed: %w", err)
+	if err := writeFileAtomic(resolvedPath, finalContent); err != nil {
+		return nil, err
 	}
 
-	result := map[string]any{
-		"success":          true,
-		"path":             resolvedPath,
-		"replacementCount": replacementCount,
-	}
-	if oldContent != newContent {
-		result["file_changed"] = resolvedPath
-	}
-	return result, nil
+	return map[string]any{
+		"success": true,
+		"path":    resolvedPath,
+	}, nil
 }
 
 func computeEditDiff(oldContent, newContent string) []EditDiffLine {

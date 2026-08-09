@@ -50,8 +50,9 @@ Use this through the tool API whenever you say you will read, inspect, open, vie
 
 IMPORTANT:
 - The file must be valid UTF-8 text and under 25 MB. Binary files and files with invalid UTF-8 are rejected.
-- Content is returned with line numbers as "N: text". When copying text into edit_file oldString, do not include the line number prefix.
-- Long lines are truncated to keep tool results bounded`
+- Content is returned with every displayed line prefixed by an "N:HASH|" anchor: the 1-based line number and a three-character hash of that line's full raw content (e.g. "1:a3f|package tools").
+- Use "LINE:HASH" to address that exact line in a later edit. Do not copy the anchor prefix into edited content.
+- Long lines are truncated to keep tool results bounded; the anchor hash always covers the full line, so it stays valid for edits.`
 }
 
 func (t *ReadFileTool) InputSchema() map[string]any {
@@ -211,7 +212,7 @@ func containsNullByte(content []byte) bool {
 }
 
 func formatFileContent(content []byte, offset, limit int) (string, int, bool, error) {
-	lines := splitLines(string(content))
+	lines := splitRawLines(content)
 	total := len(lines)
 	if total == 0 {
 		if offset > 1 {
@@ -229,23 +230,13 @@ func formatFileContent(content []byte, offset, limit int) (string, int, bool, er
 
 	numbered := make([]string, 0, end-start)
 	for i, line := range lines[start:end] {
-		runes := []rune(line)
-		if len(runes) > maxLineLength {
-			line = string(runes[:maxLineLength]) + "... (line truncated)"
+		hash := computeLineHash(line)
+		display := string(line)
+		if runes := []rune(display); len(runes) > maxLineLength {
+			display = string(runes[:maxLineLength]) + "... (line truncated)"
 		}
-		numbered = append(numbered, fmt.Sprintf("%d: %s", start+i+1, line))
+		numbered = append(numbered, fmt.Sprintf("%d:%s|%s", start+i+1, hash, display))
 	}
 
 	return strings.Join(numbered, "\n"), total, truncated, nil
-}
-
-func splitLines(content string) []string {
-	if content == "" {
-		return nil
-	}
-	lines := strings.Split(content, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	return lines
 }

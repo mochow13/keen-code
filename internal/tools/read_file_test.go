@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/user/keen-code/internal/filesystem"
@@ -131,7 +132,7 @@ func TestReadFileTool_Execute_GrantedRead(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	expectedContent := "1: Hello, World!"
+	expectedContent := "1:5ae|Hello, World!"
 	if resultMap["content"] != expectedContent {
 		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
 	}
@@ -180,7 +181,7 @@ func TestReadFileTool_Execute_KeenBashOutputReadDoesNotRequestPermission(t *test
 	if !ok {
 		t.Fatal("result should be a map")
 	}
-	if resultMap["content"] != "1: captured output" {
+	if resultMap["content"] != "1:8e1|captured output" {
 		t.Fatalf("unexpected content: %v", resultMap["content"])
 	}
 }
@@ -214,7 +215,7 @@ func TestReadFileTool_Execute_PendingRead_Allow(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	expectedContent := "1: Hello from other dir!"
+	expectedContent := "1:eca|Hello from other dir!"
 	if resultMap["content"] != expectedContent {
 		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
 	}
@@ -400,7 +401,7 @@ func TestReadFileTool_Execute_JSONFile(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	expectedContent := `1: {"key": "value"}`
+	expectedContent := `1:1f2|{"key": "value"}`
 	if resultMap["content"] != expectedContent {
 		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
 	}
@@ -429,7 +430,7 @@ func TestReadFileTool_Execute_RelativePath(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	expectedContent := "1: Hello, relative path!"
+	expectedContent := "1:e21|Hello, relative path!"
 	if resultMap["content"] != expectedContent {
 		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
 	}
@@ -458,7 +459,7 @@ func TestReadFileTool_Execute_OffsetAndLimit(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	expectedContent := "2: line two\n3: line three"
+	expectedContent := "2:deb|line two\n3:8c8|line three"
 	if resultMap["content"] != expectedContent {
 		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
 	}
@@ -495,6 +496,135 @@ func TestReadFileTool_Execute_OffsetOutOfRange(t *testing.T) {
 	_, err := tool.Execute(ctx, input)
 	if err == nil {
 		t.Error("expected error for out-of-range offset")
+	}
+}
+
+func TestReadFileTool_Execute_DuplicateLinesStayDistinct(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	content := "return nil\nreturn nil\n"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewReadFileTool(guard, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": testFile})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resultMap := result.(map[string]any)
+
+	// Identical content yields the same hash on both lines; the line number
+	// is what makes each anchor distinct.
+	expectedContent := "1:48d|return nil\n2:48d|return nil"
+	if resultMap["content"] != expectedContent {
+		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
+	}
+}
+
+func TestReadFileTool_Execute_BlankLines(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	content := "a\n\nb\n"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewReadFileTool(guard, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": testFile})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resultMap := result.(map[string]any)
+
+	expectedContent := "1:e40|a\n2:811|\n3:e70|b"
+	if resultMap["content"] != expectedContent {
+		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
+	}
+}
+
+func TestReadFileTool_Execute_LongLineHashCoversFullContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	longLine := strings.Repeat("x", maxLineLength+100)
+	if err := os.WriteFile(testFile, []byte(longLine), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewReadFileTool(guard, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": testFile})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resultMap := result.(map[string]any)
+
+	fullHash := computeLineHash([]byte(longLine))
+	truncatedDisplay := strings.Repeat("x", maxLineLength) + "... (line truncated)"
+	if fullHash == computeLineHash([]byte(truncatedDisplay)) {
+		t.Fatal("test fixture is invalid: truncated display must hash differently from the full line")
+	}
+
+	expectedContent := "1:" + fullHash + "|" + truncatedDisplay
+	if resultMap["content"] != expectedContent {
+		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
+	}
+}
+
+func TestReadFileTool_Execute_CRLF(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
+	content := "line one\r\nline two\r\n"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewReadFileTool(guard, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": testFile})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resultMap := result.(map[string]any)
+
+	// CRLF's \r is part of the delimiter: it is excluded from both the
+	// displayed line and its hash, matching splitRawLines.
+	expectedContent := "1:dab|line one\n2:deb|line two"
+	if resultMap["content"] != expectedContent {
+		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
+	}
+}
+
+func TestReadFileTool_Execute_EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "empty.txt")
+	if err := os.WriteFile(testFile, []byte(""), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	guard := filesystem.NewGuard(tmpDir, nil)
+	tool := NewReadFileTool(guard, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": testFile})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resultMap := result.(map[string]any)
+
+	if resultMap["content"] != "" {
+		t.Errorf("expected empty content, got %q", resultMap["content"])
+	}
+	if resultMap["total_lines"] != 0 {
+		t.Errorf("expected total_lines 0, got %v", resultMap["total_lines"])
+	}
+	if resultMap["truncated"] != false {
+		t.Errorf("expected truncated false, got %v", resultMap["truncated"])
 	}
 }
 
