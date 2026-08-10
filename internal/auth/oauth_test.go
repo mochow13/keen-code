@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -468,6 +469,108 @@ func TestAuthorizationCallbackHandlerCompletesAndCancels(t *testing.T) {
 			t.Fatalf("callback body = %q", recorder.Body.String())
 		}
 	})
+}
+
+func TestFetchOAuthAuthorizationCodeCompletesCallback(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	address := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	const authorizationURL = "https://auth.example/authorize"
+	opened := make(chan string, 1)
+	code, state, err := FetchOAuthAuthorizationCode(
+		context.Background(),
+		authorizationURL,
+		"http://"+address+"/callback",
+		func(rawURL string) error {
+			opened <- rawURL
+			go func() {
+				response, getErr := http.Get("http://" + address + "/callback?code=auth-code&state=auth-state")
+				if getErr == nil {
+					_ = response.Body.Close()
+				}
+			}()
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("FetchOAuthAuthorizationCode() error = %v", err)
+	}
+	if code != "auth-code" || state != "auth-state" {
+		t.Fatalf("result = %q, %q", code, state)
+	}
+	if got := <-opened; got != authorizationURL {
+		t.Fatalf("opened URL = %q, want %q", got, authorizationURL)
+	}
+}
+
+func TestFetchOAuthAuthorizationCodeFailures(t *testing.T) {
+	t.Run("browser error", func(t *testing.T) {
+		address := freeLoopbackAddress(t)
+		_, _, err := FetchOAuthAuthorizationCode(context.Background(), "https://auth.example", "http://"+address+"/callback", func(string) error {
+			return errors.New("browser failed")
+		})
+		if err == nil || !strings.Contains(err.Error(), "browser failed") {
+			t.Fatalf("FetchOAuthAuthorizationCode() error = %v", err)
+		}
+	})
+
+	t.Run("context canceled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		_, _, err := FetchOAuthAuthorizationCode(ctx, "https://auth.example", "http://"+freeLoopbackAddress(t)+"/callback", func(string) error {
+			cancel()
+			return nil
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("FetchOAuthAuthorizationCode() error = %v", err)
+		}
+	})
+
+	t.Run("callback error", func(t *testing.T) {
+		address := freeLoopbackAddress(t)
+		_, _, err := FetchOAuthAuthorizationCode(context.Background(), "https://auth.example", "http://"+address+"/callback", func(string) error {
+			go func() {
+				response, getErr := http.Get("http://" + address + "/callback?error=access_denied")
+				if getErr == nil {
+					_ = response.Body.Close()
+				}
+			}()
+			return nil
+		})
+		if err == nil || !strings.Contains(err.Error(), "access_denied") {
+			t.Fatalf("FetchOAuthAuthorizationCode() error = %v", err)
+		}
+	})
+
+	t.Run("address unavailable", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("Listen() error = %v", err)
+		}
+		defer listener.Close()
+		_, _, err = FetchOAuthAuthorizationCode(context.Background(), "https://auth.example", "http://"+listener.Addr().String()+"/callback", func(string) error { return nil })
+		if err == nil || !strings.Contains(err.Error(), "unavailable") {
+			t.Fatalf("FetchOAuthAuthorizationCode() error = %v", err)
+		}
+	})
+}
+
+func freeLoopbackAddress(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	address := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	return address
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

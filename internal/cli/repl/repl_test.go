@@ -1016,3 +1016,71 @@ func TestUpdateNormalModeCleanupMessages(t *testing.T) {
 		})
 	}
 }
+
+func TestConsumeModelSelectionResult(t *testing.T) {
+	t.Run("inactive", func(t *testing.T) {
+		m := newTestModel()
+		_, cmd, handled := m.consumeModelSelectionResult(struct{}{})
+		if handled || cmd != nil {
+			t.Fatalf("handled = %t, cmd = %v", handled, cmd)
+		}
+	})
+
+	t.Run("unrelated message", func(t *testing.T) {
+		m := newTestModel()
+		m.modelSelection = &replwidgets.Model{}
+		updated, cmd, handled := m.consumeModelSelectionResult(struct{}{})
+		if handled || cmd != nil || updated.modelSelection == nil {
+			t.Fatalf("handled = %t, cmd = %v, selection = %#v", handled, cmd, updated.modelSelection)
+		}
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		m := newTestModel()
+		selection := &replwidgets.Model{Step: replwidgets.StepAPIKey}
+		_, cancelCmd := selection.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.modelSelection = selection
+
+		updated, cmd, handled := m.consumeModelSelectionResult(cancelCmd())
+		if !handled || cmd != nil || updated.modelSelection != nil {
+			t.Fatalf("handled = %t, cmd = %v, selection = %#v", handled, cmd, updated.modelSelection)
+		}
+		if !strings.Contains(ansi.Strip(updated.output.Join()), "Model selection cancelled") {
+			t.Fatalf("output = %q", updated.output.Join())
+		}
+	})
+}
+
+func TestConsumeAdversaryModelSelectionResult(t *testing.T) {
+	t.Run("inactive", func(t *testing.T) {
+		m := newTestModel()
+		_, cmd, handled := m.consumeAdversaryModelSelectionResult(struct{}{})
+		if handled || cmd != nil {
+			t.Fatalf("handled = %t, cmd = %v", handled, cmd)
+		}
+	})
+
+	t.Run("unrelated message", func(t *testing.T) {
+		m := newTestModel()
+		m.adversary.modelSelection = &replwidgets.Model{}
+		updated, cmd, handled := m.consumeAdversaryModelSelectionResult(struct{}{})
+		if handled || cmd != nil || updated.adversary.modelSelection == nil {
+			t.Fatalf("handled = %t, cmd = %v, selection = %#v", handled, cmd, updated.adversary.modelSelection)
+		}
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		m := newTestModel()
+		selection := &replwidgets.Model{Step: replwidgets.StepAPIKey}
+		_, cancelCmd := selection.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.adversary.modelSelection = selection
+
+		updated, cmd, handled := m.consumeAdversaryModelSelectionResult(cancelCmd())
+		if !handled || cmd != nil || updated.adversary.modelSelection != nil {
+			t.Fatalf("handled = %t, cmd = %v, selection = %#v", handled, cmd, updated.adversary.modelSelection)
+		}
+		if !strings.Contains(ansi.Strip(updated.output.Join()), "Adversary model selection cancelled") {
+			t.Fatalf("output = %q", updated.output.Join())
+		}
+	})
+}

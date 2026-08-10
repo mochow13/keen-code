@@ -281,3 +281,143 @@ func TestCallMCPTool_LargeResultSpillsToArtifact(t *testing.T) {
 
 	_ = os.Remove(artifactPath)
 }
+
+func TestCallMCPTool_Metadata(t *testing.T) {
+	tool := NewCallMCPTool(&mockMCPRuntime{}, &mockPermissionRequester{allow: true})
+	if description := tool.Description(); !strings.Contains(description, "Model Context Protocol") || !strings.Contains(description, "SKILL.md") {
+		t.Fatalf("Description() missing usage guidance: %q", description)
+	}
+
+	schema := tool.InputSchema()
+	if schema["type"] != "object" || schema["additionalProperties"] != false {
+		t.Fatalf("InputSchema() = %#v", schema)
+	}
+	required, ok := schema["required"].([]string)
+	if !ok || len(required) != 2 || required[0] != "server" || required[1] != "tool" {
+		t.Fatalf("required = %#v", schema["required"])
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok || len(properties) != 4 {
+		t.Fatalf("properties = %#v", schema["properties"])
+	}
+}
+
+func TestCallMCPTool_ValidateInputTypesAndTargets(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  string
+	}{
+		{name: "non-map", input: "invalid", want: "expected map[string]any"},
+		{name: "non-string server", input: map[string]any{"server": 42, "tool": "read"}, want: `"server" must be a non-empty string`},
+		{name: "empty server", input: map[string]any{"server": "  ", "tool": "read"}, want: `"server" must be a non-empty string`},
+		{name: "non-string tool", input: map[string]any{"server": "docs", "tool": 42}, want: `"tool" must be a non-empty string`},
+		{name: "empty tool", input: map[string]any{"server": "docs", "tool": "  "}, want: `"tool" must be a non-empty string`},
+		{name: "qualified server", input: map[string]any{"server": "docs/read", "tool": "read"}, want: "bare MCP server name"},
+	}
+
+	tool := NewCallMCPTool(&mockMCPRuntime{}, &mockPermissionRequester{allow: true})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.ValidateInput(context.Background(), tt.input)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("ValidateInput() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestCallMCPTool_NormalizesQualifiedTarget(t *testing.T) {
+	tests := []struct {
+		name   string
+		server string
+		tool   string
+	}{
+		{name: "skill prefix", server: "mcp:docs", tool: "mcp:docs/read"},
+		{name: "server prefix", server: "docs", tool: "docs/read"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotServer, gotTool string
+			runtime := &mockMCPRuntime{callToolFn: func(_ context.Context, server, tool string, _ map[string]any) (*keenmcp.ToolResult, error) {
+				gotServer, gotTool = server, tool
+				return &keenmcp.ToolResult{}, nil
+			}}
+			callTool := NewCallMCPTool(runtime, &mockPermissionRequester{allow: true})
+			if err := callTool.ValidateInput(context.Background(), map[string]any{"server": tt.server, "tool": tt.tool}); err != nil {
+				t.Fatalf("ValidateInput() error = %v", err)
+			}
+			if _, err := callTool.Execute(context.Background(), map[string]any{"server": tt.server, "tool": tt.tool}); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if gotServer != "docs" || gotTool != "read" {
+				t.Fatalf("target = %q/%q, want docs/read", gotServer, gotTool)
+			}
+		})
+	}
+}
+
+func TestCallMCPTool_ValidationListErrorAndEmptyCatalog(t *testing.T) {
+	t.Run("list error", func(t *testing.T) {
+		callTool := NewCallMCPTool(&mockMCPRuntime{listToolsFn: func(context.Context, string) ([]keenmcp.Tool, error) {
+			return nil, errors.New("scan failed")
+		}}, &mockPermissionRequester{allow: true})
+		err := callTool.ValidateInput(context.Background(), map[string]any{"server": "docs", "tool": "read"})
+		if err == nil || !strings.Contains(err.Error(), "scan failed") {
+			t.Fatalf("ValidateInput() error = %v", err)
+		}
+	})
+
+	t.Run("empty catalog permits deferred discovery", func(t *testing.T) {
+		callTool := NewCallMCPTool(&mockMCPRuntime{}, &mockPermissionRequester{allow: true})
+		if err := callTool.ValidateInput(context.Background(), map[string]any{"server": "docs", "tool": "read"}); err != nil {
+			t.Fatalf("ValidateInput() error = %v", err)
+		}
+	})
+}
+
+func TestCallMCPTool_PermissionAndResultErrors(t *testing.T) {
+	t.Run("permission error", func(t *testing.T) {
+		callTool := NewCallMCPTool(&mockMCPRuntime{}, errorPermissionRequester{})
+		_, err := callTool.Execute(context.Background(), map[string]any{"server": "docs", "tool": "read"})
+		if err == nil || !strings.Contains(err.Error(), "permission request failed") {
+			t.Fatalf("Execute() error = %v", err)
+		}
+	})
+
+	t.Run("runtime error includes content", func(t *testing.T) {
+		runtime := &mockMCPRuntime{callToolFn: func(context.Context, string, string, map[string]any) (*keenmcp.ToolResult, error) {
+			return &keenmcp.ToolResult{Content: []mcpsdk.Content{&mcpsdk.TextContent{Text: "remote detail"}}}, errors.New("call failed")
+		}}
+		callTool := NewCallMCPTool(runtime, &mockPermissionRequester{allow: true})
+		_, err := callTool.Execute(context.Background(), map[string]any{"server": "docs", "tool": "read"})
+		if err == nil || !strings.Contains(err.Error(), "call failed\nremote detail") {
+			t.Fatalf("Execute() error = %v", err)
+		}
+	})
+}
+
+func TestCallMCPTool_RequiredFieldHelpers(t *testing.T) {
+	if got := missingRequiredArguments(nil, nil); got != nil {
+		t.Fatalf("missingRequiredArguments(nil) = %#v", got)
+	}
+	if got := requiredFields(make(chan int)); got != nil {
+		t.Fatalf("requiredFields(unmarshalable) = %#v", got)
+	}
+	if got := requiredFields("not an object"); got != nil {
+		t.Fatalf("requiredFields(string) = %#v", got)
+	}
+
+	schema := map[string]any{"required": []any{"first", "second"}}
+	got := missingRequiredArguments(schema, map[string]any{"first": true})
+	if len(got) != 1 || got[0] != "second" {
+		t.Fatalf("missingRequiredArguments() = %#v", got)
+	}
+}
+
+type errorPermissionRequester struct{}
+
+func (errorPermissionRequester) RequestPermission(context.Context, string, string, string, bool) (bool, error) {
+	return false, errors.New("prompt unavailable")
+}
