@@ -169,8 +169,19 @@ func isHiddenToolFailure(toolCall *llm.ToolCall) bool {
 	if toolCall == nil {
 		return false
 	}
-	return toolCall.Name == "read_file" && strings.HasPrefix(toolCall.Error, "not found: file ") ||
-		toolCall.Name == "edit_file" && strings.Contains(toolCall.Error, "line hash mismatch")
+	if toolCall.Name == "read_file" {
+		return strings.HasPrefix(toolCall.Error, "not found: file ")
+	}
+	if toolCall.Name != "edit_file" {
+		return false
+	}
+	return strings.Contains(toolCall.Error, "line hash mismatch") ||
+		strings.Contains(toolCall.Error, "anchor ") && strings.Contains(toolCall.Error, "does not exist in the current file snapshot") ||
+		strings.Contains(toolCall.Error, "only insert_head is valid for an empty file") ||
+		strings.HasPrefix(toolCall.Error, "ops ") && (strings.Contains(toolCall.Error, "overlapping ranges") || strings.Contains(toolCall.Error, " conflict:")) ||
+		strings.HasPrefix(toolCall.Error, "not found: file ") ||
+		strings.HasPrefix(toolCall.Error, "not a file: ") && strings.HasSuffix(toolCall.Error, " is a directory") ||
+		strings.HasPrefix(toolCall.Error, "path resolution failed:")
 }
 
 func (sh *StreamHandler) renderAssistantViewLines(content string, width int) []string {

@@ -341,25 +341,71 @@ func TestStreamHandler_ReadFileNotFoundIsHidden(t *testing.T) {
 	}
 }
 
-func TestStreamHandler_EditFileHashMismatchIsHidden(t *testing.T) {
-	sh := NewStreamHandler(nil)
-	sh.Start(make(<-chan llm.StreamEvent), "Loading...")
+func TestStreamHandler_HidesExpectedEditFileFailures(t *testing.T) {
+	tests := []struct {
+		name  string
+		err   string
+		match string
+	}{
+		{
+			name:  "missing anchor",
+			err:   `op 1: anchor "2:fff" does not exist in the current file snapshot; re-read the file and retry`,
+			match: "does not exist in the current file snapshot",
+		},
+		{
+			name:  "empty file insert tail",
+			err:   "op 1: only insert_head is valid for an empty file",
+			match: "only insert_head is valid for an empty file",
+		},
+		{
+			name:  "overlapping operations",
+			err:   "ops 1 and 2 have overlapping ranges (lines 2-4 and 3-5)",
+			match: "overlapping ranges",
+		},
+		{
+			name:  "conflicting operations",
+			err:   "ops 1 and 2 conflict: both insert at the same position; combine them into one op",
+			match: "both insert at the same position",
+		},
+		{
+			name:  "file not found",
+			err:   `not found: file "output.go" does not exist`,
+			match: "not found: file",
+		},
+		{
+			name:  "target is directory",
+			err:   `not a file: "output.go" is a directory`,
+			match: "is a directory",
+		},
+		{
+			name:  "path resolution failed",
+			err:   "path resolution failed: path escapes working directory",
+			match: "path resolution failed",
+		},
+	}
 
-	sh.HandleChunk("Trying an edit. ")
-	sh.HandleToolStart(&llm.ToolCall{Name: "edit_file", Input: map[string]any{"path": "output.go"}})
-	sh.HandleToolEnd(&llm.ToolCall{Name: "edit_file", Error: "op 1: line hash mismatch at 2:fff (actual a1b)"})
-	sh.HandleChunk("The target changed.")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sh := NewStreamHandler(nil)
+			sh.Start(make(<-chan llm.StreamEvent), "Loading...")
 
-	view := sh.View(80)
-	lines, _ := sh.HandleDone()
-	transcript := strings.Join(lines, "\n")
-	for _, rendered := range []string{view, transcript} {
-		if strings.Contains(rendered, "Edit") || strings.Contains(rendered, "output.go") || strings.Contains(rendered, "line hash mismatch") {
-			t.Fatalf("expected failed edit to be hidden, got %q", rendered)
-		}
-		if !strings.Contains(rendered, "Trying an edit.") || !strings.Contains(rendered, "The target changed.") {
-			t.Fatalf("expected assistant text to remain, got %q", rendered)
-		}
+			sh.HandleChunk("Trying an edit. ")
+			sh.HandleToolStart(&llm.ToolCall{Name: "edit_file", Input: map[string]any{"path": "output.go"}})
+			sh.HandleToolEnd(&llm.ToolCall{Name: "edit_file", Error: tt.err})
+			sh.HandleChunk("The edit did not apply.")
+
+			view := sh.View(80)
+			lines, _ := sh.HandleDone()
+			transcript := strings.Join(lines, "\n")
+			for _, rendered := range []string{view, transcript} {
+				if strings.Contains(rendered, "Edit") || strings.Contains(rendered, "output.go") || strings.Contains(rendered, tt.match) {
+					t.Fatalf("expected failed edit to be hidden, got %q", rendered)
+				}
+				if !strings.Contains(rendered, "Trying an edit.") || !strings.Contains(rendered, "The edit did not apply.") {
+					t.Fatalf("expected assistant text to remain, got %q", rendered)
+				}
+			}
+		})
 	}
 }
 
