@@ -336,3 +336,18 @@ func TestInputHistory_RoundTrip(t *testing.T) {
 		t.Fatal("expected ok=false after full round-trip")
 	}
 }
+
+func TestInputHistory_IsNavigating(t *testing.T) {
+	var h history.InputHistory
+	h.Push("entry")
+	if h.IsNavigating() {
+		t.Fatal("freshly pushed history reported active navigation")
+	}
+	if _, ok := h.NavigateUp("draft"); !ok || !h.IsNavigating() {
+		t.Fatal("NavigateUp did not start navigation")
+	}
+	h.Reset()
+	if h.IsNavigating() {
+		t.Fatal("Reset did not stop navigation")
+	}
+}

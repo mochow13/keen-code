@@ -259,3 +259,68 @@ func TestSummarize_FallsBackToUpdatedAtAndDirectoryName(t *testing.T) {
 		t.Fatalf("expected updated_at %v, got %v", updatedAt, summary.UpdatedAt)
 	}
 }
+
+func TestStoreListMissingAndIgnoresInvalidEntries(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	store, err := NewStore(filepath.Join(t.TempDir(), "project"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.List(); err != nil || got != nil {
+		t.Fatalf("List() = %#v, %v", got, err)
+	}
+
+	if err := os.MkdirAll(store.namespaceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(store.namespaceDir, "file"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(store.namespaceDir, "no-transcript"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := store.List(); err != nil || len(got) != 0 {
+		t.Fatalf("List() = %#v, %v", got, err)
+	}
+}
+
+func TestStoreRejectsInvalidAppendAndLoad(t *testing.T) {
+	store := &Store{}
+	if err := store.Append(nil, Event{}); err == nil {
+		t.Fatal("Append accepted a nil session")
+	}
+	if err := store.AppendBatch(nil, nil); err == nil {
+		t.Fatal("AppendBatch accepted a nil session")
+	}
+	if _, err := store.Load(Summary{TranscriptPath: filepath.Join(t.TempDir(), "missing.jsonl")}); err == nil {
+		t.Fatal("Load accepted a missing transcript")
+	}
+}
+
+func TestPruneExpiredRemovesOnlyExpiredSessions(t *testing.T) {
+	root := t.TempDir()
+	namespace := filepath.Join(root, "sessions", "namespace")
+	oldDir := filepath.Join(namespace, "old")
+	newDir := filepath.Join(namespace, "new")
+	for _, dir := range []string{oldDir, newDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, transcriptFileName), []byte("{}\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(filepath.Join(oldDir, transcriptFileName), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := PruneExpired(filepath.Join(root, "sessions"), time.Now().Add(-time.Hour)); err != nil {
+		t.Fatalf("PruneExpired() error = %v", err)
+	}
+	if _, err := os.Stat(oldDir); !os.IsNotExist(err) {
+		t.Fatalf("expired session still exists: %v", err)
+	}
+	if _, err := os.Stat(newDir); err != nil {
+		t.Fatalf("current session removed: %v", err)
+	}
+}

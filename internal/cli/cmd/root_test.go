@@ -294,3 +294,27 @@ func TestBuildRunPrompt(t *testing.T) {
 		})
 	}
 }
+
+func TestRunExitError(t *testing.T) {
+	err := &runExitError{err: errors.New("failed"), exitCode: 2}
+	if err.Error() != "failed" || err.ExitCode() != 2 {
+		t.Fatalf("unexpected runExitError %q, %d", err.Error(), err.ExitCode())
+	}
+}
+
+func TestApplyRunOverridesRejectsUnknownProvider(t *testing.T) {
+	err := applyRunOverrides(&config.GlobalConfig{}, &config.ResolvedConfig{}, "missing", "")
+	if err == nil {
+		t.Fatal("applyRunOverrides accepted an unknown provider")
+	}
+}
+
+func TestApplyRunOverridesChangesOnlyModel(t *testing.T) {
+	resolved := &config.ResolvedConfig{Provider: config.ProviderAnthropic}
+	if err := applyRunOverrides(&config.GlobalConfig{}, resolved, "", "model"); err != nil {
+		t.Fatalf("applyRunOverrides() error = %v", err)
+	}
+	if resolved.Provider != config.ProviderAnthropic || resolved.Model != "model" {
+		t.Fatalf("unexpected resolved config %#v", resolved)
+	}
+}

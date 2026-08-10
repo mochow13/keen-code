@@ -19,6 +19,7 @@ import (
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm"
 	"github.com/mochow13/keen-code/internal/providers"
+	"github.com/mochow13/keen-code/internal/session"
 	"github.com/mochow13/keen-code/internal/subagents"
 )
 
@@ -1216,5 +1217,419 @@ func TestAutoCompactionAppliedReplacesHistoryWithoutAppendingCheckpoint(t *testi
 	}
 	if updated.notification.text != "Context compacted automatically." {
 		t.Fatalf("notification = %q", updated.notification.text)
+	}
+}
+
+func TestHandleLLMReasoningChunk(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+
+	updated, cmd := m.handleLLMReasoningChunk("considering options")
+
+	if !updated.stream.handler.HasContent() {
+		t.Fatal("reasoning chunk did not activate stream content")
+	}
+	if cmd == nil {
+		t.Fatal("reasoning chunk did not schedule the next event")
+	}
+}
+
+func TestHandleLLMIncompletePreservesPartialResponse(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.stream.handler.HandleChunk("partial answer")
+	m.loading.showSpinner = true
+
+	updated, cmd := m.handleLLMIncomplete(errors.New("response truncated"))
+
+	if updated.loading.showSpinner {
+		t.Fatal("incomplete response left spinner active")
+	}
+	if got := updated.output.Join(); !strings.Contains(got, "partial answer") || !strings.Contains(got, "response truncated") {
+		t.Fatalf("incomplete output = %q", got)
+	}
+	if messages := updated.appState.GetMessages(); len(messages) != 0 {
+		t.Fatalf("incomplete response unexpectedly changed conversation: %#v", messages)
+	}
+	if cmd != nil {
+		t.Fatal("incomplete response without queued input returned a command")
+	}
+}
+
+func TestHandleLLMIncompleteCancellationOmitsError(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.stream.handler.HandleChunk("partial answer")
+
+	updated, _ := m.handleLLMIncomplete(context.Canceled)
+
+	if got := updated.output.Join(); strings.Contains(got, "context canceled") {
+		t.Fatalf("cancellation rendered as an error: %q", got)
+	}
+}
+
+func TestHandleLLMRetryRewindsCurrentAttempt(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.stream.handler.HandleChunk("discarded attempt")
+
+	updated, cmd := m.handleLLMRetry(errors.New("temporary failure"), 3)
+
+	if got := updated.stream.handler.GetResponse(); got != "" {
+		t.Fatalf("retry retained response %q", got)
+	}
+	if updated.loading.text != "Retrying (attempt 3)..." {
+		t.Fatalf("loading text = %q", updated.loading.text)
+	}
+	if cmd == nil {
+		t.Fatal("retry did not schedule the next event")
+	}
+}
+
+func TestAutomaticCompactionLifecycle(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	cancelled := false
+
+	started, cmd := m.handleAutoCompactionStarted(&llm.AutoCompactionEvent{Cancel: func() { cancelled = true }})
+	if !started.compaction.active || started.compaction.mode != compactionAutomatic || started.loading.text != "Compacting..." {
+		t.Fatalf("unexpected started state: %#v", started.compaction)
+	}
+	if cmd == nil {
+		t.Fatal("start did not schedule the next stream event")
+	}
+	started.compaction.cancel()
+	if !cancelled {
+		t.Fatal("automatic compaction cancel callback was not retained")
+	}
+
+	stopped, cmd := started.handleAutoCompactionStopped()
+	if stopped.compaction.active || stopped.compaction.mode != compactionNone || stopped.compaction.cancel != nil {
+		t.Fatalf("unexpected stopped state: %#v", stopped.compaction)
+	}
+	if stopped.loading.text == "Compacting..." {
+		t.Fatal("stopped compaction retained compaction loading text")
+	}
+	if cmd == nil {
+		t.Fatal("stop did not resume waiting for stream events")
+	}
+}
+
+func TestAutoCompactionAppliedWithoutReplacementStops(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.compaction = compactionState{active: true, mode: compactionAutomatic}
+
+	updated, cmd := m.handleAutoCompactionApplied(nil)
+
+	if updated.compaction.active || updated.compaction.mode != compactionNone {
+		t.Fatal("empty compaction replacement did not stop compaction")
+	}
+	if cmd == nil {
+		t.Fatal("empty replacement did not resume stream waiting")
+	}
+}
+
+func TestHandleCompactionErrorReportsFailureAndFlushesStream(t *testing.T) {
+	m := newTestModel()
+	m.compaction = compactionState{active: true, mode: compactionManual, cancel: func() {}}
+	m.loading.showSpinner = true
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Compacting...")
+	m.stream.handler.HandleChunk("unfinished summary")
+
+	updated, _ := m.handleCompactionError(errors.New("service unavailable"))
+
+	if updated.compaction.active || updated.loading.showSpinner || updated.compaction.cancel != nil {
+		t.Fatal("failed compaction did not reset state")
+	}
+	got := updated.output.Join()
+	if !strings.Contains(got, "unfinished summary") || !strings.Contains(got, "Compaction failed: service unavailable") {
+		t.Fatalf("compaction failure output = %q", got)
+	}
+}
+
+func TestSanitizeDelegateToolCall(t *testing.T) {
+	original := &llm.ToolCall{Name: "delegate_task", Output: map[string]any{
+		"completed":          2,
+		"failed":             1,
+		"completed_by_agent": map[string]any{"reviewer": 2},
+		"failed_by_agent":    map[string]any{"tester": 1},
+		"results":            []any{"large detail"},
+	}}
+
+	sanitized := sanitizeDelegateToolCall(original)
+	output, ok := sanitized.Output.(map[string]any)
+	if !ok {
+		t.Fatalf("sanitized output type = %T", sanitized.Output)
+	}
+	if len(output) != 4 || output["completed"] != 2 {
+		t.Fatalf("sanitized output = %#v", output)
+	}
+	if _, exists := output["results"]; exists {
+		t.Fatal("sanitized output retained verbose results")
+	}
+	if _, exists := original.Output.(map[string]any)["results"]; !exists {
+		t.Fatal("sanitization mutated original tool call")
+	}
+
+	plain := &llm.ToolCall{Name: "read_file", Output: "content"}
+	if sanitizeDelegateToolCall(plain) != plain || sanitizeDelegateToolCall(nil) != nil {
+		t.Fatal("non-delegate tool call was cloned")
+	}
+	delegateWithText := &llm.ToolCall{Name: "delegate_task", Output: "summary"}
+	if got := sanitizeDelegateToolCall(delegateWithText); got == delegateWithText || got.Output != "summary" {
+		t.Fatal("delegate call with text output was not safely cloned")
+	}
+}
+
+func TestExtractAtToken(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		cursor int
+		token  string
+		start  int
+		found  bool
+	}{
+		{name: "start", input: "@main.go", cursor: 8, token: "main.go", found: true},
+		{name: "after space", input: "read @internal", cursor: 14, token: "internal", start: 5, found: true},
+		{name: "invalid cursor", input: "@file", cursor: 7},
+		{name: "missing marker", input: "file", cursor: 4},
+		{name: "embedded marker", input: "email@example", cursor: 13},
+		{name: "empty token", input: "read @", cursor: 6},
+		{name: "space in token", input: "@one two", cursor: 8},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, start, found := extractAtToken(tt.input, tt.cursor)
+			if token != tt.token || start != tt.start || found != tt.found {
+				t.Fatalf("extractAtToken() = (%q, %d, %v), want (%q, %d, %v)", token, start, found, tt.token, tt.start, tt.found)
+			}
+		})
+	}
+}
+
+func TestHandleFileModeSelectionReplacesToken(t *testing.T) {
+	m := newTestModel()
+	m.textarea.SetValue("inspect @mai later")
+	m.textarea.SetCursorColumn(len("inspect @mai"))
+	m.suggestion.RefreshFiles([]string{"main.go"})
+
+	updated, cmd := m.handleFileModeSelection()
+
+	if got := updated.textarea.Value(); got != "inspect @main.go  later" {
+		t.Fatalf("textarea = %q", got)
+	}
+	if updated.suggestion.Visible() {
+		t.Fatal("file suggestions remained visible")
+	}
+	if cmd != nil {
+		t.Fatal("file selection returned a command")
+	}
+}
+
+func TestHandleSuggestionNavigationAndSelection(t *testing.T) {
+	m := newTestModel()
+	m.suggestion.RefreshFiles([]string{"first.go", "second.go"})
+
+	handled, moved, _ := m.handleSuggestionKeyMsg(tea.KeyPressMsg{Code: tea.KeyDown})
+	if !handled || moved.suggestion.Current() == nil || moved.suggestion.Current().Name != "second.go" {
+		t.Fatal("down key did not move file suggestion")
+	}
+	handled, moved, _ = moved.handleSuggestionKeyMsg(tea.KeyPressMsg{Code: tea.KeyUp})
+	if !handled || moved.suggestion.Current() == nil || moved.suggestion.Current().Name != "first.go" {
+		t.Fatal("up key did not move file suggestion")
+	}
+	handled, selected, _ := moved.handleSuggestionKeyMsg(tea.KeyPressMsg{Code: tea.KeyTab})
+	if !handled || selected.textarea.Value() != "" {
+		t.Fatal("file selection without an @ token changed input")
+	}
+	if selected.suggestion.Visible() {
+		t.Fatal("tab selection did not hide suggestions")
+	}
+}
+
+func TestHandleKeyMsgViewportNavigation(t *testing.T) {
+	m := newTestModel()
+	m.viewport.SetHeight(4)
+	for range 30 {
+		m.output.AddLine("line")
+	}
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
+
+	pagedUp, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	if pagedUp.viewport.AtBottom() || !pagedUp.userScrolled {
+		t.Fatal("page up did not leave follow mode")
+	}
+	upOffset := pagedUp.viewport.YOffset()
+	pagedDown, _ := pagedUp.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	if pagedDown.viewport.YOffset() <= upOffset {
+		t.Fatal("page down did not advance viewport")
+	}
+	home, _ := pagedDown.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyHome})
+	if home.viewport.YOffset() != 0 || !home.userScrolled {
+		t.Fatal("home did not move to top")
+	}
+	end, _ := home.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnd})
+	if !end.viewport.AtBottom() || end.userScrolled {
+		t.Fatal("end did not restore follow mode")
+	}
+}
+
+func TestHandleKeyMsgClearsQueuedInputs(t *testing.T) {
+	for _, key := range []tea.KeyPressMsg{{Code: 'c', Mod: tea.ModCtrl}, {Code: tea.KeyEsc}} {
+		m := newTestModel()
+		m.queuedInputs = []string{"first", "second"}
+		updated, cmd := m.handleKeyMsg(key)
+		if len(updated.queuedInputs) != 0 {
+			t.Fatalf("%s left queued inputs: %v", key.String(), updated.queuedInputs)
+		}
+		if cmd == nil {
+			t.Fatalf("%s did not return queue-cleared notification", key.String())
+		}
+	}
+}
+
+func TestHandleSessionPickerNavigationAndCancel(t *testing.T) {
+	m := newTestModel()
+	m.sessionPicker = replwidgets.NewSessionPicker([]session.Summary{
+		{ID: "first", LastUserMessage: "first prompt"},
+		{ID: "second", LastUserMessage: "second prompt"},
+	})
+
+	updated, _ := m.handleSessionPickerKeyMsg(tea.KeyPressMsg{Code: tea.KeyDown})
+	if current := updated.sessionPicker.Current(); current == nil || current.ID != "second" {
+		t.Fatalf("down selected %#v", current)
+	}
+	updated, _ = updated.handleSessionPickerKeyMsg(tea.KeyPressMsg{Code: tea.KeyUp})
+	if current := updated.sessionPicker.Current(); current == nil || current.ID != "first" {
+		t.Fatalf("up selected %#v", current)
+	}
+	updated, _ = updated.handleSessionPickerKeyMsg(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if updated.sessionPicker != nil {
+		t.Fatal("escape did not close session picker")
+	}
+}
+
+func TestHandleSessionPickerIgnoresNonKeyAndEmptySelection(t *testing.T) {
+	m := newTestModel()
+	m.sessionPicker = replwidgets.NewSessionPicker(nil)
+	updated, cmd := m.handleSessionPickerKeyMsg(tea.WindowSizeMsg{})
+	if updated.sessionPicker == nil || cmd != nil {
+		t.Fatal("non-key message changed session picker")
+	}
+	updated, cmd = updated.handleSessionPickerKeyMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if updated.sessionPicker == nil || cmd != nil {
+		t.Fatal("enter on empty picker changed state")
+	}
+}
+
+func TestHandleLLMStreamMsgRoutesMainEvents(t *testing.T) {
+	tests := []struct {
+		name  string
+		event llm.StreamEvent
+		check func(*testing.T, replModel)
+	}{
+		{name: "chunk", event: llm.StreamEvent{Type: llm.StreamEventTypeChunk, Content: "answer"}, check: func(t *testing.T, m replModel) {
+			if m.stream.handler.GetResponse() != "answer" {
+				t.Fatal("chunk was not routed")
+			}
+		}},
+		{name: "reasoning", event: llm.StreamEvent{Type: llm.StreamEventTypeReasoningChunk, Content: "thought"}, check: func(t *testing.T, m replModel) {
+			if !m.stream.handler.HasContent() {
+				t.Fatal("reasoning was not routed")
+			}
+		}},
+		{name: "usage", event: llm.StreamEvent{Type: llm.StreamEventTypeUsage, Usage: &llm.TokenUsage{InputTokens: 7}}, check: func(t *testing.T, m replModel) {
+			if m.appState.GetLastUsage() == nil || m.appState.GetLastUsage().InputTokens != 7 {
+				t.Fatal("usage was not routed")
+			}
+		}},
+		{name: "retry", event: llm.StreamEvent{Type: llm.StreamEventTypeRetry, Attempt: 2}, check: func(t *testing.T, m replModel) {
+			if m.loading.text != "Retrying (attempt 2)..." {
+				t.Fatalf("loading text = %q", m.loading.text)
+			}
+		}},
+		{name: "tool start", event: llm.StreamEvent{Type: llm.StreamEventTypeToolStart, ToolCall: &llm.ToolCall{Name: "read_file"}}, check: func(t *testing.T, m replModel) {
+			if len(m.stream.handler.segments) != 1 {
+				t.Fatal("tool start was not routed")
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestModel()
+			events := make(chan llm.StreamEvent)
+			m.stream.handler.Start(events, "Working...")
+			updated, _, handled := m.handleLLMStreamMsg(mainStreamMsg{eventCh: events, event: tt.event})
+			if !handled {
+				t.Fatal("main stream event was not handled")
+			}
+			tt.check(t, updated)
+		})
+	}
+}
+
+func TestHandleLLMStreamMsgInactiveStreamSwallowsLateEvents(t *testing.T) {
+	messages := []tea.Msg{
+		llmChunkMsg("late"), llmReasoningChunkMsg("late"), llmDoneMsg{},
+		llmIncompleteMsg{err: errors.New("late")}, llmErrorMsg{err: errors.New("late")},
+		llmRetryMsg{attempt: 2}, llmToolStartMsg{}, llmToolEndMsg{}, llmUsageMsg{},
+		llmAutoCompactionStartedMsg{}, llmAutoCompactionAppliedMsg{},
+		llmAutoCompactionCancelledMsg{}, llmAutoCompactionFailedMsg{},
+	}
+	for _, msg := range messages {
+		m := newTestModel()
+		_, cmd, handled := m.handleLLMStreamMsg(msg)
+		if !handled || cmd != nil {
+			t.Fatalf("late %T = handled %v, cmd %v", msg, handled, cmd)
+		}
+	}
+}
+
+func TestHandleAdversaryStreamLifecycle(t *testing.T) {
+	m := newTestModel()
+	events := make(chan llm.StreamEvent)
+	m.adversary.streamHandler = NewStreamHandler(nil)
+	m.adversary.streamHandler.Start(events, "Reviewing...")
+	m.adversary.showSpinner = true
+
+	updated, cmd, handled := m.handleAdversaryStreamMsg(adversaryChunkMsg("review text"))
+	if !handled || cmd == nil || updated.adversary.streamHandler.GetResponse() != "review text" {
+		t.Fatal("adversary chunk was not handled")
+	}
+	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolStartMsg{toolCall: &llm.ToolCall{Name: "read_file"}})
+	if !handled || cmd == nil || len(updated.adversary.streamHandler.segments) < 2 {
+		t.Fatal("adversary tool start was not handled")
+	}
+	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolEndMsg{toolCall: &llm.ToolCall{Name: "read_file", Output: "ok"}})
+	if !handled || cmd == nil {
+		t.Fatal("adversary tool end was not handled")
+	}
+	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryDoneMsg{})
+	if !handled || cmd != nil || updated.adversary.showSpinner || len(updated.adversary.lines) == 0 {
+		t.Fatal("adversary completion did not finalize output")
+	}
+}
+
+func TestHandleAdversaryStreamErrorAndStaleMessages(t *testing.T) {
+	m := newTestModel()
+	m.adversary.streamHandler = NewStreamHandler(nil)
+	m.adversary.streamHandler.Start(make(chan llm.StreamEvent), "Reviewing...")
+	m.adversary.showSpinner = true
+
+	updated, cmd, handled := m.handleAdversaryStreamMsg(adversaryErrorMsg{err: errors.New("review failed")})
+	if !handled || cmd != nil || updated.adversary.showSpinner || !strings.Contains(strings.Join(updated.adversary.lines, "\n"), "review failed") {
+		t.Fatal("adversary error did not finalize with error output")
+	}
+	for _, msg := range []tea.Msg{adversaryChunkMsg("late"), adversaryDoneMsg{}, adversaryErrorMsg{}, adversaryToolStartMsg{}, adversaryToolEndMsg{}} {
+		_, cmd, handled = updated.handleAdversaryStreamMsg(msg)
+		if !handled || cmd != nil {
+			t.Fatalf("stale %T was not swallowed", msg)
+		}
+	}
+	if _, _, handled := updated.handleAdversaryStreamMsg(tea.WindowSizeMsg{}); handled {
+		t.Fatal("unrelated message was handled by inactive adversary stream")
 	}
 }

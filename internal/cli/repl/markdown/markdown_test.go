@@ -236,3 +236,23 @@ func hasForegroundColorEscape(value string) bool {
 		strings.Contains(value, "\x1b[97m") ||
 		strings.Contains(value, "\x1b[39m")
 }
+
+func TestRendererUpdateWidth(t *testing.T) {
+	renderer, err := New(80)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	original := renderer.renderer
+	if err := renderer.UpdateWidth(80); err != nil {
+		t.Fatalf("UpdateWidth(same) error = %v", err)
+	}
+	if renderer.renderer != original {
+		t.Fatal("same width rebuilt renderer")
+	}
+	if err := renderer.UpdateWidth(24); err != nil {
+		t.Fatalf("UpdateWidth(new) error = %v", err)
+	}
+	if renderer.width != 24 || renderer.renderer == original {
+		t.Fatal("new width did not rebuild renderer")
+	}
+}

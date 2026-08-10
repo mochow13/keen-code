@@ -118,3 +118,50 @@ func TestInputSelection_RendersInView(t *testing.T) {
 		t.Fatal("expected input selection to affect rendered view")
 	}
 }
+
+func TestInputSelection_SelectWordAndLine(t *testing.T) {
+	var selection inputSelection
+	selection.setContent("hello world\nsecond line")
+	selection.maxLine = 1
+
+	if !selection.selectWord(7, 0, 0) {
+		t.Fatal("selectWord did not select a word")
+	}
+	if got := selection.selectedText(); got != "world" {
+		t.Fatalf("selected word = %q, want world", got)
+	}
+	if !selection.selectLine(1, 0) {
+		t.Fatal("selectLine did not select a line")
+	}
+	if got := selection.selectedText(); got != "second line" {
+		t.Fatalf("selected line = %q, want second line", got)
+	}
+}
+
+func TestInputSelection_RejectsWhitespaceAndEmptyLines(t *testing.T) {
+	var selection inputSelection
+	selection.setContent("hello world\n")
+	selection.maxLine = 1
+
+	if selection.selectWord(5, 0, 0) {
+		t.Fatal("selectWord selected whitespace")
+	}
+	if selection.selectLine(1, 0) {
+		t.Fatal("selectLine selected an empty line")
+	}
+	if selection.drag(1, 0, 0) || selection.release() {
+		t.Fatal("inactive selection accepted drag or release")
+	}
+}
+
+func TestInputSelection_SelectsVisibleTextWithoutANSI(t *testing.T) {
+	var selection inputSelection
+	selection.setContent("\x1b[31mred\x1b[0m text")
+	selection.maxLine = 0
+	if !selection.selectWord(1, 0, 0) {
+		t.Fatal("selectWord did not select styled text")
+	}
+	if got := selection.selectedText(); got != "red" {
+		t.Fatalf("selected styled word = %q, want red", got)
+	}
+}

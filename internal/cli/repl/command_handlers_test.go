@@ -1935,3 +1935,207 @@ func TestIsKnownCommand_MemoryExists(t *testing.T) {
 		t.Fatal("expected /memory show to be known")
 	}
 }
+
+type commandHandlerTestTool struct {
+	name string
+}
+
+func (t commandHandlerTestTool) Name() string                            { return t.name }
+func (commandHandlerTestTool) Description() string                       { return "test tool" }
+func (commandHandlerTestTool) InputSchema() map[string]any               { return nil }
+func (commandHandlerTestTool) Execute(context.Context, any) (any, error) { return nil, nil }
+
+func TestHandleToolPermissionCommandShowsUsageAndRegisteredTools(t *testing.T) {
+	m := newTestModel()
+	m.ctx.workingDir = t.TempDir()
+	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "zeta"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "alpha"}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := m.handleToolPermissionCommand(replcommands.AllowPermission, replcommands.AllowPermission, true)
+	output := ansi.Strip(result.output.Join())
+	if !strings.Contains(output, "Usage: "+replcommands.AllowPermission+" <tool_names...>") {
+		t.Fatalf("output missing usage: %q", output)
+	}
+	if !strings.Contains(output, "Available tools: alpha, zeta") {
+		t.Fatalf("output missing sorted tools: %q", output)
+	}
+}
+
+func TestHandleToolPermissionCommandRejectsUnknownTool(t *testing.T) {
+	m := newTestModel()
+	m.ctx.workingDir = t.TempDir()
+	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "read_file"}); err != nil {
+		t.Fatal(err)
+	}
+
+	result := m.handleToolPermissionCommand(replcommands.AllowPermission+" missing", replcommands.AllowPermission, true)
+	if !strings.Contains(ansi.Strip(result.output.Join()), "Unknown tool: missing") {
+		t.Fatalf("unexpected output %q", result.output.Join())
+	}
+	if len(result.projectPerms.Allow) != 0 {
+		t.Fatalf("unknown tool changed permissions: %#v", result.projectPerms.Allow)
+	}
+}
+
+func TestHandleToolPermissionCommandAllowsAndResetsTools(t *testing.T) {
+	work := t.TempDir()
+	m := newTestModel()
+	m.ctx.workingDir = work
+	for _, name := range []string{"read_file", "grep"} {
+		if err := m.appState.RegisterTool(commandHandlerTestTool{name: name}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	allowed := m.handleToolPermissionCommand(replcommands.AllowPermission+" read_file grep", replcommands.AllowPermission, true)
+	for _, name := range []string{"read_file", "grep"} {
+		if _, ok := allowed.projectPerms.Allow[name]; !ok {
+			t.Fatalf("tool %q was not allowed", name)
+		}
+	}
+	if !strings.Contains(ansi.Strip(allowed.output.Join()), "Allowed: read_file, grep") {
+		t.Fatalf("unexpected allow output %q", allowed.output.Join())
+	}
+
+	reset := allowed.handleToolPermissionCommand("/reset-permission read_file", "/reset-permission", false)
+	if _, ok := reset.projectPerms.Allow["read_file"]; ok {
+		t.Fatal("read_file permission was not reset")
+	}
+	if _, ok := reset.projectPerms.Allow["grep"]; !ok {
+		t.Fatal("reset removed an unrelated permission")
+	}
+	if !strings.Contains(ansi.Strip(reset.output.Join()), "Reset: read_file") {
+		t.Fatalf("unexpected reset output %q", reset.output.Join())
+	}
+
+	loaded, err := config.LoadProjectPermissions(work)
+	if err != nil {
+		t.Fatalf("LoadProjectPermissions() error = %v", err)
+	}
+	if _, ok := loaded.Allow["grep"]; !ok {
+		t.Fatalf("saved permissions = %#v", loaded.Allow)
+	}
+}
+
+func TestDispatchPermissionCommands(t *testing.T) {
+	m := newTestModel()
+	m.ctx.workingDir = t.TempDir()
+	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "read_file"}); err != nil {
+		t.Fatal(err)
+	}
+	m.textarea.SetValue("not empty")
+
+	allowed, cmd, handled := m.dispatchCommand(replcommands.AllowPermission + " read_file")
+	if !handled || cmd != nil || allowed.textarea.Value() != "" {
+		t.Fatalf("allow dispatch: handled=%v cmd=%v textarea=%q", handled, cmd, allowed.textarea.Value())
+	}
+	if _, ok := allowed.projectPerms.Allow["read_file"]; !ok {
+		t.Fatal("dispatched allow did not update permissions")
+	}
+
+	reset, cmd, handled := allowed.dispatchCommand("/reset-permission read_file")
+	if !handled || cmd != nil {
+		t.Fatalf("reset dispatch: handled=%v cmd=%v", handled, cmd)
+	}
+	if _, ok := reset.projectPerms.Allow["read_file"]; ok {
+		t.Fatal("dispatched reset did not update permissions")
+	}
+}
+
+func TestHandleMCPCommandWithoutConfiguration(t *testing.T) {
+	m := newTestModel()
+	m.ctx.mcp = nil
+	result, cmd := m.handleMCPCommand("/mcp status")
+	if cmd != nil {
+		t.Fatal("unexpected command")
+	}
+	if !strings.Contains(ansi.Strip(result.output.Join()), "MCP is not configured") {
+		t.Fatalf("unexpected output %q", result.output.Join())
+	}
+}
+
+func TestHandleMCPCommandValidatesArguments(t *testing.T) {
+	m := newTestModel()
+	m.ctx.mcp = &fakeMCPRuntime{}
+	result, cmd := m.handleMCPCommand("/mcp invalid extra")
+	if cmd != nil {
+		t.Fatal("unexpected command")
+	}
+	if !strings.Contains(ansi.Strip(result.output.Join()), mcpUsage) {
+		t.Fatalf("unexpected output %q", result.output.Join())
+	}
+}
+
+func TestAddMCPStatusHandlesEmptyAndConnectingStates(t *testing.T) {
+	m := newTestModel()
+	m.addMCPStatus(nil)
+	if !strings.Contains(ansi.Strip(m.output.Join()), "No MCP servers configured") {
+		t.Fatalf("unexpected empty status output %q", m.output.Join())
+	}
+
+	m = newTestModel()
+	m.addMCPStatus([]keenmcp.ServerStatus{{
+		Name:                    "docs",
+		State:                   keenmcp.StateConnecting,
+		AuthType:                keenmcp.AuthNone,
+		NegotiatedServerName:    "Docs Server",
+		NegotiatedServerVersion: "v1",
+	}})
+	output := ansi.Strip(m.output.Join())
+	if !strings.Contains(output, "• connecting") {
+		t.Fatalf("connecting status missing from %q", output)
+	}
+}
+
+func TestHandleThinkingCommandRejectsUnsupportedAndInvalidEffort(t *testing.T) {
+	m := newTestModel()
+	m.ctx.registry = &providers.Registry{}
+	m.ctx.cfg = &config.ResolvedConfig{Provider: config.ProviderOpenAI, Model: "unknown"}
+	result, cmd := m.handleThinkingCommand("/thinking high")
+	if cmd != nil || !strings.Contains(ansi.Strip(result.output.Join()), "does not support configurable thinking") {
+		t.Fatalf("unexpected unsupported-model result: cmd=%v output=%q", cmd, result.output.Join())
+	}
+
+	m = newTestModel()
+	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{{
+		ID:     config.ProviderOpenAI,
+		Models: []providers.Model{{ID: "reasoning", ThinkingEfforts: []string{"low", "high"}}},
+	}}}
+	m.ctx.cfg = &config.ResolvedConfig{Provider: config.ProviderOpenAI, Model: "reasoning"}
+	result, cmd = m.handleThinkingCommand("/thinking extreme")
+	if cmd != nil || !strings.Contains(ansi.Strip(result.output.Join()), "Usage: /thinking low|high") {
+		t.Fatalf("unexpected invalid-effort result: cmd=%v output=%q", cmd, result.output.Join())
+	}
+}
+
+func TestHandleAdversaryCommandRequiresConfiguration(t *testing.T) {
+	m := newTestModel()
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	result, cmd := m.handleAdversaryCommand("/adversary review this")
+	if cmd != nil {
+		t.Fatal("unexpected command")
+	}
+	if !strings.Contains(ansi.Strip(result.output.Join()), "/adversary model") {
+		t.Fatalf("unexpected output %q", result.output.Join())
+	}
+}
+
+func TestHandleLogoutCommandRejectsMissingAndNonOAuthProviders(t *testing.T) {
+	m := newTestModel()
+	m.ctx.cfg = &config.ResolvedConfig{}
+	result := m.handleLogoutCommand()
+	if !strings.Contains(ansi.Strip(result.output.Join()), "No provider is configured") {
+		t.Fatalf("unexpected missing-provider output %q", result.output.Join())
+	}
+
+	m = newTestModel()
+	m.ctx.cfg = &config.ResolvedConfig{Provider: config.ProviderAnthropic}
+	result = m.handleLogoutCommand()
+	if !strings.Contains(ansi.Strip(result.output.Join()), "does not use OAuth") {
+		t.Fatalf("unexpected non-OAuth output %q", result.output.Join())
+	}
+}

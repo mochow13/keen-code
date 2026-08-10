@@ -649,3 +649,20 @@ func TestOutputBuilder_AddStyledLine(t *testing.T) {
 		t.Errorf("lines[0] should contain 'styled content', got %q", lines[0])
 	}
 }
+
+func TestOutputBuilder_SetWidth(t *testing.T) {
+	builder := NewOutputBuilder(10, "")
+	builder.SetWidth(20)
+	if builder.width != 20 {
+		t.Fatalf("width = %d, want 20", builder.width)
+	}
+}
+
+func TestOutputBuilder_AddToolLifecycle(t *testing.T) {
+	builder := NewOutputBuilder(80, "/tmp/project")
+	builder.AddToolStart(&llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "README.md"}})
+	builder.AddToolEnd(&llm.ToolCall{Name: "read_file"})
+	if len(builder.GetLines()) != 2 {
+		t.Fatalf("tool lifecycle lines = %d, want 2", len(builder.GetLines()))
+	}
+}

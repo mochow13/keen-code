@@ -71,3 +71,53 @@ func TestRequestPermission_NoOverridePromptsUser(t *testing.T) {
 		t.Fatal("expected denial after context cancel")
 	}
 }
+
+func TestSendResponseAndSessionPermissions(t *testing.T) {
+	requester := NewRequester(config.NewProjectPermissions())
+	resultCh := make(chan bool, 1)
+	go func() {
+		allowed, _ := requester.RequestPermission(context.Background(), "read_file", "file", "file", false)
+		resultCh <- allowed
+	}()
+	<-requester.GetRequestChan()
+	if !requester.HasPendingRequest() {
+		t.Fatal("expected pending request")
+	}
+	requester.SendResponse(ChoiceAllowSession, "read_file")
+	if !<-resultCh || !requester.IsSessionAllowed("read_file") {
+		t.Fatal("expected allowed response and session permission")
+	}
+	allowed, err := requester.RequestPermission(context.Background(), "read_file", "file", "file", false)
+	if err != nil || !allowed {
+		t.Fatalf("session permission = %v, %v", allowed, err)
+	}
+	requester.ResetSessionPermissions()
+	if requester.IsSessionAllowed("read_file") {
+		t.Fatal("session permission was not reset")
+	}
+}
+
+func TestDangerousAllowSessionDoesNotPersist(t *testing.T) {
+	requester := NewRequester(config.NewProjectPermissions())
+	resultCh := make(chan bool, 1)
+	go func() {
+		allowed, _ := requester.RequestPermission(context.Background(), "bash", "command", "", true)
+		resultCh <- allowed
+	}()
+	<-requester.GetRequestChan()
+	requester.SendResponse(ChoiceAllowSession, "bash")
+	if !<-resultCh {
+		t.Fatal("expected current request allowed")
+	}
+	if requester.IsSessionAllowed("bash") {
+		t.Fatal("dangerous permission persisted for session")
+	}
+}
+
+func TestSendResponseWithoutPendingRequest(t *testing.T) {
+	requester := NewRequester(config.NewProjectPermissions())
+	requester.SendResponse(ChoiceDeny, "read_file")
+	if requester.HasPendingRequest() {
+		t.Fatal("unexpected pending request")
+	}
+}

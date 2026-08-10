@@ -225,3 +225,43 @@ func fakeJWT(t *testing.T, claims map[string]any) string {
 func mapValues(key, value string) map[string][]string {
 	return map[string][]string{key: {value}}
 }
+
+func TestStoreAllReturnsIndependentCredentials(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "auth.json")
+	store := NewStoreAt(path)
+	if err := store.Set("provider", OAuthCredential{AccessToken: "token"}); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+
+	all, err := store.All()
+	if err != nil {
+		t.Fatalf("All() error = %v", err)
+	}
+	delete(all, "provider")
+	if _, ok, err := store.Get("provider"); err != nil || !ok {
+		t.Fatalf("mutating All() result changed store: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestStoreAllRejectsMalformedData(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "auth.json")
+	if err := os.WriteFile(path, []byte("not-json"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewStoreAt(path).All(); err == nil {
+		t.Fatal("All() accepted malformed JSON")
+	}
+}
+
+func TestStoreAllTreatsEmptyDataAsNoCredentials(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "auth.json")
+	for _, data := range [][]byte{nil, []byte("null")} {
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		all, err := NewStoreAt(path).All()
+		if err != nil || len(all) != 0 {
+			t.Fatalf("All() = %#v, %v", all, err)
+		}
+	}
+}

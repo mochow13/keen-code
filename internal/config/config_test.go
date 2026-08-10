@@ -165,3 +165,43 @@ func TestDefaultGlobalConfig(t *testing.T) {
 		t.Error("expected non-nil Providers map")
 	}
 }
+
+func TestSupportsAPIKey(t *testing.T) {
+	for _, provider := range []string{ProviderAnthropic, ProviderBedrock} {
+		if !SupportsAPIKey(provider) {
+			t.Errorf("SupportsAPIKey(%q) = false", provider)
+		}
+	}
+	if SupportsAPIKey(ProviderOpenAICodex) {
+		t.Fatal("OAuth provider reported API key support")
+	}
+}
+
+func TestResolveAdversary(t *testing.T) {
+	if _, err := ResolveAdversary(&GlobalConfig{}); err == nil {
+		t.Fatal("ResolveAdversary accepted missing configuration")
+	}
+	global := &GlobalConfig{
+		AdversaryProvider: ProviderOpenAICodex,
+		AdversaryModel:    "codex-model",
+		Providers: map[string]ProviderConfig{
+			ProviderOpenAICodex: {BaseURL: "https://example.invalid"},
+		},
+	}
+	resolved, err := ResolveAdversary(global)
+	if err != nil {
+		t.Fatalf("ResolveAdversary() error = %v", err)
+	}
+	if resolved.Provider != ProviderOpenAICodex || resolved.Model != "codex-model" {
+		t.Fatalf("ResolveAdversary() = %#v", resolved)
+	}
+}
+
+func TestAPIKeyResolverReturnsCachedKey(t *testing.T) {
+	resolver := NewAPIKeyResolver(ProviderAnthropic, "must not execute")
+	resolver.cached = "cached-key"
+	key, err := resolver.Get()
+	if err != nil || key != "cached-key" {
+		t.Fatalf("Get() = %q, %v", key, err)
+	}
+}

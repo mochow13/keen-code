@@ -629,3 +629,241 @@ func TestVisibleListRangeKeepsCursorVisible(t *testing.T) {
 		}
 	}
 }
+
+func TestModelSelectionNavigationWrapsAndCancels(t *testing.T) {
+	registry := &providers.Registry{Providers: []providers.Provider{
+		{ID: config.ProviderAnthropic, Name: "Anthropic", Models: []providers.Model{{ID: "a", Name: "A"}, {ID: "b", Name: "B"}}},
+		{ID: config.ProviderOpenAI, Name: "OpenAI"},
+	}}
+	m := New(registry, config.DefaultGlobalConfig(), config.NewLoader(), &config.ResolvedConfig{}, nil)
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.ProviderCursor != 1 {
+		t.Fatalf("provider cursor = %d, want wrapped cursor 1", m.ProviderCursor)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if m.ProviderCursor != 0 {
+		t.Fatalf("provider cursor = %d, want wrapped cursor 0", m.ProviderCursor)
+	}
+
+	m.Step = StepModel
+	m.ModelList = registry.Providers[0].Models
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.ModelCursor != 1 {
+		t.Fatalf("model cursor = %d, want wrapped cursor 1", m.ModelCursor)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if m.ModelCursor != 0 {
+		t.Fatalf("model cursor = %d, want wrapped cursor 0", m.ModelCursor)
+	}
+
+	m.Step = StepThinking
+	m.ThinkingOptions = []string{"low", "high"}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.ThinkingCursor != 1 {
+		t.Fatalf("thinking cursor = %d, want wrapped cursor 1", m.ThinkingCursor)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if m.ThinkingCursor != 0 {
+		t.Fatalf("thinking cursor = %d, want wrapped cursor 0", m.ThinkingCursor)
+	}
+
+	for _, step := range []Step{StepProvider, StepModel, StepThinking, StepUpdateProviderConfigs, StepBaseURL, StepAPIKey, StepAPIKeyHelper} {
+		m.Step = step
+		_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		if cmd == nil || !IsCancel(cmd()) {
+			t.Fatalf("step %v did not return cancellation", step)
+		}
+	}
+}
+
+func TestModelSelectionOAuthCancelInvokesCancel(t *testing.T) {
+	cancelled := false
+	m := &Model{Step: StepOAuth, oauthCancel: func() { cancelled = true }}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if !cancelled {
+		t.Fatal("OAuth cancellation function was not called")
+	}
+	if cmd == nil || !IsCancel(cmd()) {
+		t.Fatal("OAuth escape did not return cancellation message")
+	}
+}
+
+func TestModelSelectionEditsAndPastesProviderInputs(t *testing.T) {
+	m := &Model{Step: StepBaseURL, BaseURLError: "old error"}
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'h', Text: "https://example.test"})
+	if m.BaseURLInput != "https://example.test" || m.BaseURLError != "" {
+		t.Fatalf("base URL input = %q, error = %q", m.BaseURLInput, m.BaseURLError)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	if m.BaseURLInput != "https://example.tes" {
+		t.Fatalf("base URL after backspace = %q", m.BaseURLInput)
+	}
+	m.BaseURLError = "old error"
+	m, _ = m.Update(tea.PasteMsg{Content: "t/v1"})
+	if m.BaseURLInput != "https://example.test/v1" || m.BaseURLError != "" {
+		t.Fatalf("base URL after paste = %q, error = %q", m.BaseURLInput, m.BaseURLError)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.Step != StepAPIKey || m.BaseURLError != "" {
+		t.Fatalf("valid base URL left step=%v error=%q", m.Step, m.BaseURLError)
+	}
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'k', Text: "secret"})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m, _ = m.Update(tea.PasteMsg{Content: "t"})
+	if m.APIKeyInput != "secret" {
+		t.Fatalf("API key input = %q, want secret", m.APIKeyInput)
+	}
+}
+
+func TestModelSelectionRejectsInvalidBaseURL(t *testing.T) {
+	m := &Model{Step: StepBaseURL, BaseURLInput: "example.test"}
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil || m.Step != StepBaseURL || m.BaseURLError == "" {
+		t.Fatalf("invalid URL produced step=%v error=%q cmd=%v", m.Step, m.BaseURLError, cmd)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'h', Text: "x"})
+	if m.BaseURLError != "" {
+		t.Fatalf("editing did not clear base URL error %q", m.BaseURLError)
+	}
+}
+
+func TestModelSelectionOAuthCompletion(t *testing.T) {
+	registry := &providers.Registry{Providers: []providers.Provider{{
+		ID:     config.ProviderOpenAICodex,
+		Models: []providers.Model{{ID: "gpt", Name: "GPT"}},
+	}}}
+	m := &Model{
+		Step:             StepOAuth,
+		SelectedProvider: config.ProviderOpenAICodex,
+		OAuthStatus:      "waiting",
+		OAuthURL:         "https://example.test/auth",
+		registry:         registry,
+	}
+
+	m, cmd := m.Update(modelSelectionOAuthCompleteMsg{err: fmt.Errorf("denied")})
+	if cmd != nil || m.ErrorMessage != "denied" || m.OAuthStatus != "Authentication failed." {
+		t.Fatalf("OAuth error state = error %q status %q cmd=%v", m.ErrorMessage, m.OAuthStatus, cmd)
+	}
+
+	m.ErrorMessage = ""
+	m, cmd = m.Update(modelSelectionOAuthCompleteMsg{})
+	if cmd != nil || m.Step != StepModel || len(m.ModelList) != 1 || m.OAuthStatus != "" || m.OAuthURL != "" {
+		t.Fatalf("OAuth success state = step %v models %d status %q URL %q", m.Step, len(m.ModelList), m.OAuthStatus, m.OAuthURL)
+	}
+}
+
+func TestModelSelectionIgnoresStaleAPIKeyHelperResult(t *testing.T) {
+	m := &Model{Step: StepProvider}
+	got, cmd := m.Update(modelSelectionAPIKeyHelperResultMsg{apiKey: "secret"})
+	if got != m || cmd != nil || m.Step != StepProvider {
+		t.Fatal("stale API key helper result changed model")
+	}
+}
+
+func TestModelSelectionResolveThinkingCursor(t *testing.T) {
+	tests := []struct {
+		name     string
+		resolved *config.ResolvedConfig
+		options  []string
+		want     int
+	}{
+		{name: "defaults to medium", resolved: &config.ResolvedConfig{}, options: []string{"low", "medium", "high"}, want: 1},
+		{name: "defaults to first without medium", resolved: &config.ResolvedConfig{}, options: []string{"low", "high"}, want: 0},
+		{name: "uses current", resolved: &config.ResolvedConfig{ThinkingEffort: "high"}, options: []string{"low", "high"}, want: 1},
+		{name: "unknown falls back to medium", resolved: &config.ResolvedConfig{ThinkingEffort: "other"}, options: []string{"low", "medium"}, want: 1},
+		{name: "unknown falls back to first", resolved: &config.ResolvedConfig{ThinkingEffort: "other"}, options: []string{"low", "high"}, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &Model{resolvedCfg: tt.resolved}
+			if got := m.resolveThinkingCursor(tt.options); got != tt.want {
+				t.Fatalf("resolveThinkingCursor() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestModelSelectionViewStates(t *testing.T) {
+	global := config.DefaultGlobalConfig()
+	global.SetProviderConfig(config.ProviderAnthropic, config.ProviderConfig{
+		APIKey:  "existing",
+		BaseURL: "https://api.example.test",
+	})
+	registry := &providers.Registry{Providers: []providers.Provider{{ID: config.ProviderAnthropic, Name: "Anthropic"}}}
+	m := &Model{
+		registry:         registry,
+		globalCfg:        global,
+		SelectedProvider: config.ProviderAnthropic,
+		BaseURLInput:     "https://new.example.test",
+		BaseURLError:     "invalid URL",
+		APIKeyInput:      "secret",
+		ErrorMessage:     "credential error",
+		OAuthStatus:      "Authentication failed.",
+		OAuthURL:         "https://example.test/auth",
+	}
+
+	tests := []struct {
+		step Step
+		want []string
+	}{
+		{StepBaseURL, []string{"Base URL for Anthropic", "current: https://api.example.test", "invalid URL"}},
+		{StepAPIKey, []string{"Enter API key for Anthropic", "keep existing key", "credential error"}},
+		{StepAPIKeyHelper, []string{"Fetching credentials for Anthropic", "Please wait"}},
+		{StepOAuth, []string{"Sign in with OpenAI", "Authentication failed.", "https://example.test/auth", "credential error"}},
+	}
+	for _, tt := range tests {
+		m.Step = tt.step
+		view := m.ViewString()
+		for _, want := range tt.want {
+			if !strings.Contains(view, want) {
+				t.Fatalf("step %v view %q missing %q", tt.step, view, want)
+			}
+		}
+	}
+	m.Step = Step(999)
+	if view := m.ViewString(); view != "" {
+		t.Fatalf("unknown step view = %q", view)
+	}
+}
+
+func TestModelSelectionMessagePredicates(t *testing.T) {
+	if !IsComplete(modelSelectionCompleteMsg{}) || IsComplete(modelSelectionCancelMsg{}) {
+		t.Fatal("IsComplete returned incorrect result")
+	}
+	if !IsCancel(modelSelectionCancelMsg{}) || IsCancel(modelSelectionCompleteMsg{}) {
+		t.Fatal("IsCancel returned incorrect result")
+	}
+}
+
+func TestModelSelectionLookupHelpersHandleMissingState(t *testing.T) {
+	m := &Model{}
+	if m.getProviderName("missing") != "" || m.getExistingAPIKey("missing") != "" || m.getExistingBaseURL("missing") != "" {
+		t.Fatal("lookup helper returned data without configuration")
+	}
+	m.registry = &providers.Registry{}
+	m.globalCfg = config.DefaultGlobalConfig()
+	if m.getProviderName("missing") != "" || m.getExistingAPIKey("missing") != "" || m.getExistingBaseURL("missing") != "" {
+		t.Fatal("lookup helper returned data for unknown provider")
+	}
+}
+
+func TestModelSelectionReportsClientInitializationFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	registry := &providers.Registry{Providers: []providers.Provider{{
+		ID:     config.ProviderAnthropic,
+		Models: []providers.Model{{ID: "claude", Name: "Claude"}},
+	}}}
+	m := New(registry, config.DefaultGlobalConfig(), config.NewLoader(), &config.ResolvedConfig{}, func(_, _, _ string) error {
+		return fmt.Errorf("client unavailable")
+	})
+	m.SelectedProvider = config.ProviderAnthropic
+	m.SelectedModel = "claude"
+	m.APIKeyInput = "secret"
+
+	m, cmd := m.complete()
+	if cmd != nil || !strings.Contains(m.ErrorMessage, "client unavailable") {
+		t.Fatalf("complete() error = %q cmd=%v", m.ErrorMessage, cmd)
+	}
+}

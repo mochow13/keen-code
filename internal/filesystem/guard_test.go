@@ -400,3 +400,50 @@ func TestGuard_IsBlocked_KeenOutsideMemoryDenied(t *testing.T) {
 		t.Error("expected ~/.keen path outside memory to be blocked")
 	}
 }
+
+func TestGuard_IsMemoryPath(t *testing.T) {
+	home := t.TempDir()
+	workingDir := t.TempDir()
+	t.Setenv("HOME", home)
+	guard := NewGuard(workingDir, nil)
+
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "global memory", path: filepath.Join(home, ".keen", "memory", "global", "MEMORY.md"), want: true},
+		{name: "project memory", path: filepath.Join(workingDir, ".keen", "MEMORY.md"), want: true},
+		{name: "project source", path: filepath.Join(workingDir, "main.go"), want: false},
+		{name: "similar project memory", path: filepath.Join(workingDir, ".keen", "MEMORY.md.bak"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := guard.IsMemoryPath(tt.path); got != tt.want {
+				t.Fatalf("IsMemoryPath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGuard_IsMemoryPathWithoutWorkingDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	guard := NewGuard("", nil)
+	if guard.IsMemoryPath(filepath.Join(home, "project", ".keen", "MEMORY.md")) {
+		t.Fatal("guard without working directory accepted project memory")
+	}
+}
+
+func TestGuard_MCPArtifactsPathClassification(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	guard := NewGuard(t.TempDir(), nil)
+	artifacts := filepath.Join(home, ".keen", "mcp-artifacts")
+	if !guard.IsInMCPArtifactsDir(artifacts) || !guard.IsInMCPArtifactsDir(filepath.Join(artifacts, "result.txt")) {
+		t.Fatal("MCP artifact path was not recognized")
+	}
+	if guard.IsInMCPArtifactsDir(filepath.Join(home, ".keen", "mcp-artifacts-other", "result.txt")) {
+		t.Fatal("similar MCP artifact path was recognized")
+	}
+}

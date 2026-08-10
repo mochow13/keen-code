@@ -238,3 +238,59 @@ func TestView_KeepsAltScreenMouseCaptureForSelection(t *testing.T) {
 		t.Fatalf("expected cell motion mouse capture, got %v", view.MouseMode)
 	}
 }
+
+func TestViewportSelection_SelectLine(t *testing.T) {
+	var selection viewportSelection
+	selection.setContent("first\nsecond line")
+	if !selection.selectLine(1, 0) {
+		t.Fatal("selectLine did not select a line")
+	}
+	if got := selection.selectedText(); got != "second line" {
+		t.Fatalf("selected line = %q, want second line", got)
+	}
+}
+
+func TestViewportSelection_RejectsWhitespaceAndEmptyLines(t *testing.T) {
+	var selection viewportSelection
+	selection.setContent("hello world\n")
+	if selection.selectWord(5, 0, 0) {
+		t.Fatal("selectWord selected whitespace")
+	}
+	if selection.selectLine(1, 0) {
+		t.Fatal("selectLine selected an empty line")
+	}
+	if selection.drag(1, 0, 0) || selection.release() {
+		t.Fatal("inactive selection accepted drag or release")
+	}
+}
+
+func TestSelectionHelpersHandleBoundaries(t *testing.T) {
+	if start, end := findSelectionWordBoundaries("", 0); start != 0 || end != 0 {
+		t.Fatalf("empty boundaries = (%d, %d)", start, end)
+	}
+	if start, end := findSelectionWordBoundaries("hello", -1); start != 0 || end != 0 {
+		t.Fatalf("negative boundaries = (%d, %d)", start, end)
+	}
+	if start, end := findSelectionWordBoundaries("hello", 9); start != 9 || end != 9 {
+		t.Fatalf("past-end boundaries = (%d, %d)", start, end)
+	}
+	if got := absInt(-3); got != 3 {
+		t.Fatalf("absInt(-3) = %d", got)
+	}
+	if got := clampInt(5, 10, 0); got != 5 {
+		t.Fatalf("clampInt with reversed bounds = %d", got)
+	}
+}
+
+func TestRenderSelectionLeavesInvalidOrHiddenSelectionsUnchanged(t *testing.T) {
+	view := "hello"
+	for _, got := range []string{
+		renderSelection(view, 0, 1, 0, 0, selectionPoint{}, selectionPoint{col: 2}),
+		renderSelection(view, 10, 0, 0, 0, selectionPoint{}, selectionPoint{col: 2}),
+		renderSelection(view, 10, 1, 2, 0, selectionPoint{}, selectionPoint{col: 2}),
+	} {
+		if got != view {
+			t.Fatalf("renderSelection changed hidden or invalid view: %q", got)
+		}
+	}
+}

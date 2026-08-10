@@ -737,3 +737,85 @@ func TestAppState_StreamCompactLeavesMessagesUntouchedOnCancel(t *testing.T) {
 		t.Fatalf("expected messages to remain unchanged, got %#v", got)
 	}
 }
+
+func TestAppState_MessageReplacementFiltersSystemMessagesAndClones(t *testing.T) {
+	state := &AppState{}
+	messages := []llm.Message{
+		{Role: llm.RoleSystem, Content: "system"},
+		{Role: llm.RoleUser, Content: "user", TurnMemory: &llm.TurnMemory{ToolActivity: []llm.HistoricalToolActivity{{Tool: "read_file"}}}},
+		{Role: llm.RoleAssistant, Content: "assistant"},
+	}
+
+	filtered := WithoutSystemMessages(messages)
+	if len(filtered) != 2 || filtered[0].Role != llm.RoleUser || filtered[1].Role != llm.RoleAssistant {
+		t.Fatalf("WithoutSystemMessages() = %#v", filtered)
+	}
+	filtered[0].Content = "changed"
+	if messages[1].Content != "user" {
+		t.Fatal("WithoutSystemMessages returned aliases to input messages")
+	}
+
+	state.ReplaceMessages(filtered)
+	filtered[0].Content = "changed again"
+	if got := state.GetMessages()[0].Content; got != "changed" {
+		t.Fatalf("ReplaceMessages did not clone input: %q", got)
+	}
+}
+
+func TestAppState_ClientModeAndUsageAccessors(t *testing.T) {
+	client := &mockLLMClient{}
+	adversary := &mockLLMClient{}
+	state := &AppState{llmClient: client, workingDir: "/tmp/project"}
+
+	if state.GetClient() != client || state.WorkingDir() != "/tmp/project" {
+		t.Fatal("client or working directory accessor returned unexpected value")
+	}
+	if state.IsAdversaryClientReady() {
+		t.Fatal("adversary client unexpectedly ready")
+	}
+	state.SetAdversaryClient(adversary)
+	if !state.IsAdversaryClientReady() {
+		t.Fatal("adversary client was not marked ready")
+	}
+
+	if state.Mode() != llm.ModeBuild {
+		t.Fatalf("zero mode = %q, want build", state.Mode())
+	}
+	state.SetMode(llm.AgentMode("invalid"))
+	if state.Mode() != llm.ModeBuild {
+		t.Fatalf("invalid mode = %q, want build", state.Mode())
+	}
+
+	usage := &llm.TokenUsage{InputTokens: 42}
+	state.SetLastUsage(usage)
+	usage.InputTokens = 99
+	if got := state.GetLastUsage(); got == nil || got.InputTokens != 42 {
+		t.Fatalf("stored usage = %#v", got)
+	}
+	state.ClearContextMetrics()
+	if state.GetLastUsage() != nil {
+		t.Fatal("ClearContextMetrics did not clear usage")
+	}
+	state.SetLastUsage(nil)
+}
+
+func TestAppState_SkillConfigAndSuggestionsAreIndependent(t *testing.T) {
+	state := &AppState{
+		skills: skills.Discovery{Skills: []skills.Skill{
+			{Name: "enabled"},
+			{Name: "disabled"},
+		}},
+		skillsConfig: skills.Config{IsEnabled: map[string]bool{"enabled": true, "disabled": false}},
+	}
+
+	cfg := state.GetSkillsConfig()
+	cfg.IsEnabled["enabled"] = false
+	if !state.GetSkillsConfig().Enabled("enabled") {
+		t.Fatal("GetSkillsConfig returned mutable state")
+	}
+
+	suggestions := state.SkillSuggestions()
+	if len(suggestions) != 1 || suggestions[0].Name != "enabled" {
+		t.Fatalf("SkillSuggestions() = %#v", suggestions)
+	}
+}

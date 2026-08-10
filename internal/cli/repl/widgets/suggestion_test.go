@@ -303,3 +303,56 @@ func TestNavigationFileMode(t *testing.T) {
 		t.Errorf("expected b.go after down/down/up, got %v", cur)
 	}
 }
+
+func TestSuggestionAccessorsAndHide(t *testing.T) {
+	s := NewSuggestionModel()
+	if s.Visible() || s.First() != nil || !s.IsFirstSelected() || s.IsModelMode() {
+		t.Fatal("unexpected initial suggestion state")
+	}
+
+	s.RefreshModels("/model", []string{"openai/gpt"})
+	if !s.Visible() || !s.IsModelMode() || s.First() == nil || s.First().Name != "Pick from supported providers" {
+		t.Fatalf("unexpected model suggestion state: %#v", s)
+	}
+	s.MoveDown()
+	if s.IsFirstSelected() {
+		t.Fatal("second item reported as first selected")
+	}
+
+	s.Hide()
+	if s.Visible() || s.Current() != nil || s.First() != nil {
+		t.Fatalf("Hide did not clear suggestions: %#v", s)
+	}
+}
+
+func TestSuggestionEmptyNavigationAndScrolling(t *testing.T) {
+	s := NewSuggestionModel()
+	s.MoveDown()
+	s.MoveUp()
+	if s.selected != 0 || s.scrollOffset != 0 {
+		t.Fatalf("empty navigation changed state: %#v", s)
+	}
+
+	paths := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
+	s.RefreshFiles(paths)
+	for range maxVisibleItems {
+		s.MoveDown()
+	}
+	if s.scrollOffset != 1 {
+		t.Fatalf("scroll offset = %d, want 1", s.scrollOffset)
+	}
+	s.MoveUp()
+	if s.scrollOffset != 1 {
+		t.Fatalf("moving within viewport changed scroll offset to %d", s.scrollOffset)
+	}
+}
+
+func TestSuggestionViewHandlesNarrowDescriptions(t *testing.T) {
+	s := NewSuggestionModel()
+	s.items = []SuggestionItem{{Name: "/command", Description: "description"}}
+	s.visible = true
+	view := ansi.Strip(s.View(8))
+	if !strings.Contains(view, "/command") || strings.Contains(view, "description") {
+		t.Fatalf("narrow view = %q", view)
+	}
+}
