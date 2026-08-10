@@ -5,7 +5,17 @@ description: Release a new version of the project.
 
 # Release Skill
 
-Target version (required): $ARGUMENTS
+Target version (optional): $ARGUMENTS
+
+If no target version is provided, inspect the latest release tag and commits since that tag before making any changes. Suggest a semantic-version bump to the user and wait for confirmation:
+
+- **major** for intentional breaking changes.
+- **minor** for backward-compatible features.
+- **patch** for fixes, documentation, dependencies, and internal changes.
+
+Use `git tag --sort=-version:refname` to identify the latest version tag and `git log <latest-tag>..HEAD --oneline` to review subsequent commits. Also consider unreleased changelog entries. State the latest tag, the commits considered, the recommended version, and a concise rationale. If there are no commits since the latest tag, say that no release is recommended.
+
+Once a version is supplied or confirmed, use it as the target version for the remaining steps.
 
 ## Steps
 
