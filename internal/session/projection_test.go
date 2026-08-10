@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"github.com/user/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/llm"
 )
 
 func TestBuildConversation_AppendsAssistantTurnMessages(t *testing.T) {

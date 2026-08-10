@@ -1,6 +1,6 @@
 package session
 
-import "github.com/user/keen-code/internal/llm"
+import "github.com/mochow13/keen-code/internal/llm"
 
 func BuildConversation(events []Event) []llm.Message {
 	var messages []llm.Message

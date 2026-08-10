@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/user/keen-code/internal/filesystem"
+	"github.com/mochow13/keen-code/internal/filesystem"
 )
 
 const defaultRefreshInterval = 10 * time.Second

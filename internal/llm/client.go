@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type LLMClient interface {

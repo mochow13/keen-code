@@ -9,10 +9,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	keenauth "github.com/user/keen-code/internal/auth"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/providers"
+	keenauth "github.com/mochow13/keen-code/internal/auth"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/providers"
 )
 
 func supportsBaseURL(providerID string) bool {

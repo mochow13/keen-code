@@ -3,9 +3,9 @@ package subagents
 import (
 	"context"
 
-	"github.com/user/keen-code/internal/filesystem"
-	keenmcp "github.com/user/keen-code/internal/mcp"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/filesystem"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type AutoApprover struct{}

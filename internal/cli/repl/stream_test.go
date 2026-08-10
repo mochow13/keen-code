@@ -7,11 +7,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	repltooling "github.com/user/keen-code/internal/cli/repl/tooling"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/subagents"
-	"github.com/user/keen-code/internal/tools"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/subagents"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 func TestStreamHandlerHidesSubagentFileNotFoundFailure(t *testing.T) {

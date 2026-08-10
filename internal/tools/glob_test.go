@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/user/keen-code/internal/filesystem"
+	"github.com/mochow13/keen-code/internal/filesystem"
 )
 
 func TestGlobTool_Name(t *testing.T) {

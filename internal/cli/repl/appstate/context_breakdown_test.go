@@ -3,7 +3,7 @@ package appstate
 import (
 	"testing"
 
-	"github.com/user/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/llm"
 )
 
 func TestGetContextBreakdown_NoUsage(t *testing.T) {

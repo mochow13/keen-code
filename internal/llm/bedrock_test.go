@@ -15,8 +15,8 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	brtypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type mockBedrockStream struct {

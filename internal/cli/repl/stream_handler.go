@@ -3,10 +3,10 @@ package repl
 import (
 	"strings"
 
-	replmarkdown "github.com/user/keen-code/internal/cli/repl/markdown"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/subagents"
-	"github.com/user/keen-code/internal/tools"
+	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/subagents"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type StreamHandler struct {

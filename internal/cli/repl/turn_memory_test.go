@@ -6,9 +6,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	replappstate "github.com/user/keen-code/internal/cli/repl/appstate"
-	reploutput "github.com/user/keen-code/internal/cli/repl/output"
-	"github.com/user/keen-code/internal/llm"
+	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	"github.com/mochow13/keen-code/internal/llm"
 )
 
 func TestHandleLLMDone_AttachesTurnMemoryToAssistantMessage(t *testing.T) {

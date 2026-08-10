@@ -14,15 +14,15 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	replappstate "github.com/user/keen-code/internal/cli/repl/appstate"
-	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
-	replwidgets "github.com/user/keen-code/internal/cli/repl/widgets"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/llm"
-	keenmcp "github.com/user/keen-code/internal/mcp"
-	"github.com/user/keen-code/internal/mcpskills"
-	"github.com/user/keen-code/internal/providers"
-	"github.com/user/keen-code/internal/skills"
+	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
+	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/llm"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/mcpskills"
+	"github.com/mochow13/keen-code/internal/providers"
+	"github.com/mochow13/keen-code/internal/skills"
 )
 
 func TestHandleEnterKey_EmptyInput(t *testing.T) {

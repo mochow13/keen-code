@@ -6,8 +6,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
+	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
 const maxQueuedInputs = 5

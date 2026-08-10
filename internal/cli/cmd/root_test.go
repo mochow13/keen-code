@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/user/keen-code/internal/config"
-	keenmcp "github.com/user/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/config"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 )
 
 func TestNewRootCommand(t *testing.T) {

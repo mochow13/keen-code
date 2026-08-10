@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/llm"
 )
 
 func TestSanitizeWorkingDir(t *testing.T) {

@@ -14,8 +14,8 @@ import (
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 // mockAnthropicStream implements anthropicStream for testing.

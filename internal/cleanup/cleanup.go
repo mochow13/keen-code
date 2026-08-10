@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/user/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 const (

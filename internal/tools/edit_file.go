@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	udiff "github.com/aymanbagabas/go-udiff"
-	"github.com/user/keen-code/internal/filesystem"
-	"github.com/user/keen-code/internal/memory"
+	"github.com/mochow13/keen-code/internal/filesystem"
+	"github.com/mochow13/keen-code/internal/memory"
 )
 
 const (

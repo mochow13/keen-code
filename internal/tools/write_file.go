@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/user/keen-code/internal/filesystem"
-	"github.com/user/keen-code/internal/memory"
+	"github.com/mochow13/keen-code/internal/filesystem"
+	"github.com/mochow13/keen-code/internal/memory"
 )
 
 type WriteFileTool struct {

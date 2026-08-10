@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	keenmcp "github.com/user/keen-code/internal/mcp"
 )
 
 type mockMCPRuntime struct {

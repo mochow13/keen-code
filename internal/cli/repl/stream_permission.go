@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
 const permissionPreviewMaxLines = 120

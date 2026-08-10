@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mochow13/keen-code/internal/filesystem"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/user/keen-code/internal/filesystem"
-	keenmcp "github.com/user/keen-code/internal/mcp"
 )
 
 const (

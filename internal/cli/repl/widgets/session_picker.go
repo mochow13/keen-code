@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
-	"github.com/user/keen-code/internal/session"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 type SessionPicker struct {

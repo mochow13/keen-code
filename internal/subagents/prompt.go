@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/user/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/llm"
 )
 
 const childSecurityPrompt = `# Mandatory Security Instructions

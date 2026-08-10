@@ -3,11 +3,11 @@ package repl
 import (
 	"time"
 
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	repltooling "github.com/user/keen-code/internal/cli/repl/tooling"
-	"github.com/user/keen-code/internal/llm"
-	keenmcp "github.com/user/keen-code/internal/mcp"
-	"github.com/user/keen-code/internal/subagents"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
+	"github.com/mochow13/keen-code/internal/llm"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 type llmChunkMsg string

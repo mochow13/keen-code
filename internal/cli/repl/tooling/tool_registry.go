@@ -3,14 +3,14 @@ package tooling
 import (
 	"path/filepath"
 
-	replappstate "github.com/user/keen-code/internal/cli/repl/appstate"
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/filesystem"
-	"github.com/user/keen-code/internal/llm"
-	keenmcp "github.com/user/keen-code/internal/mcp"
-	"github.com/user/keen-code/internal/subagents"
-	"github.com/user/keen-code/internal/tools"
+	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/filesystem"
+	"github.com/mochow13/keen-code/internal/llm"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/subagents"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 func SetupToolRegistry(

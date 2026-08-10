@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	reploutput "github.com/user/keen-code/internal/cli/repl/output"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/tools"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const bashOutputMaxLines = 30

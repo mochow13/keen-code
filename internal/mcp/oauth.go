@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
+	keenauth "github.com/mochow13/keen-code/internal/auth"
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
-	keenauth "github.com/user/keen-code/internal/auth"
 	"golang.org/x/oauth2"
 )
 

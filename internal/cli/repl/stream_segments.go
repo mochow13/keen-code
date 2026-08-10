@@ -1,9 +1,9 @@
 package repl
 
 import (
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/tools"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type streamSegmentType string

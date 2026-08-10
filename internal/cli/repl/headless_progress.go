@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	reploutput "github.com/user/keen-code/internal/cli/repl/output"
-	"github.com/user/keen-code/internal/llm"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	"github.com/mochow13/keen-code/internal/llm"
 )
 
 // headlessProgress streams live agent text chunks and tool start lines to the

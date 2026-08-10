@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/keen-code/internal/cli/repl/appstate"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/session"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type recordingHeadlessClient struct {

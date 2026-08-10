@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/user/keen-code/internal/memory"
+	"github.com/mochow13/keen-code/internal/memory"
 )
 
 type AgentMode string

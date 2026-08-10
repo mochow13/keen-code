@@ -1,6 +1,6 @@
 package tooling
 
-import "github.com/user/keen-code/internal/tools"
+import "github.com/mochow13/keen-code/internal/tools"
 
 type DiffRequest struct {
 	Lines []tools.EditDiffLine

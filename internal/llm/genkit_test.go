@@ -11,8 +11,8 @@ import (
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/tools"
 	"google.golang.org/genai"
 )
 

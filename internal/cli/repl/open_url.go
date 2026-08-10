@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/clipperhouse/displaywidth"
 
-	"github.com/user/keen-code/internal/cli/repl/urldetect"
+	"github.com/mochow13/keen-code/internal/cli/repl/urldetect"
 )
 
 // urlAtDisplayColumn returns the URL covering the given display column on a

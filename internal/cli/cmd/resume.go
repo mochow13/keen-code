@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/user/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 func loadResumeSession(workingDir, sessionID string) (*session.LoadedSession, error) {

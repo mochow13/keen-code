@@ -3,8 +3,8 @@ package session
 import (
 	"time"
 
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type EventKind string

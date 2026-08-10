@@ -9,14 +9,14 @@ import (
 	"os"
 	"strings"
 
+	keenauth "github.com/mochow13/keen-code/internal/auth"
+	"github.com/mochow13/keen-code/internal/cli/repl"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/llm"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/providers"
+	"github.com/mochow13/keen-code/internal/session"
 	"github.com/spf13/cobra"
-	keenauth "github.com/user/keen-code/internal/auth"
-	"github.com/user/keen-code/internal/cli/repl"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/llm"
-	keenmcp "github.com/user/keen-code/internal/mcp"
-	"github.com/user/keen-code/internal/providers"
-	"github.com/user/keen-code/internal/session"
 )
 
 var newMCPManager = func(opts ...keenmcp.Option) (keenmcp.Runtime, error) {

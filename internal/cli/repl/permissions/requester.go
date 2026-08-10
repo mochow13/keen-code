@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/user/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/config"
 )
 
 type Status string

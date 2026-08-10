@@ -8,14 +8,14 @@ import (
 	"io"
 	"strings"
 
-	"github.com/user/keen-code/internal/cli/repl/appstate"
-	replappstate "github.com/user/keen-code/internal/cli/repl/appstate"
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	repltooling "github.com/user/keen-code/internal/cli/repl/tooling"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/llm"
-	keenmcp "github.com/user/keen-code/internal/mcp"
-	"github.com/user/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/llm"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/keen-code/internal/skills"
+	"github.com/mochow13/keen-code/internal/skills"
 )
 
 func TestBuild_ContainsIdentity(t *testing.T) {

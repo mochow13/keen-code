@@ -12,7 +12,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
 const (

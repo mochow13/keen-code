@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	keenmcp "github.com/user/keen-code/internal/mcp"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"gopkg.in/yaml.v3"
 )
 

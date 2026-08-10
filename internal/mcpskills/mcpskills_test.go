@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	keenmcp "github.com/user/keen-code/internal/mcp"
+	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 )
 
 func TestRemoveDeletesGeneratedSkill(t *testing.T) {

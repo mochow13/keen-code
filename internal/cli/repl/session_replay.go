@@ -4,11 +4,11 @@ import (
 	"errors"
 	"time"
 
-	replmarkdown "github.com/user/keen-code/internal/cli/repl/markdown"
-	reploutput "github.com/user/keen-code/internal/cli/repl/output"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/session"
+	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 type sessionReplay struct {

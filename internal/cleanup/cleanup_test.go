@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 func TestPruneExpiredFilesBefore_RemovesOnlyExpiredRegularFiles(t *testing.T) {

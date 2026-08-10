@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
+	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
 type suggestionMode int

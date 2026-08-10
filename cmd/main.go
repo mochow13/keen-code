@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"os"
 
+	clicmd "github.com/mochow13/keen-code/internal/cli/cmd"
+	"github.com/mochow13/keen-code/internal/logging"
+	"github.com/mochow13/keen-code/internal/telemetry"
 	"github.com/spf13/cobra"
-	clicmd "github.com/user/keen-code/internal/cli/cmd"
-	"github.com/user/keen-code/internal/logging"
-	"github.com/user/keen-code/internal/telemetry"
 )
 
 const version = "0.46.0"

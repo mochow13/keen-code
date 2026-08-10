@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/keen-code/internal/cli/repl/history"
+	"github.com/mochow13/keen-code/internal/cli/repl/history"
 )
 
 func TestInputHistory_Push_BlankIgnored(t *testing.T) {

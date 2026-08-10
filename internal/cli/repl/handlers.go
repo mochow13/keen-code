@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/user/keen-code/internal/cli/repl/appstate"
-	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
-	reploutput "github.com/user/keen-code/internal/cli/repl/output"
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
-	replwidgets "github.com/user/keen-code/internal/cli/repl/widgets"
-	"github.com/user/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
+	"github.com/mochow13/keen-code/internal/llm"
 )
 
 const (

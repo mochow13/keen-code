@@ -7,10 +7,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/user/keen-code/internal/auth"
-	repltheme "github.com/user/keen-code/internal/cli/repl/theme"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/providers"
+	"github.com/mochow13/keen-code/internal/auth"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/providers"
 )
 
 func TestModelSelectionUsesDimFaintStyle(t *testing.T) {

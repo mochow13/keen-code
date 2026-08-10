@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type ClientFactory func(*config.ResolvedConfig) (llm.LLMClient, error)

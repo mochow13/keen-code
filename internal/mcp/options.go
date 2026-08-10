@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	keenauth "github.com/mochow13/keen-code/internal/auth"
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
-	keenauth "github.com/user/keen-code/internal/auth"
 )
 
 type Option func(*managerOptions)

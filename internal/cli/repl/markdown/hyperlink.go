@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/user/keen-code/internal/cli/repl/urldetect"
+	"github.com/mochow13/keen-code/internal/cli/repl/urldetect"
 )
 
 const (

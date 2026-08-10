@@ -11,15 +11,15 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	replappstate "github.com/user/keen-code/internal/cli/repl/appstate"
-	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
-	replfilesearch "github.com/user/keen-code/internal/cli/repl/filesearch"
-	reploutput "github.com/user/keen-code/internal/cli/repl/output"
-	replwidgets "github.com/user/keen-code/internal/cli/repl/widgets"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/providers"
-	"github.com/user/keen-code/internal/subagents"
+	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
+	replfilesearch "github.com/mochow13/keen-code/internal/cli/repl/filesearch"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/providers"
+	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 func TestHandleLLMChunk(t *testing.T) {

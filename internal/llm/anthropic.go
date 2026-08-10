@@ -13,8 +13,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/param"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const anthropicMaxTokens = 64000

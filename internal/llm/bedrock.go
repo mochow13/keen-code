@@ -16,7 +16,7 @@ import (
 	"github.com/aws/smithy-go/auth/bearer"
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const bedrockMaxTokens int32 = 64000

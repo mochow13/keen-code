@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	replcommands "github.com/user/keen-code/internal/cli/repl/commands"
+	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 )
 
 func TestFilterCommandsEmpty(t *testing.T) {

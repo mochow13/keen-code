@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	replappstate "github.com/user/keen-code/internal/cli/repl/appstate"
-	replpermissions "github.com/user/keen-code/internal/cli/repl/permissions"
-	"github.com/user/keen-code/internal/config"
+	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	"github.com/mochow13/keen-code/internal/config"
 )
 
 func TestSetupToolRegistryOmitsDelegateToolWithoutProfiles(t *testing.T) {

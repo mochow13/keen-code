@@ -3,7 +3,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/user/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 func TestLoadResumeSession(t *testing.T) {

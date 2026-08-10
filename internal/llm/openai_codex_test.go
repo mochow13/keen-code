@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mochow13/keen-code/internal/auth"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/tools"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
-	"github.com/user/keen-code/internal/auth"
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/tools"
 )
 
 func TestNewClient_OpenAICodexAllowsMissingAPIKey(t *testing.T) {

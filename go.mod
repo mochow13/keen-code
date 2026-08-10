@@ -1,4 +1,4 @@
-module github.com/user/keen-code
+module github.com/mochow13/keen-code
 
 go 1.25.12
 

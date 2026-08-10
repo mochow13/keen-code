@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/user/keen-code/internal/config"
-	"github.com/user/keen-code/internal/providers"
+	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/providers"
 )
 
 type Provider string

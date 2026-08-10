@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/session"
 )
 
 func TestSessionReplay_InterruptedTurnRendersTranscriptAndPrompt(t *testing.T) {

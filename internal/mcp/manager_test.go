@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
+	keenauth "github.com/mochow13/keen-code/internal/auth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-	keenauth "github.com/user/keen-code/internal/auth"
 	"golang.org/x/oauth2"
 )
 

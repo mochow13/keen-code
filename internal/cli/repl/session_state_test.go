@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/user/keen-code/internal/llm"
-	"github.com/user/keen-code/internal/session"
-	"github.com/user/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 func TestBuildAssistantTurnEvent_MixedTranscript(t *testing.T) {
