@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./assets/keen-code.png" alt="Keen Code" width="500"/>
+<img src="./assets/keen-code-2.png" alt="Keen Code" width="500"/>
 
 [![Latest Release](https://img.shields.io/github/v/release/mochow13/keen-code?style=flat-square&logo=github)](https://github.com/mochow13/keen-code/releases/latest)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/mochow13/keen-code/go.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white)](https://github.com/mochow13/keen-code/actions)
@@ -12,25 +12,22 @@
 
 </div>
 
-<div align="center">
-<img src="./assets/keen-demo.gif" alt="Keen Code demo" style="width: 100%; height: auto;"/>
-</div>
-
-**Keen Code** is a terminal-based AI coding agent like Claude Code or Codex CLI. Written in Go, it is simpler, lighter, minimalistic but useful coding agent for typical software engineering tasks.
+**Keen Code** is a terminal-based AI coding agent like Claude Code or Codex CLI. Written in Go, it is simpler, lighter, minimalistic but useful coding agent for typical software engineering tasks. It supports multiple providers, skills, MCPs, subagents with multi-agent orchestration, and more.
 
 Keen Code is highly opinionated. It avoids features that are not necessarily needed or useful for a regular software engineer. It tries to avoid unnecessary complexity and attempts to keep the agent harness as simple as possible.
 
-From requirements to implementation, Keen Code was engineered using a wide range of coding agents and agentic IDEs like Cursor, Windsurf, Claude Code, OpenCode, Codex CLI, and Kimi CLI. At any given time, Keen Code was developed by a single agent, meaning, no multi-agent orchestration was used.
-
-By far, AI coding agents are the most ubiquitous use case in the era of AI agents. The goal of the project is to showcase how coding agents can be used to develop coding agents themselves. This is why most prompts and output docs are saved as markdown files in the `.ai-interactions` directory. 
+From requirements to implementation, Keen Code was engineered using a wide range of coding agents and agentic IDEs. By far, AI coding agents are the most ubiquitous use case in the era of AI agents. One of the goals of the project is to showcase how coding agents can be used to develop coding agents themselves. This is why most prompts and output docs are saved as markdown files in the [`.ai-interactions`](.ai-interactions/) directory. 
 
 Keen Code is also an experiment to play with the *new way of working* where engineers work with AI agents to develop software. In this setting, engineers are sometimes referred to as "orchestrators".
 
-> **Every line of code in this repo was written by an AI agent.** The full paper trail — prompts, plans, design docs — is preserved in [`.ai-interactions/`](.ai-interactions/). See [TOUR.md](TOUR.md) for the full story.
+<h3 align="center">
+  Born as an experiment, Keen is now a fully functional coding agent designed for real-world software development.
+</h3>
 
 ## Table of Contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Development Philosophy](#development-philosophy)
 - [Development Cycle Example](#development-cycle-example)
 - [Install Keen Code](#install-keen-code)
@@ -54,6 +51,47 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 - **Conservative context management** — Lean cross-turn memory via `TurnMemory` summaries instead of raw tool traces. More information can be found in [docs/turn-memory.md](docs/turn-memory.md).
 - **User-triggered compaction** - When the context window is nearing the limit, use `/compact` to compact the context.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./assets/full-interface.png">
+        <img src="./assets/full-interface.png" alt="Keen Code full interface" width="100%">
+      </a>
+      <br><sub>Full interface</sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="./assets/output.png">
+        <img src="./assets/output.png" alt="Keen Code command output" width="100%">
+      </a>
+      <br><sub>Command output</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./assets/diff.png">
+        <img src="./assets/diff.png" alt="Reviewing a code diff in Keen Code" width="100%">
+      </a>
+      <br><sub>Diff review</sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="./assets/commands.png">
+        <img src="./assets/commands.png" alt="Keen Code interactive commands" width="100%">
+      </a>
+      <br><sub>Interactive commands</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <a href="./assets/permission.png">
+        <img src="./assets/permission.png" alt="Keen Code permission prompt" width="50%">
+      </a>
+      <br><sub>Permission prompt</sub>
+    </td>
+  </tr>
+</table>
+
 ## Telemetry
 
 Keen Code collects two minimal anonymous usage events for actual interactive and headless coding sessions: `keen_session_start` and `keen_session_end`. Help, version, and invalid command invocations are not counted. The events contain a random resettable installation ID, a session ID, Keen version, OS, architecture, interactive/headless mode, and session duration in milliseconds. Google Analytics derives coarse country from the request connection, so no separate country event or country value is sent.
@@ -62,7 +100,6 @@ Keen Code never sends prompts, responses, code, paths, commands, repository deta
 
 Telemetry delivery is fail-silent. The session-start event is emitted asynchronously, and the session-end event is emitted on normal exit. Each event has a one-second timeout. Forced termination, crashes, and network failures can still prevent delivery.
 
-A random UUID is stored with user-only permissions at `~/.keen/telemetry.json`; it is not derived from machine or user data. Delete that file to reset the identifier.
 
 ## How Keen Handles Context
 
