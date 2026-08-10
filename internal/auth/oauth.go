@@ -37,7 +37,8 @@ type OAuthManager struct {
 	ClientID    string
 	RedirectURI string
 
-	refreshMu sync.Mutex
+	startServer func(context.Context, string, chan<- oauthCallbackResult) (*http.Server, error)
+	refreshMu   sync.Mutex
 }
 
 type tokenResponse struct {
@@ -95,7 +96,11 @@ func (m *OAuthManager) StartLogin(ctx context.Context, provider string) (*OAuthL
 
 	authURL := m.AuthorizationURL(pkce.Challenge, state)
 	codeCh := make(chan oauthCallbackResult, 1)
-	server, err := m.startCallbackServer(ctx, state, codeCh)
+	startServer := m.startServer
+	if startServer == nil {
+		startServer = m.startCallbackServer
+	}
+	server, err := startServer(ctx, state, codeCh)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +264,7 @@ func (r oauthCallbackResult) Respond(success bool, message string) {
 }
 
 func (m *OAuthManager) startCallbackServer(ctx context.Context, state string, resultCh chan<- oauthCallbackResult) (*http.Server, error) {
-	mux := http.NewServeMux()
+	mux := newOAuthCallbackHandler(ctx, state, resultCh)
 	server := &http.Server{
 		Addr:              "localhost:" + oauthPort,
 		Handler:           mux,
@@ -269,6 +274,18 @@ func (m *OAuthManager) startCallbackServer(ctx context.Context, state string, re
 		},
 	}
 
+	ln, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("OAuth callback port 1455 is unavailable; close the app using it and try again: %w", err)
+	}
+	go func() {
+		_ = server.Serve(ln)
+	}()
+	return server, nil
+}
+
+func newOAuthCallbackHandler(ctx context.Context, state string, resultCh chan<- oauthCallbackResult) http.Handler {
+	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		if q.Get("state") != state {
@@ -314,15 +331,7 @@ func (m *OAuthManager) startCallbackServer(ctx context.Context, state string, re
 			writeOAuthPage(w, false, "Authentication timed out.")
 		}
 	})
-
-	ln, err := net.Listen("tcp", server.Addr)
-	if err != nil {
-		return nil, fmt.Errorf("OAuth callback port 1455 is unavailable; close the app using it and try again: %w", err)
-	}
-	go func() {
-		_ = server.Serve(ln)
-	}()
-	return server, nil
+	return mux
 }
 
 func writeOAuthPage(w http.ResponseWriter, success bool, message string) {
@@ -557,17 +566,8 @@ func FetchOAuthAuthorizationCode(ctx context.Context, authURL, redirectURL strin
 	}
 }
 
-func startOAuthCallbackServer(ctx context.Context, host, path string, resultCh chan<- oauthCallbackResult) (*http.Server, error) {
+func newAuthorizationCallbackHandler(ctx context.Context, path string, resultCh chan<- oauthCallbackResult) http.Handler {
 	mux := http.NewServeMux()
-	server := &http.Server{
-		Addr:              host,
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		BaseContext: func(net.Listener) context.Context {
-			return ctx
-		},
-	}
-
 	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		if errText := q.Get("error"); errText != "" {
@@ -605,6 +605,19 @@ func startOAuthCallbackServer(ctx context.Context, host, path string, resultCh c
 			writeOAuthPage(w, false, "Authentication timed out.")
 		}
 	})
+	return mux
+}
+
+func startOAuthCallbackServer(ctx context.Context, host, path string, resultCh chan<- oauthCallbackResult) (*http.Server, error) {
+	mux := newAuthorizationCallbackHandler(ctx, path, resultCh)
+	server := &http.Server{
+		Addr:              host,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
+	}
 
 	ln, err := net.Listen("tcp", server.Addr)
 	if err != nil {

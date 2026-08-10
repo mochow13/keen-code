@@ -2320,3 +2320,62 @@ func TestDispatchCommandRoutesStatusCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleBtwCommandRejectsMissingQuestionAndClient(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "/btw", want: "Usage: /btw <question>"},
+		{input: "/btw explain this", want: "LLM client not initialized"},
+	}
+	for _, tt := range tests {
+		m := newTestModel()
+		updated, cmd := m.handleBtwCommand(tt.input)
+		if cmd != nil {
+			t.Fatalf("handleBtwCommand(%q) returned a command", tt.input)
+		}
+		if got := ansi.Strip(updated.output.Join()); !strings.Contains(got, tt.want) {
+			t.Fatalf("handleBtwCommand(%q) output = %q", tt.input, got)
+		}
+	}
+}
+
+func TestHandleAdversaryCommandConfigurationBranches(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	m := newTestModel()
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	m.ctx.registry = &providers.Registry{}
+	m.ctx.loader = config.NewLoader()
+
+	selection, cmd := m.handleAdversaryCommand("/adversary model")
+	if cmd != nil || selection.adversary.modelSelection == nil {
+		t.Fatal("/adversary model did not open model selection")
+	}
+
+	m = newTestModel()
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	updated, cmd := m.handleAdversaryCommand("/adversary inspect authentication")
+	if cmd != nil {
+		t.Fatal("unconfigured adversary returned a command")
+	}
+	if got := ansi.Strip(updated.output.Join()); !strings.Contains(got, "/adversary model") {
+		t.Fatalf("unconfigured adversary output = %q", got)
+	}
+}
+
+func TestHandleMCPCommandWithoutRuntimeAndInvalidUsage(t *testing.T) {
+	m := newTestModel()
+	updated, cmd := m.handleMCPCommand("/mcp status")
+	if cmd != nil || !strings.Contains(ansi.Strip(updated.output.Join()), "MCP is not configured") {
+		t.Fatalf("unconfigured MCP output = %q, cmd = %v", updated.output.Join(), cmd)
+	}
+
+	m = newTestModel()
+	m.ctx.mcp = &fakeMCPRuntime{}
+	updated, cmd = m.handleMCPCommand("/mcp invalid extra")
+	if cmd != nil || !strings.Contains(ansi.Strip(updated.output.Join()), mcpUsage) {
+		t.Fatalf("invalid MCP output = %q, cmd = %v", updated.output.Join(), cmd)
+	}
+}

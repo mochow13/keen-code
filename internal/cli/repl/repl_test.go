@@ -922,3 +922,97 @@ func TestInputMetaView_UnknownContextWindowShowsNA(t *testing.T) {
 		t.Fatalf("expected N/A for unknown context window, got %q", meta)
 	}
 }
+
+func TestViewQuittingAndStatusVariants(t *testing.T) {
+	m := newTestModel()
+	m.quitting = true
+	view := m.View()
+	if !strings.Contains(ansi.Strip(view.Content), "Goodbye!") || !view.AltScreen || view.MouseMode != tea.MouseModeCellMotion {
+		t.Fatalf("quitting view = %#v", view)
+	}
+
+	m = newTestModel()
+	m.loading.lastTurnElapsedMsg = "Completed in 3s"
+	if got := ansi.Strip(m.View().Content); !strings.Contains(got, "Completed in 3s") {
+		t.Fatalf("elapsed view = %q", got)
+	}
+
+	m = newTestModel()
+	m.loading.showSpinner = true
+	m.loading.text = "Working"
+	m.notification.text = "Queued"
+	if got := ansi.Strip(m.View().Content); !strings.Contains(got, "Working") || !strings.Contains(got, "Queued") {
+		t.Fatalf("spinner notification view = %q", got)
+	}
+}
+
+func TestInputMetaModelFallbacks(t *testing.T) {
+	m := newTestModel()
+	for _, ctx := range []*replContext{nil, {cfg: nil}, {cfg: &config.ResolvedConfig{}}} {
+		m.ctx = ctx
+		if got := m.inputMetaModel(); got != "-" {
+			t.Fatalf("inputMetaModel() = %q, want -", got)
+		}
+	}
+
+	m.ctx = &replContext{cfg: &config.ResolvedConfig{Model: "model"}}
+	if got := m.inputMetaModel(); got != "model" {
+		t.Fatalf("inputMetaModel() = %q", got)
+	}
+}
+
+func TestInputMetaStatusLineIncludesThinkingAndTimer(t *testing.T) {
+	m := newTestModel()
+	m.ctx.cfg = &config.ResolvedConfig{Provider: config.ProviderAnthropic, Model: "claude", ThinkingEffort: "high"}
+	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{{
+		ID:     config.ProviderAnthropic,
+		Models: []providers.Model{{ID: "claude", ThinkingEfforts: []string{"low", "high"}}},
+	}}}
+	m.loading.showSpinner = true
+	m.loading.startedAt = time.Now()
+
+	got := ansi.Strip(m.inputMetaStatusLine())
+	for _, want := range []string{"thinking:", "high (adaptive)", "0:00"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("status line = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestHandleSpinnerTickInactiveAndMultipleSpinners(t *testing.T) {
+	m := newTestModel()
+	if _, cmd, handled := m.handleSpinnerTick(spinner.TickMsg{}); handled || cmd != nil {
+		t.Fatalf("inactive spinner handled = %t, cmd = %v", handled, cmd)
+	}
+
+	m.loading.showSpinner = true
+	m.btw.showSpinner = true
+	m.adversary.showSpinner = true
+	m.adversary.spinner = spinner.New()
+	if _, _, handled := m.handleSpinnerTick(spinner.TickMsg{}); !handled {
+		t.Fatal("active spinner tick was not handled")
+	}
+}
+
+func TestUpdateNormalModeCleanupMessages(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "success", want: "Cleanup completed"},
+		{name: "failure", err: errors.New("failed"), want: "manually cleanup"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestModel()
+			m.loading.showSpinner = true
+			updated, cmd := m.updateNormalMode(cleanupDoneMsg{err: tt.err})
+			if cmd != nil || updated.loading.showSpinner {
+				t.Fatalf("cleanup cmd = %v, spinner = %t", cmd, updated.loading.showSpinner)
+			}
+			if got := ansi.Strip(updated.output.Join()); !strings.Contains(got, tt.want) {
+				t.Fatalf("cleanup output = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

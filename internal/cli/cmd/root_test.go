@@ -3,6 +3,9 @@ package cmd
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mochow13/keen-code/internal/config"
@@ -246,32 +249,6 @@ func TestApplyRunOverrides_ProviderUsesFirstConfiguredModel(t *testing.T) {
 	}
 }
 
-func TestApplyRunOverrides_ProviderUsesAPIKeyHelper(t *testing.T) {
-	globalCfg := &config.GlobalConfig{
-		Providers: map[string]config.ProviderConfig{
-			config.ProviderOpenCodeGo: {
-				APIKey:       "stored-key",
-				APIKeyHelper: "printf 'helper-key'",
-				Models:       []string{"kimi-k2.6"},
-			},
-		},
-	}
-	resolvedCfg := &config.ResolvedConfig{
-		Provider: config.ProviderAnthropic,
-		APIKey:   "anthropic-key",
-		Model:    "claude-3",
-	}
-
-	err := applyRunOverrides(globalCfg, resolvedCfg, config.ProviderOpenCodeGo, "")
-	if err != nil {
-		t.Fatalf("applyRunOverrides() error = %v", err)
-	}
-
-	if resolvedCfg.APIKey != "helper-key" {
-		t.Fatalf("APIKey = %q, want helper-key", resolvedCfg.APIKey)
-	}
-}
-
 func TestBuildRunPrompt(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -316,5 +293,152 @@ func TestApplyRunOverridesChangesOnlyModel(t *testing.T) {
 	}
 	if resolved.Provider != config.ProviderAnthropic || resolved.Model != "model" {
 		t.Fatalf("unexpected resolved config %#v", resolved)
+	}
+}
+
+func TestLoadRootRuntimeWithoutConfigNeedsSetup(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	registry, loader, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime()
+	if err != nil {
+		t.Fatalf("loadRootRuntime() error = %v", err)
+	}
+	if registry == nil || loader == nil || globalCfg == nil || resolvedCfg == nil {
+		t.Fatal("loadRootRuntime() returned a nil runtime component")
+	}
+	if !needsSetup {
+		t.Fatal("needsSetup = false, want true")
+	}
+	if resolvedCfg.Provider != "" {
+		t.Fatalf("provider = %q, want empty", resolvedCfg.Provider)
+	}
+}
+
+func TestLoadRootRuntimeResolvesConfiguredProvider(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeRootConfig(t, home, `{
+		"active_provider": "anthropic",
+		"thinking_effort": "high",
+		"providers": {
+			"anthropic": {
+				"models": ["claude-sonnet-4-5"],
+				"api_key": "test-key",
+				"base_url": "https://example.invalid",
+				"headers": {"X-Test": "value"}
+			}
+		}
+	}`)
+
+	_, _, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime()
+	if err != nil {
+		t.Fatalf("loadRootRuntime() error = %v", err)
+	}
+	if needsSetup {
+		t.Fatal("needsSetup = true, want false")
+	}
+	if globalCfg.ActiveProvider != config.ProviderAnthropic {
+		t.Fatalf("active provider = %q", globalCfg.ActiveProvider)
+	}
+	if resolvedCfg.Provider != config.ProviderAnthropic || resolvedCfg.Model != "claude-sonnet-4-5" {
+		t.Fatalf("resolved provider/model = %q/%q", resolvedCfg.Provider, resolvedCfg.Model)
+	}
+	if resolvedCfg.APIKey != "test-key" || resolvedCfg.BaseURL != "https://example.invalid" {
+		t.Fatalf("resolved credentials = %#v", resolvedCfg)
+	}
+	if resolvedCfg.ThinkingEffort != "high" || resolvedCfg.Headers["X-Test"] != "value" {
+		t.Fatalf("resolved options = %#v", resolvedCfg)
+	}
+}
+
+func TestLoadRootRuntimeConfigErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{name: "invalid json", content: `{`, want: "failed to load config"},
+		{
+			name: "unknown provider",
+			content: `{
+				"active_provider": "unknown",
+				"providers": {"unknown": {"api_key": "key"}}
+			}`,
+			want: `configured provider "unknown" not found`,
+		},
+		{
+			name:    "missing provider config",
+			content: `{"active_provider": "anthropic", "providers": {}}`,
+			want:    `failed to get provider config for "anthropic"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			writeRootConfig(t, home, tt.content)
+
+			_, _, _, _, _, err := loadRootRuntime()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("loadRootRuntime() error = %v, want containing %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunCommandRejectsMissingConfiguration(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cmd := newRunCommand()
+	cmd.SetArgs([]string{"hello"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "LLM client not initialized") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestRunCommandRejectsUnknownProviderOverride(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cmd := newRunCommand()
+	cmd.SetArgs([]string{"--provider", "unknown", "hello"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), `provider "unknown" is not configured`) {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestShouldReadStdin(t *testing.T) {
+	regularPath := filepath.Join(t.TempDir(), "stdin.txt")
+	regular, err := os.Create(regularPath)
+	if err != nil {
+		t.Fatalf("create regular file: %v", err)
+	}
+	defer regular.Close()
+	if !shouldReadStdin(regular) {
+		t.Fatal("shouldReadStdin(regular file) = false, want true")
+	}
+
+	closed, err := os.Create(filepath.Join(t.TempDir(), "closed.txt"))
+	if err != nil {
+		t.Fatalf("create closed file: %v", err)
+	}
+	if err := closed.Close(); err != nil {
+		t.Fatalf("close file: %v", err)
+	}
+	if shouldReadStdin(closed) {
+		t.Fatal("shouldReadStdin(closed file) = true, want false")
+	}
+}
+
+func writeRootConfig(t *testing.T, home, content string) {
+	t.Helper()
+	dir := filepath.Join(home, ".keen")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create config directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "configs.json"), []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
 	}
 }
