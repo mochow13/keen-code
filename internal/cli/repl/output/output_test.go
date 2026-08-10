@@ -666,3 +666,83 @@ func TestOutputBuilder_AddToolLifecycle(t *testing.T) {
 		t.Fatalf("tool lifecycle lines = %d, want 2", len(builder.GetLines()))
 	}
 }
+
+func TestCompactDisplayPathBranches(t *testing.T) {
+	longDir := strings.Repeat("directory", 6)
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "short", path: "short/file.go", want: "short/file.go"},
+		{name: "long directory preserves base", path: longDir + "/file.go", want: "/…/file.go"},
+		{name: "long base", path: "dir/" + strings.Repeat("x", 60), want: "…"},
+		{name: "no separator", path: strings.Repeat("x", 60), want: "…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := compactDisplayPath(tt.path)
+			if !strings.Contains(got, tt.want) || len([]rune(got)) > maxDisplayPathRunes {
+				t.Fatalf("compactDisplayPath() = %q", got)
+			}
+		})
+	}
+}
+
+func TestGenericValueAndAgentCountBranches(t *testing.T) {
+	if value, ok := formatGenericValue(unknownOutputValue{}); !ok || value != "{…}" {
+		t.Fatalf("formatGenericValue(custom) = %q, %v", value, ok)
+	}
+	if value, ok := formatGenericValue(nil); ok || value != "" {
+		t.Fatalf("formatGenericValue(nil) = %q, %v", value, ok)
+	}
+	if counts, ok := agentCountsValue(map[string]int{"reviewer": 2}); !ok || counts["reviewer"] != 2 {
+		t.Fatalf("agentCountsValue(map[string]int) = %#v, %v", counts, ok)
+	}
+	if counts, ok := agentCountsValue(map[string]any{"reviewer": "two"}); ok || counts != nil {
+		t.Fatalf("agentCountsValue(invalid) = %#v, %v", counts, ok)
+	}
+	if counts, ok := agentCountsValue("invalid"); ok || counts != nil {
+		t.Fatalf("agentCountsValue(string) = %#v, %v", counts, ok)
+	}
+}
+
+type unknownOutputValue struct{}
+
+func TestFormatSubagentToolPartialCalls(t *testing.T) {
+	start := &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "README.md"}}
+	end := &llm.ToolCall{Name: "read_file", Output: map[string]any{"total_lines": 2}}
+	if got := ansi.Strip(FormatSubagentTool("reviewer", start, nil, "")); !strings.Contains(got, "[reviewer] Read") {
+		t.Fatalf("start-only subagent output = %q", got)
+	}
+	if got := ansi.Strip(FormatSubagentTool("reviewer", nil, end, "")); !strings.Contains(got, "[reviewer] Read") {
+		t.Fatalf("end-only subagent output = %q", got)
+	}
+	if got := ansi.Strip(FormatSubagentTool("reviewer", start, end, "")); !strings.Contains(got, "[reviewer] Read") {
+		t.Fatalf("completed subagent output = %q", got)
+	}
+}
+
+func TestFormattingBoundaryBranches(t *testing.T) {
+	if got := compactMiddle("value", 0); got != "" {
+		t.Fatalf("compactMiddle zero = %q", got)
+	}
+	if got := compactMiddle("value", 10); got != "value" {
+		t.Fatalf("compactMiddle short = %q", got)
+	}
+	if got := formatByteCount(2 << 10); !strings.Contains(got, "KB") {
+		t.Fatalf("formatByteCount KB = %q", got)
+	}
+	if got := pluralize(2, "match"); got != "2 matches" {
+		t.Fatalf("pluralize matches = %q", got)
+	}
+	if value, ok := intValue(3.5); ok || value != 3 {
+		t.Fatalf("intValue fractional = %d, %v", value, ok)
+	}
+	if value, ok := intValue("3"); ok || value != 0 {
+		t.Fatalf("intValue string = %d, %v", value, ok)
+	}
+	if got := formatToolPathForUI("", ""); got != "" {
+		t.Fatalf("empty tool path = %q", got)
+	}
+}

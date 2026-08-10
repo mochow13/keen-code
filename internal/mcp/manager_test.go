@@ -16,6 +16,7 @@ import (
 	"time"
 
 	keenauth "github.com/mochow13/keen-code/internal/auth"
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/oauth2"
 )
@@ -504,4 +505,120 @@ func waitForState(t *testing.T, manager *Manager, server string, want ServerStat
 	status := manager.Status(server)
 	t.Fatalf("server state = %s, want %s, error: %s", status.State, want, status.LastError)
 	return ServerStatus{}
+}
+
+func TestManagerServersReturnsSortedStatuses(t *testing.T) {
+	manager := &Manager{runtime: map[string]*serverRuntime{
+		"zeta":  {status: ServerStatus{Name: "zeta", State: StateConnected}},
+		"alpha": {status: ServerStatus{Name: "alpha", State: StateConfigured}},
+	}}
+	statuses := manager.Servers()
+	if len(statuses) != 2 || statuses[0].Name != "alpha" || statuses[1].Name != "zeta" {
+		t.Fatalf("Servers() = %#v", statuses)
+	}
+}
+
+func TestManagerNormalizeError(t *testing.T) {
+	manager := &Manager{runtime: map[string]*serverRuntime{
+		"secure": {config: ServerConfig{Auth: AuthConfig{Type: AuthAPIKey, Key: "secret"}}},
+	}}
+	tests := []struct {
+		name string
+		err  error
+		kind error
+	}{
+		{name: "deadline", err: context.DeadlineExceeded, kind: ErrTimeout},
+		{name: "cancelled", err: context.Canceled, kind: ErrTimeout},
+		{name: "auth required", err: ErrAuthRequired, kind: ErrAuthRequired},
+		{name: "auth failed", err: errors.New("401 secret"), kind: ErrAuthFailed},
+		{name: "protocol", err: errors.New("bad secret response"), kind: ErrProtocol},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := manager.normalizeError("secure", "tool", tt.err)
+			if !errors.Is(err, tt.kind) {
+				t.Fatalf("normalizeError() = %v, want %v", err, tt.kind)
+			}
+			if strings.Contains(err.Error(), "secret") {
+				t.Fatalf("normalizeError leaked secret: %v", err)
+			}
+		})
+	}
+}
+
+func TestManagerFormattingHelpers(t *testing.T) {
+	if got := truncate("short", 10); got != "short" {
+		t.Fatalf("truncate(short) = %q", got)
+	}
+	if got := truncate("long value", 4); got != "long..." {
+		t.Fatalf("truncate(long) = %q", got)
+	}
+	if got := schemaSummary(nil); got != "" {
+		t.Fatalf("schemaSummary(nil) = %q", got)
+	}
+	if got := schemaSummary(map[string]any{"type": "object"}); len(got) != 16 {
+		t.Fatalf("schemaSummary() = %q", got)
+	}
+	if got := schemaJSON(make(chan int)); got != nil {
+		t.Fatalf("schemaJSON(channel) = %q", got)
+	}
+	writer := &stderrLogger{server: "test"}
+	if n, err := writer.Write([]byte(" log line \n")); err != nil || n != len(" log line \n") {
+		t.Fatalf("Write() = %d, %v", n, err)
+	}
+	if n, err := writer.Write(nil); err != nil || n != 0 {
+		t.Fatalf("Write(nil) = %d, %v", n, err)
+	}
+}
+
+func TestMCPErrorFormattingAndStates(t *testing.T) {
+	err := &Error{Kind: ErrProtocol, Server: "server", Tool: "tool", Err: errors.New("detail")}
+	if got := err.Error(); got != "mcp protocol error: server/tool: detail" {
+		t.Fatalf("Error() = %q", got)
+	}
+	for _, tt := range []struct {
+		state ServerState
+		kind  error
+	}{
+		{StateAuthRequired, ErrAuthRequired},
+		{StateAuthFailed, ErrAuthFailed},
+		{StateDisconnected, ErrServerDisconnected},
+	} {
+		if got := stateError("server", tt.state, "detail"); !errors.Is(got, tt.kind) {
+			t.Fatalf("stateError(%s) = %v", tt.state, got)
+		}
+	}
+}
+
+func TestManagerOptionSetters(t *testing.T) {
+	opts := defaultOptions()
+	client := &http.Client{}
+	store := keenauth.NewStoreAt(filepath.Join(t.TempDir(), "auth.json"))
+	fetcher := func(context.Context, *mcpauth.AuthorizationArgs) (*mcpauth.AuthorizationResult, error) {
+		return nil, nil
+	}
+	for _, option := range []Option{
+		WithHTTPClient(client),
+		WithHTTPClient(nil),
+		WithAuthStore(store),
+		WithOAuthRedirectURL("http://localhost/callback"),
+		WithOAuthAuthorizationCodeFetcher(fetcher),
+		WithOAuthClientName("Client"),
+		WithOAuthClientName(""),
+		WithOAuthClientIDMetadataDocument("https://example.invalid/metadata"),
+		WithOAuthPreregisteredClient("id", "secret"),
+		WithStdioTerminateTimeout(time.Second),
+		WithStdioTerminateTimeout(0),
+	} {
+		option(&opts)
+	}
+	if opts.httpClient != client || opts.authStore != store || opts.oauthRedirectURL == "" || opts.oauthCodeFetcher == nil {
+		t.Fatalf("options not applied: %#v", opts)
+	}
+	if opts.oauthClientName != "Client" || opts.oauthPreregisteredID != "id" || opts.oauthPreregisteredSecret != "secret" {
+		t.Fatalf("OAuth options not applied: %#v", opts)
+	}
+	if opts.stdioTerminateTimeout != time.Second {
+		t.Fatalf("stdio timeout = %s", opts.stdioTerminateTimeout)
+	}
 }

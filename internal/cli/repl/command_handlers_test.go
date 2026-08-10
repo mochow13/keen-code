@@ -16,6 +16,7 @@ import (
 
 	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm"
@@ -23,6 +24,7 @@ import (
 	"github.com/mochow13/keen-code/internal/mcpskills"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/skills"
+	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 func TestHandleEnterKey_EmptyInput(t *testing.T) {
@@ -2137,5 +2139,184 @@ func TestHandleLogoutCommandRejectsMissingAndNonOAuthProviders(t *testing.T) {
 	result = m.handleLogoutCommand()
 	if !strings.Contains(ansi.Strip(result.output.Join()), "does not use OAuth") {
 		t.Fatalf("unexpected non-OAuth output %q", result.output.Join())
+	}
+}
+
+func TestHandleModeCommandCoversStatusChangesAndValidation(t *testing.T) {
+	tests := []struct {
+		input    string
+		wantMode llm.AgentMode
+		wantText string
+	}{
+		{input: replcommands.Mode, wantMode: llm.ModeBuild, wantText: "Mode: build"},
+		{input: replcommands.Mode + " plan", wantMode: llm.ModePlan},
+		{input: replcommands.Mode + " build", wantMode: llm.ModeBuild},
+		{input: replcommands.Mode + " invalid", wantMode: llm.ModeBuild, wantText: "Usage: /mode plan|build"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			m := newTestModel()
+			result := m.handleModeCommand(tt.input)
+			if result.currentMode() != tt.wantMode {
+				t.Fatalf("mode = %q, want %q", result.currentMode(), tt.wantMode)
+			}
+			if tt.wantText != "" && !strings.Contains(ansi.Strip(result.output.Join()), tt.wantText) {
+				t.Fatalf("output %q missing %q", result.output.Join(), tt.wantText)
+			}
+		})
+	}
+}
+
+func TestHandleSkillsCommandListsEmptyCatalogAndValidatesArguments(t *testing.T) {
+	for _, tt := range []struct {
+		input string
+		want  string
+	}{
+		{input: replcommands.Skills, want: "No skills found"},
+		{input: replcommands.Skills + " list", want: "No skills found"},
+		{input: replcommands.Skills + " invalid", want: "Usage: /skills list|status"},
+		{input: replcommands.Skills + " enable missing", want: "Skill not found: missing"},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			m := newTestModel()
+			m.ctx.workingDir = ""
+			m.appState = replappstate.New(nil, "")
+			result := m.handleSkillsCommand(tt.input)
+			if !strings.Contains(ansi.Strip(result.output.Join()), tt.want) {
+				t.Fatalf("output %q missing %q", result.output.Join(), tt.want)
+			}
+		})
+	}
+}
+
+func TestHandleSubagentsCommandListsEmptyCatalogAndValidatesArguments(t *testing.T) {
+	for _, tt := range []struct {
+		input string
+		want  string
+	}{
+		{input: replcommands.Subagents, want: "No subagents found"},
+		{input: replcommands.Subagents + " list", want: "No subagents found"},
+		{input: replcommands.Subagents + " invalid", want: subagentsUsage},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			m := newTestModel()
+			m.appState = replappstate.New(nil, "")
+			result := m.handleSubagentsCommand(tt.input)
+			if !strings.Contains(ansi.Strip(result.output.Join()), tt.want) {
+				t.Fatalf("output %q missing %q", result.output.Join(), tt.want)
+			}
+		})
+	}
+}
+
+func TestAddMCPStatusCoversConnectedAndDisconnectedDetails(t *testing.T) {
+	m := newTestModel()
+	m.addMCPStatus([]keenmcp.ServerStatus{
+		{Name: "named", State: keenmcp.StateConnected, AuthType: keenmcp.AuthNone, NegotiatedServerName: "Docs", NegotiatedServerVersion: "v1"},
+		{Name: "tools", State: keenmcp.StateConnected, AuthType: keenmcp.AuthNone, ToolCount: 4},
+		{Name: "failed", State: keenmcp.StateDisconnected, LastError: "connection failed"},
+	})
+	output := ansi.Strip(m.output.Join())
+	for _, want := range []string{"✓ connected", "Docs v1", "tools: 4", "✗ disconnected", "connection failed"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("MCP status output %q missing %q", output, want)
+		}
+	}
+}
+
+func TestCommandFormattingHelpers(t *testing.T) {
+	if got := mcpStatusLabel(keenmcp.StateConnected); got != "✓ connected" {
+		t.Fatalf("connected label = %q", got)
+	}
+	if got := mcpStatusLabel(keenmcp.StateConnecting); got != "• connecting" {
+		t.Fatalf("connecting label = %q", got)
+	}
+	if got := maxColumnWidth("Header", [][]string{{"short"}, {}, {"longer value"}}, 0); got != len("longer value") {
+		t.Fatalf("maxColumnWidth = %d", got)
+	}
+	words := make([]string, skillDescriptionWordLimit+2)
+	for i := range words {
+		words[i] = "word"
+	}
+	if got := truncateSkillDescription(strings.Join(words, " ")); !strings.HasSuffix(got, "...") || len(strings.Fields(strings.TrimSuffix(got, "..."))) != skillDescriptionWordLimit {
+		t.Fatalf("unexpected truncated description %q", got)
+	}
+	profiles := []subagents.Profile{{Name: "visible"}, {Name: "hidden", Hidden: true}}
+	if got := visibleSubagents(profiles); len(got) != 1 || got[0].Name != "visible" {
+		t.Fatalf("visibleSubagents = %#v", got)
+	}
+	if got := maxSubagentNameWidth(profiles); got != len("visible") {
+		t.Fatalf("maxSubagentNameWidth = %d", got)
+	}
+}
+
+func TestHandleClearCommandPreservesModeAndResetsState(t *testing.T) {
+	m := newTestModel()
+	m.ctx.workingDir = t.TempDir()
+	m.mode = llm.ModePlan
+	m.appState.SetMode(llm.ModePlan)
+	m.appState.AddMessage(llm.RoleUser, "message")
+	m.loading.lastTurnElapsedMsg = "done in 1s"
+	m.history.Push("history")
+	m.permissionRequester = replpermissions.NewRequester(config.NewProjectPermissions())
+
+	result := m.handleClearCommand()
+	if result.currentMode() != llm.ModePlan || len(result.appState.GetMessages()) != 0 {
+		t.Fatalf("clear result mode=%q messages=%#v", result.currentMode(), result.appState.GetMessages())
+	}
+	if result.loading.lastTurnElapsedMsg != "" || result.history.IsNavigating() {
+		t.Fatal("clear did not reset transient state")
+	}
+	output := ansi.Strip(result.output.Join())
+	if !strings.Contains(output, "Mode restored: plan") || !strings.Contains(output, "New session started") {
+		t.Fatalf("unexpected clear output %q", output)
+	}
+}
+
+func TestHelpFormattingFallbacks(t *testing.T) {
+	m := newTestModel()
+	m.width = 0
+	m.viewport.SetWidth(0)
+	if got := m.helpWidth(); got != 80 {
+		t.Fatalf("helpWidth = %d, want 80", got)
+	}
+	if text := ansi.Strip(getHelpText(1)); !strings.Contains(text, "Available Commands") || !strings.Contains(text, replcommands.Help) {
+		t.Fatalf("narrow help text missing content: %q", text)
+	}
+	if got := maxCommandNameWidth(nil); got != 0 {
+		t.Fatalf("empty max command width = %d", got)
+	}
+}
+
+func TestDispatchCommandHandlesEmptySessionLists(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, command := range []string{replcommands.Resume, replcommands.Sessions} {
+		t.Run(command, func(t *testing.T) {
+			m := newTestModel()
+			m.ctx.workingDir = t.TempDir()
+			m.sessions = newReplSessionState(m.ctx.workingDir)
+			result, cmd, handled := m.dispatchCommand(command)
+			if !handled || cmd != nil {
+				t.Fatalf("dispatch handled=%v cmd=%v", handled, cmd)
+			}
+			if !strings.Contains(ansi.Strip(result.output.Join()), "No saved sessions") {
+				t.Fatalf("unexpected output %q", result.output.Join())
+			}
+		})
+	}
+}
+
+func TestDispatchCommandRoutesStatusCommands(t *testing.T) {
+	for _, command := range []string{replcommands.Mode, replcommands.Skills, replcommands.Subagents, replcommands.ShowThinking, replcommands.Context} {
+		t.Run(command, func(t *testing.T) {
+			m := newTestModel()
+			if command == replcommands.Skills || command == replcommands.Subagents {
+				m.appState = replappstate.New(nil, "")
+			}
+			_, cmd, handled := m.dispatchCommand(command)
+			if !handled || cmd != nil {
+				t.Fatalf("dispatch handled=%v cmd=%v", handled, cmd)
+			}
+		})
 	}
 }

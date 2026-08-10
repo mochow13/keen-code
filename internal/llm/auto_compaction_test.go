@@ -2,6 +2,8 @@ package llm
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -66,5 +68,17 @@ func TestContextBudgetAndAutoCompactionThreshold(t *testing.T) {
 	}
 	if !shouldAutoCompact(85500, 95000) || shouldAutoCompact(85499, 95000) {
 		t.Fatal("unexpected 90% trigger boundary")
+	}
+}
+
+func TestAutoCompactionCancellationClassification(t *testing.T) {
+	if !isAutoCompactionCancellation(context.Canceled) {
+		t.Fatal("context cancellation was not classified as auto-compaction cancellation")
+	}
+	if !isAutoCompactionCancellation(fmt.Errorf("wrapped: %w", context.Canceled)) {
+		t.Fatal("wrapped context cancellation was not classified")
+	}
+	if isAutoCompactionCancellation(errors.New("other")) || isAutoCompactionCancellation(nil) {
+		t.Fatal("unrelated error was classified as cancellation")
 	}
 }

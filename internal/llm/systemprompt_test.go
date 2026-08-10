@@ -185,3 +185,38 @@ func TestBuild_NoMemorySectionWhenEmpty(t *testing.T) {
 		t.Fatal("expected no loaded memory content when no memory file exists")
 	}
 }
+
+func TestBuildAuxiliaryPromptsIncludeWorkingDirectory(t *testing.T) {
+	dir := t.TempDir()
+	for name, prompt := range map[string]string{
+		"btw":       BuildBtwPrompt(dir),
+		"adversary": BuildAdversaryPrompt(dir),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if !strings.Contains(prompt, dir) {
+				t.Fatalf("prompt does not contain working directory %q", dir)
+			}
+		})
+	}
+}
+
+func TestProjectInstructionsReadsNearestInstructions(t *testing.T) {
+	parent := t.TempDir()
+	child := filepath.Join(parent, "nested")
+	if err := os.MkdirAll(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(parent, "AGENTS.md"), []byte("parent instructions"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ProjectInstructions(child); !strings.Contains(got, "parent instructions") {
+		t.Fatalf("ProjectInstructions() = %q", got)
+	}
+}
+
+func TestBuildCompactionPromptTrimsExtraInstruction(t *testing.T) {
+	got := BuildCompactionPrompt("  preserve failures  ")
+	if !strings.Contains(got, "preserve failures") || strings.Contains(got, "  preserve failures  ") {
+		t.Fatalf("BuildCompactionPrompt() = %q", got)
+	}
+}
