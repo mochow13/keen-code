@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-08-11
+
+### Changed
+- Expand deterministic coverage across CLI, OAuth, REPL, LLM, MCP, telemetry, filesystem, and utility behavior.
+- Publish test coverage reports to Codecov.
+- Refresh the project introduction with current terminal screenshots.
+- Use the canonical GitHub module path for Go tooling and pkg.go.dev.
+- Remove the obsolete benchmark harness.
+- Recommend semantic-version bumps in the release workflow.
+
+### Fixed
+- Hide expected edit failures from REPL error output.
 ## [0.46.0] - 2026-08-10
 
 ### Added
@@ -884,7 +896,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.46.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.47.0...HEAD
+[0.47.0]: https://github.com/mochow13/keen-code/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/mochow13/keen-code/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/mochow13/keen-code/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/mochow13/keen-code/compare/v0.43.0...v0.44.0
