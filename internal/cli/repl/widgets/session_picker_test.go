@@ -104,6 +104,37 @@ func TestFormatSessionPickerCard_UsesViewportWidthRules(t *testing.T) {
 	}
 }
 
+func TestSessionPickerMoveAndCurrent(t *testing.T) {
+	var nilPicker *SessionPicker
+	nilPicker.Move(1)
+	if got := nilPicker.Current(); got != nil {
+		t.Fatalf("nil picker Current() = %#v, want nil", got)
+	}
+
+	empty := NewSessionPicker(nil)
+	empty.Move(1)
+	if got := empty.Current(); got != nil {
+		t.Fatalf("empty picker Current() = %#v, want nil", got)
+	}
+
+	picker := NewSessionPicker(makeSessionSummaries(3))
+	if got := picker.Current(); got == nil || got.ID != "session-0" {
+		t.Fatalf("initial Current() = %#v", got)
+	}
+	picker.Move(2)
+	if got := picker.Current(); got == nil || got.ID != "session-2" {
+		t.Fatalf("Current() after Move(2) = %#v", got)
+	}
+	picker.Move(10)
+	if got := picker.Current(); got == nil || got.ID != "session-2" {
+		t.Fatalf("Current() after upper clamp = %#v", got)
+	}
+	picker.Move(-10)
+	if got := picker.Current(); got == nil || got.ID != "session-0" {
+		t.Fatalf("Current() after lower clamp = %#v", got)
+	}
+}
+
 func makeSessionSummaries(count int) []session.Summary {
 	summaries := make([]session.Summary, 0, count)
 	now := time.Now()

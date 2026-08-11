@@ -2379,3 +2379,87 @@ func TestHandleMCPCommandWithoutRuntimeAndInvalidUsage(t *testing.T) {
 		t.Fatalf("invalid MCP output = %q, cmd = %v", updated.output.Join(), cmd)
 	}
 }
+
+func TestResolveMCPServer(t *testing.T) {
+	tests := []struct {
+		name    string
+		server  string
+		runtime *fakeMCPRuntime
+		want    string
+		wantErr string
+	}{
+		{
+			name:   "server name",
+			server: "docs",
+			runtime: &fakeMCPRuntime{statuses: []keenmcp.ServerStatus{
+				{Name: "docs"},
+			}},
+			want: "docs",
+		},
+		{
+			name:   "unique tool name",
+			server: "search",
+			runtime: &fakeMCPRuntime{
+				statuses: []keenmcp.ServerStatus{{Name: "docs"}, {Name: "issues"}},
+				tools: map[string][]keenmcp.Tool{
+					"docs":   {{Name: "search"}},
+					"issues": {{Name: "list"}},
+				},
+			},
+			want: "docs",
+		},
+		{
+			name:   "ambiguous tool name",
+			server: "search",
+			runtime: &fakeMCPRuntime{
+				statuses: []keenmcp.ServerStatus{{Name: "docs"}, {Name: "issues"}},
+				tools: map[string][]keenmcp.Tool{
+					"docs":   {{Name: "search"}},
+					"issues": {{Name: "search"}},
+				},
+			},
+			wantErr: "provided by multiple servers: docs, issues",
+		},
+		{
+			name:    "unknown name",
+			server:  "missing",
+			runtime: &fakeMCPRuntime{statuses: []keenmcp.ServerStatus{{Name: "docs"}}},
+			wantErr: "unknown MCP server or tool: missing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestModel()
+			m.ctx.mcp = tt.runtime
+
+			got, err := m.resolveMCPServer(tt.server)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("resolveMCPServer() error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveMCPServer() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("resolveMCPServer() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHandleBangCommandRejectsEmptyCommand(t *testing.T) {
+	m := newTestModel()
+	updated, cmd := m.handleBangCommand("!   ")
+	if cmd != nil {
+		t.Fatal("empty shell command returned a command")
+	}
+	if got := ansi.Strip(updated.output.Join()); !strings.Contains(got, "Usage: !<command>") {
+		t.Fatalf("empty shell command output = %q", got)
+	}
+	if updated.bang.active {
+		t.Fatal("empty shell command activated shell execution")
+	}
+}

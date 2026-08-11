@@ -10,6 +10,34 @@ import (
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 )
 
+func TestSkillNameHelpers(t *testing.T) {
+	tests := []struct {
+		server string
+		want   string
+	}{
+		{server: "github", want: "mcp:github"},
+		{server: "", want: "mcp:"},
+	}
+	for _, tt := range tests {
+		name := SkillName(tt.server)
+		if name != tt.want {
+			t.Fatalf("SkillName(%q) = %q, want %q", tt.server, name, tt.want)
+		}
+		if !IsSkillName(name) {
+			t.Fatalf("IsSkillName(%q) = false", name)
+		}
+		if got := ServerName(name); got != tt.server {
+			t.Fatalf("ServerName(%q) = %q, want %q", name, got, tt.server)
+		}
+	}
+	if IsSkillName("github") {
+		t.Fatal("IsSkillName accepted a non-MCP skill")
+	}
+	if got := ServerName("github"); got != "github" {
+		t.Fatalf("ServerName(non-MCP) = %q", got)
+	}
+}
+
 func TestRemoveDeletesGeneratedSkill(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
