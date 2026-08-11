@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +67,37 @@ func TestEnabled(t *testing.T) {
 	}
 }
 
+func TestNew(t *testing.T) {
+	t.Setenv("DO_NOT_TRACK", "")
+	t.Setenv("CI", "")
+	t.Setenv(telemetryEnvVar, "true")
+	t.Setenv("HOME", t.TempDir())
+
+	oldClient := http.DefaultClient
+	t.Cleanup(func() { http.DefaultClient = oldClient })
+	sent := make(chan struct{}, 2)
+	http.DefaultClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		sent <- struct{}{}
+		return &http.Response{StatusCode: http.StatusNoContent, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
+	})}
+
+	if reporter := New(Config{}); reporter != nil {
+		t.Fatal("New() returned a reporter with telemetry disabled")
+	}
+
+	cfg := Config{MeasurementID: "mid", APISecret: "secret", Version: "1.0", Mode: "interactive"}
+	reporter := New(cfg)
+	if reporter == nil {
+		t.Fatal("New() returned nil with telemetry enabled")
+	}
+	if reporter.config != cfg || reporter.clientID == "" || reporter.sessionID == "" || reporter.startedAt.IsZero() {
+		t.Fatalf("New() returned unexpected reporter %#v", reporter)
+	}
+	<-sent
+	reporter.Close()
+	<-sent
+}
+
 func TestStateRoundTripAndClientIDReuse(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if err := saveState(state{ClientID: "existing"}); err != nil {
@@ -92,6 +125,34 @@ func TestLoadOrCreateClientIDCreatesUUID(t *testing.T) {
 	loaded, err := loadState()
 	if err != nil || loaded.ClientID != id {
 		t.Fatalf("persisted state = %#v, %v", loaded, err)
+	}
+}
+
+func TestLoadStateRejectsInvalidJSON(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Dir(statePath()), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath(), []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadState(); err == nil {
+		t.Fatal("loadState() accepted invalid JSON")
+	}
+}
+
+func TestStatePathAndRandomID(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if got, want := statePath(), filepath.Join(home, ".keen", "telemetry.json"); got != want {
+		t.Fatalf("statePath() = %q, want %q", got, want)
+	}
+	id, err := randomID()
+	if err != nil {
+		t.Fatalf("randomID() error = %v", err)
+	}
+	if len(id) != 36 || id[14] != '4' || id[19] != '8' && id[19] != '9' && id[19] != 'a' && id[19] != 'b' {
+		t.Fatalf("randomID() = %q, not an RFC 4122 version 4 UUID", id)
 	}
 }
 

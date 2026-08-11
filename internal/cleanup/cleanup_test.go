@@ -81,6 +81,27 @@ func TestTrimHistory_KeepsNewestEntries(t *testing.T) {
 	}
 }
 
+func TestTrimHistoryMissingAndWithinLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "input-history")
+	if err := TrimHistory(path, 2); err != nil {
+		t.Fatalf("TrimHistory() missing file error = %v", err)
+	}
+
+	if err := os.WriteFile(path, []byte("one\ntwo\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := TrimHistory(path, 2); err != nil {
+		t.Fatalf("TrimHistory() within limit error = %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "one\ntwo\n"; got != want {
+		t.Fatalf("history = %q, want %q", got, want)
+	}
+}
+
 func TestRun_CleansManagedData(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
