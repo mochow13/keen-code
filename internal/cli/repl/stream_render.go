@@ -11,7 +11,7 @@ import (
 	"github.com/mochow13/keen-code/internal/tools"
 )
 
-const bashOutputMaxLines = 30
+const bashOutputMaxLines = 16
 const diffRightPadding = 2
 
 // wrapAndIndent wraps an already-styled string to wrapWidth and prefixes every
