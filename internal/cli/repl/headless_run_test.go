@@ -84,6 +84,60 @@ func TestRunHeadless_StreamsProgress(t *testing.T) {
 	}
 }
 
+func TestRunHeadless_ProgressHidesExpectedToolFailures(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	tests := []struct {
+		name      string
+		toolCall  *llm.ToolCall
+		forbidden string
+	}{
+		{
+			name: "missing read file",
+			toolCall: &llm.ToolCall{
+				Name:  "read_file",
+				Error: `not found: file "missing.go" does not exist`,
+			},
+			forbidden: "missing.go",
+		},
+		{
+			name: "stale edit anchor",
+			toolCall: &llm.ToolCall{
+				Name:  "edit_file",
+				Error: `op 1: anchor "2:fff" does not exist in the current file snapshot; re-read the file and retry`,
+			},
+			forbidden: "current file snapshot",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &recordingHeadlessClient{events: []llm.StreamEvent{
+				{Type: llm.StreamEventTypeChunk, Content: "Trying."},
+				{Type: llm.StreamEventTypeToolEnd, ToolCall: tt.toolCall},
+				{Type: llm.StreamEventTypeChunk, Content: " Retrying."},
+				{Type: llm.StreamEventTypeDone},
+			}}
+			var progress bytes.Buffer
+
+			if _, err := RunHeadless(context.Background(), HeadlessRunOptions{
+				WorkingDir: workingDir,
+				Config:     headlessTestConfig(),
+				Client:     client,
+				Prompt:     "inspect",
+				Progress:   &progress,
+			}); err != nil {
+				t.Fatalf("RunHeadless() error = %v", err)
+			}
+			if got := progress.String(); strings.Contains(got, tt.forbidden) {
+				t.Fatalf("progress exposed hidden tool failure: %q", got)
+			}
+			if got := progress.String(); got != "Trying. Retrying.\n" {
+				t.Fatalf("progress = %q", got)
+			}
+		})
+	}
+}
+
 func TestRunHeadless_ProgressDisabledForJSON(t *testing.T) {
 	workingDir := setupHeadlessTestHome(t)
 	client := &recordingHeadlessClient{events: []llm.StreamEvent{

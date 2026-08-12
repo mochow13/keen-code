@@ -32,6 +32,9 @@ func (p *headlessProgress) writeToolEnd(toolCall *llm.ToolCall) {
 	if p.out == nil || toolCall == nil {
 		return
 	}
+	if isHiddenToolFailure(toolCall) {
+		return
+	}
 	p.newLine()
 	_, _ = fmt.Fprintln(p.out, reploutput.FormatToolEnd(toolCall))
 }
