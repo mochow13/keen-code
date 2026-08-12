@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-08-13
+
+### Fixed
+- Prevent recoverable headless tool failures from being rendered as REPL errors.
+
+### Changed
+- Refine model tool-use guidance and expand coverage for REPL, OAuth, MCP, telemetry, and tool edge cases.
+
 ## [0.47.0] - 2026-08-11
 
 ### Changed
@@ -896,7 +904,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.47.1...HEAD
+[0.47.1]: https://github.com/mochow13/keen-code/compare/v0.47.0...v0.47.1
 [0.47.0]: https://github.com/mochow13/keen-code/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/mochow13/keen-code/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/mochow13/keen-code/compare/v0.44.0...v0.45.0
