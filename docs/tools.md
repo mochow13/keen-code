@@ -32,6 +32,7 @@ The registry manages all available tools and converts them to provider-specific 
 | `bash` | Execute shell commands | `command`, `isDangerous`, `summary` |
 | `web_fetch` | Fetch content from a URL | `url` |
 | `call_mcp_tool` | Call a tool on an MCP server | `server`, `tool`, `arguments` |
+| `delegate_task` | Delegate a task to a configured subagent | `profile`, `task` |
 
 ## read_file
 

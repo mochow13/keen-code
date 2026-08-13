@@ -59,7 +59,7 @@ Unified interface for multiple AI providers:
 
 ```go
 type LLMClient interface {
-    StreamChat(ctx context.Context, messages []Message, toolRegistry *tools.Registry) (<-chan StreamEvent, error)
+    StreamChat(ctx context.Context, messages []Message, toolRegistry *tools.Registry, opts ...StreamOptions) (<-chan StreamEvent, error)
     Reset()
 }
 ```
@@ -85,6 +85,9 @@ Built-in tools the LLM can call:
 | glob | `glob.go` | Find files by pattern |
 | grep | `grep.go` | Search file contents |
 | bash | `bash.go` | Execute shell commands |
+| web_fetch | `web_fetch.go` | Fetch public web content |
+| call_mcp_tool | `call_mcp_tool.go` | Call a tool on a connected MCP server |
+| delegate_task | `delegate_tool.go` | Delegate a task to a configured subagent |
 
 All tools use `filesystem.Guard` for permission checks and `PermissionRequester` for user prompts.
 
@@ -254,9 +257,6 @@ Types:
 keen-code/
 ├── cmd/
 │   └── main.go              # Entry point
-├── providers/
-│   ├── loader.go            # Provider registry
-│   └── registry.yaml        # Provider/model metadata
 ├── internal/
 │   ├── auth/                # Authentication (OAuth, API keys)
 │   ├── cli/
@@ -265,6 +265,7 @@ keen-code/
 │   ├── config/              # Configuration management
 │   ├── filesystem/          # Guard and GitAwareness
 │   ├── llm/                 # LLM client implementations
+│   ├── providers/           # Provider registry and model metadata
 │   ├── session/             # Session management
 │   ├── skills/              # Skills system
 │   └── tools/               # Built-in tools

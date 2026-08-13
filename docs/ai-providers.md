@@ -52,13 +52,13 @@ Notes:
 
 ## Provider Registry
 
-Provider and model metadata is stored in `providers/registry.yaml`. This includes:
+Provider and model metadata is stored in `internal/providers/registry.yaml`. This includes:
 - Context window sizes
 - Supported thinking efforts
 - Model display names
 
 ```go
-// providers/loader.go
+// internal/providers/loader.go
 type Registry struct {
     Providers []Provider `yaml:"providers"`
 }
@@ -207,7 +207,7 @@ The default AWS region is `us-east-1` if none is configured in the environment.
 ```go
 // internal/llm/client.go
 type LLMClient interface {
-    StreamChat(ctx context.Context, messages []Message, toolRegistry *tools.Registry) (<-chan StreamEvent, error)
+    StreamChat(ctx context.Context, messages []Message, toolRegistry *tools.Registry, opts ...StreamOptions) (<-chan StreamEvent, error)
     Reset()
 }
 ```

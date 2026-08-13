@@ -20,6 +20,13 @@ Keen Code provides slash commands (prefixed with `/`) for controlling the agent.
 | `/skills <name> [enable\|disable]` | Enable or disable a skill |
 | `/<skill-name> [args...]` | Activate an enabled skill |
 | `/compact [prompt]` | Compact conversation context; provide a prompt to guide what to retain |
+| `/context` | Show estimated context-window usage by prompt, messages, tool definitions, and tool results |
+| `/cleanup` | Remove expired Keen data and trim input history |
+| `/memory` or `/memory show` | Show memory file locations; `show` includes their contents |
+| `/mcp [status\|connect <server>]` | Show MCP server status or connect a configured server |
+| `/mode [plan\|build]` | Show or switch the agent mode |
+| `/subagents [list]` | List available subagent profiles |
+| `/tool-history [full\|none]` | Show or control whether future tool outputs are retained between turns |
 | `/clear` or `/new` | Clear the current session and start a new one |
 | `/emptyq` | Clear the input queue (works while agent is streaming) |
 | `/logout` | Sign out of the current OAuth provider |
