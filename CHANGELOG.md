@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-08-13
+
+### Added
+- Add the session-scoped `/tool-history full|none` command to control whether future tool outputs are retained between turns.
+
+### Changed
+- Document the tool-history setting and refresh CLI, architecture, provider, and tool references.
+
 ## [0.47.1] - 2026-08-13
 
 ### Fixed
@@ -904,7 +912,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.47.1...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/mochow13/keen-code/compare/v0.47.1...v0.48.0
 [0.47.1]: https://github.com/mochow13/keen-code/compare/v0.47.0...v0.47.1
 [0.47.0]: https://github.com/mochow13/keen-code/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/mochow13/keen-code/compare/v0.45.0...v0.46.0
