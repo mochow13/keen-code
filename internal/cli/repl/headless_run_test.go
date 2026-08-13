@@ -406,7 +406,7 @@ func TestCheckpointHeadlessAutoCompactionRejectsEmptyReplacement(t *testing.T) {
 	handler.Start(make(chan llm.StreamEvent), "")
 	appState := appstate.New(nil, "/tmp")
 	completedText := &strings.Builder{}
-	turnMemory := newTurnMemoryAccumulator()
+	turnMemory := newTurnMemoryAccumulator(false)
 
 	err := checkpointHeadlessAutoCompaction(nil, appState, handler, turnMemory, completedText, &llm.AutoCompactionEvent{})
 	if err == nil {

@@ -44,6 +44,7 @@ var loadingTexts = []string{
 	"Skills take `$1`, `$2`, `$ARGUMENTS`",
 	"`/show-thinking on` reveals reasoning",
 	"`/thinking` sets effort: low → max",
+	"`/tool-history full` retains tool outputs between turns",
 	"`/mcp connect` re-auths a server",
 	"`grep` tool's `output_mode:file` lists names",
 	"`read_file` tool accepts `offset` & `limit`",

@@ -59,6 +59,31 @@ func TestHandleLLMDone_AttachesTurnMemoryToAssistantMessage(t *testing.T) {
 	}
 }
 
+func TestCollectHistoricalToolActivity_RetainsRawOutputsWhenEnabled(t *testing.T) {
+	activities := collectHistoricalToolActivity([]streamSegment{
+		{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "read_file", Output: map[string]any{"content": "package main"}}},
+		{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "bash", Error: "command failed", Output: map[string]any{"exit_code": 1}}},
+	}, "", true)
+
+	if !activities[0].HasRawOutput || activities[0].RawOutput.(map[string]any)["content"] != "package main" {
+		t.Fatalf("expected retained successful output, got %#v", activities[0])
+	}
+	if !activities[1].HasRawOutput || activities[1].RawOutput.(map[string]any)["error"] != "command failed" {
+		t.Fatalf("expected retained error output, got %#v", activities[1])
+	}
+}
+
+func TestCollectHistoricalToolActivity_OmitsRawOutputsByDefault(t *testing.T) {
+	activities := collectHistoricalToolActivity([]streamSegment{{
+		kind:     segmentToolEnd,
+		toolCall: &llm.ToolCall{Name: "read_file", Output: map[string]any{"content": "package main"}},
+	}}, "", false)
+
+	if activities[0].HasRawOutput || activities[0].RawOutput != nil {
+		t.Fatalf("expected output to be omitted, got %#v", activities[0])
+	}
+}
+
 func TestCollectHistoricalToolActivity_RetainsWriteInputWithoutChangedPath(t *testing.T) {
 	workingDir := t.TempDir()
 	targetPath := filepath.Join(workingDir, "dir", "file.go")
@@ -69,7 +94,7 @@ func TestCollectHistoricalToolActivity_RetainsWriteInputWithoutChangedPath(t *te
 			Input:  map[string]any{"path": targetPath, "content": "content"},
 			Output: map[string]any{"file_changed": targetPath},
 		},
-	}}, workingDir)
+	}}, workingDir, false)
 
 	if len(activities) != 1 || activities[0].Input["path"] != filepath.Join("dir", "file.go") || activities[0].Input["content"] != "content" || activities[0].Status != "success" {
 		t.Fatalf("expected retained write input and status-only outcome, got %#v", activities)
@@ -99,7 +124,7 @@ func TestCollectHistoricalToolActivity_RelativizesRetainedPathInputs(t *testing.
 			activities := collectHistoricalToolActivity([]streamSegment{{
 				kind:     segmentToolEnd,
 				toolCall: &llm.ToolCall{Name: test.tool, Input: input},
-			}}, workingDir)
+			}}, workingDir, false)
 
 			if len(activities) != 1 || activities[0].Input["path"] != test.expected {
 				t.Fatalf("expected path %q, got %#v", test.expected, activities)
@@ -123,7 +148,7 @@ func TestCollectHistoricalToolActivity_RecordsOffsetsInputsAndStatus(t *testing.
 		{kind: segmentBash, command: "go test ./...", toolCall: &llm.ToolCall{Name: "bash"}},
 	}
 
-	got := collectHistoricalToolActivity(segments, workingDir)
+	got := collectHistoricalToolActivity(segments, workingDir, false)
 	if len(got) != 4 {
 		t.Fatalf("expected four activities, got %#v", got)
 	}
@@ -155,7 +180,7 @@ func TestCollectHistoricalToolActivity_RetainsMCPInput(t *testing.T) {
 		},
 	}}
 
-	got := collectHistoricalToolActivity(segments, "")
+	got := collectHistoricalToolActivity(segments, "", false)
 	if len(got) != 1 {
 		t.Fatalf("expected one activity, got %#v", got)
 	}
@@ -169,7 +194,7 @@ func TestCollectHistoricalToolActivity_DoesNotInferRetainedOutcomesFromArguments
 	activities := collectHistoricalToolActivity([]streamSegment{
 		{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "write_file", Input: map[string]any{"path": "a.go", "content": "content"}, Output: map[string]any{"path": "a.go"}}},
 		{kind: segmentBash, command: "go test ./...", toolCall: &llm.ToolCall{Name: "bash", Input: map[string]any{"command": "go test ./..."}, Output: map[string]any{"exit_code": 1}}},
-	}, "")
+	}, "", false)
 
 	if activities[0].Input["path"] != "a.go" || activities[0].Input["content"] != "content" || activities[0].Status != "success" {
 		t.Fatalf("expected write input and status only, got %#v", activities[0])
@@ -188,7 +213,7 @@ func TestCollectHistoricalToolActivity_BashToolErrorSetsErrorStatus(t *testing.T
 			Error:  "tool execution failed",
 			Output: map[string]any{"exit_code": 1},
 		},
-	}}, "")
+	}}, "", false)
 
 	if len(activities) != 1 || activities[0].Status != "error" || activities[0].ExitCode == nil || *activities[0].ExitCode != 1 {
 		t.Fatalf("expected tool error status and command exit code, got %#v", activities)
@@ -212,7 +237,7 @@ func TestCollectHistoricalToolActivity_StripsOversizedMCPArguments(t *testing.T)
 		},
 	}}
 
-	got := collectHistoricalToolActivity(segments, "")
+	got := collectHistoricalToolActivity(segments, "", false)
 	if _, ok := got[0].Input["arguments"]; ok {
 		t.Fatalf("expected oversized MCP arguments to be stripped, got %#v", got[0])
 	}
@@ -228,7 +253,7 @@ func TestCollectHistoricalToolActivity_RetainsWriteAndEditInputs(t *testing.T) {
 		{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "edit_file", Input: map[string]any{"path": "a.go", "oldString": "old", "newString": "new", "shouldReplaceAll": true}}},
 	}
 
-	got := collectHistoricalToolActivity(segments, "")
+	got := collectHistoricalToolActivity(segments, "", false)
 	if got[0].Input["path"] != "a.go" || got[1].Input["path"] != "a.go" || got[1].Input["content"] != "content" {
 		t.Fatalf("unexpected retained read/write inputs %#v", got)
 	}
@@ -245,7 +270,7 @@ func TestCollectHistoricalToolActivity_TruncatesOversizedWriteAndEditStrings(t *
 		{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "edit_file", Input: map[string]any{"path": "a.go", "oldString": oversizedASCII, "newString": oversizedUTF8}}},
 	}
 
-	got := collectHistoricalToolActivity(segments, "")
+	got := collectHistoricalToolActivity(segments, "", false)
 	writeContent := got[0].Input["content"].(string)
 	oldString := got[1].Input["oldString"].(string)
 	newString := got[1].Input["newString"].(string)

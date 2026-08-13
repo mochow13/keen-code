@@ -26,20 +26,21 @@ var retainedHistoricalToolInputs = map[string]struct{}{
 
 type turnMemoryAccumulator struct {
 	toolActivity []llm.HistoricalToolActivity
+	retainOutput bool
 }
 
-func newTurnMemoryAccumulator() *turnMemoryAccumulator {
-	return &turnMemoryAccumulator{}
+func newTurnMemoryAccumulator(retainOutput bool) *turnMemoryAccumulator {
+	return &turnMemoryAccumulator{retainOutput: retainOutput}
 }
 
 func (a *turnMemoryAccumulator) RecordToolActivity(segments []streamSegment, workingDir string) {
 	if a == nil {
 		return
 	}
-	a.toolActivity = collectHistoricalToolActivity(segments, workingDir)
+	a.toolActivity = collectHistoricalToolActivity(segments, workingDir, a.retainOutput)
 }
 
-func collectHistoricalToolActivity(segments []streamSegment, workingDir string) []llm.HistoricalToolActivity {
+func collectHistoricalToolActivity(segments []streamSegment, workingDir string, retainOutput bool) []llm.HistoricalToolActivity {
 	textOffset := 0
 	activities := make([]llm.HistoricalToolActivity, 0)
 
@@ -49,11 +50,11 @@ func collectHistoricalToolActivity(segments []streamSegment, workingDir string) 
 			textOffset += len(segment.content)
 		case segmentToolEnd:
 			if segment.toolCall != nil {
-				activities = append(activities, historicalToolActivity(segment.toolCall, textOffset, workingDir, ""))
+				activities = append(activities, historicalToolActivity(segment.toolCall, textOffset, workingDir, "", retainOutput))
 			}
 		case segmentBash:
 			if segment.toolCall != nil {
-				activities = append(activities, historicalToolActivity(segment.toolCall, textOffset, workingDir, segment.command))
+				activities = append(activities, historicalToolActivity(segment.toolCall, textOffset, workingDir, segment.command, retainOutput))
 			}
 		}
 	}
@@ -61,7 +62,7 @@ func collectHistoricalToolActivity(segments []streamSegment, workingDir string) 
 	return activities
 }
 
-func historicalToolActivity(toolCall *llm.ToolCall, textOffset int, workingDir, bashCommand string) llm.HistoricalToolActivity {
+func historicalToolActivity(toolCall *llm.ToolCall, textOffset int, workingDir, bashCommand string, retainOutput bool) llm.HistoricalToolActivity {
 	activity := llm.HistoricalToolActivity{
 		TextOffset: textOffset,
 		Tool:       toolCall.Name,
@@ -69,6 +70,13 @@ func historicalToolActivity(toolCall *llm.ToolCall, textOffset int, workingDir, 
 	}
 	if toolCall.Error != "" {
 		activity.Status = "error"
+	}
+	if retainOutput {
+		activity.HasRawOutput = true
+		activity.RawOutput = toolCall.Output
+		if toolCall.Error != "" {
+			activity.RawOutput = map[string]any{"error": toolCall.Error}
+		}
 	}
 
 	if _, ok := retainedHistoricalToolInputs[toolCall.Name]; ok {
@@ -173,7 +181,7 @@ func (m *replModel) startAssistantTurnMemory() {
 	if m == nil {
 		return
 	}
-	m.turnMemory = newTurnMemoryAccumulator()
+	m.turnMemory = newTurnMemoryAccumulator(m.toolHistory == toolHistoryFull)
 }
 
 func (m *replModel) recordHistoricalToolActivity(segments []streamSegment) {

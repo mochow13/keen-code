@@ -5,6 +5,7 @@
 - [Purpose](#purpose)
 - [The State Layers](#the-state-layers)
 - [What TurnMemory Contains](#what-turnmemory-contains)
+- [Tool Output History](#tool-output-history)
 - [Turn Lifecycle](#turn-lifecycle)
 - [How Historical Activity Is Replayed](#how-historical-activity-is-replayed)
 - [Placement and Validation](#placement-and-validation)
@@ -17,9 +18,18 @@
 
 A coding agent needs the complete tool exchange while it is solving the current task. Carrying every tool request and result into every later turn, however, makes the prompt larger and leaves old observations looking more current than they are.
 
-Keen separates the active tool loop from the conversation history used for later turns. `TurnMemory` is the compact historical activity attached to an assistant `Message`. It preserves that tools actually ran, where they occurred in the assistant's prose, the bounded inputs used to invoke them, and whether the invocation succeeded. It does not preserve the tool's result contents as durable model history.
+Keen separates the active tool loop from the conversation history used for later turns. `TurnMemory` is the compact historical activity attached to an assistant `Message`. By default, it preserves that tools actually ran, where they occurred in the assistant's prose, the bounded inputs used to invoke them, and whether the invocation succeeded—but not the tool's result contents. Users can opt into retaining full results for future turns with `/tool-history full`.
 
 `TurnMemory` is not a transcript, hidden chain of thought, or planner database. It is also not the same as the session transcript: sessions retain a richer rendering of a turn for display and replay, while future model requests are projected from assistant prose and `TurnMemory`.
+
+## Tool Output History
+
+> [!IMPORTANT]
+> **Need the model to retain exact tool results while you explore or ideate?** Run `/tool-history full`. Tool results from turns that start after this command are retained in cross-turn model history. Run `/tool-history none` to return to the compact default. Use `/tool-history` to show the current setting.
+
+`none` is the session default. The setting applies only to future turns: enabling it cannot recover outputs that were already omitted, and disabling it does not remove raw outputs retained by earlier turns. Those earlier outputs remain until ordinary context reduction or compaction removes them.
+
+Full output history gives later turns the actual file contents, command output, search results, errors, and other tool results that were observed earlier. It is useful for ideation and other work that depends on revisiting earlier evidence, but increases prompt size, token cost, and the likelihood of context reduction. `none` favors fresh tool calls, lower cost, and less stale context.
 
 ## The State Layers
 
@@ -32,7 +42,7 @@ Keen has several distinct representations of a turn:
 | Session transcript | Persisted session events | Visible assistant text, reasoning, tool inputs and outputs, bash output, and diffs | UI rendering and session replay; not the normal future-turn model projection |
 | Pending provider state | In-memory until recovery, reset, or replacement | Provider-native messages accumulated by an incomplete tool loop | Resume an interrupted loop without converting it into lossy generic messages |
 
-The session transcript can therefore contain raw tool details even though those details are not sent as part of ordinary later-turn conversation history. `TurnMemory` is JSON-serializable; its internal `RawOutput` fields are explicitly excluded from JSON.
+The session transcript can therefore contain raw tool details even though those details are not sent as part of ordinary later-turn conversation history. When `/tool-history full` is enabled, `TurnMemory` also holds raw results in memory for later turns in the current session. `TurnMemory` remains JSON-serializable; its internal `RawOutput` fields are explicitly excluded from JSON, so raw results are not persisted with a saved session.
 
 ## What `TurnMemory` Contains
 
@@ -45,12 +55,13 @@ The persisted representation is a `TurnMemory` containing zero or more `Historic
 | `input` | Bounded copy of the tool input, when the tool is eligible for retention |
 | `status` | `success` when the tool invocation completed without a tool error; otherwise `error` |
 | `exit_code` | Non-zero exit code extracted from a bash result, when available |
+| `raw_output` | Full tool result retained only in memory when `/tool-history full` was enabled for the turn; excluded from persisted JSON |
 
 The current REPL collector retains inputs for `read_file`, `grep`, `glob`, `web_fetch`, `bash`, `delegate_task`, `call_mcp_tool`, `write_file`, and `edit_file`. Each retained top-level field is bounded to 4 KiB: non-string values are kept only when their JSON encoding fits, while string fields for `write_file` and `edit_file` are truncated to 4 KiB at a valid UTF-8 boundary. Oversized fields are omitted. Absolute paths for the file and search tools are made relative to the working directory when possible. Other than those bounds and path relativization, inputs are not converted into a sanitized or redacted form.
 
-This means that turn memory can include a bounded portion of file content, replacement text, command text, URLs, MCP wrapper arguments, and other tool inputs. It does **not** include the corresponding tool output merely because the output contains useful metadata.
+This means that turn memory can include a bounded portion of file content, replacement text, command text, URLs, MCP wrapper arguments, and other tool inputs. By default, it does **not** include the corresponding tool output merely because the output contains useful metadata. With `/tool-history full`, it additionally retains the complete raw result in memory for future turns in the current session.
 
-In particular, `file_changed` and `failed_command` are tool-result fields and are not stored as separate `TurnMemory` fields. A changed file may still be recognizable from a retained `write_file` or `edit_file` input, but the collector does not infer or persist a change outcome. A bash command that runs and exits non-zero is still a successful tool invocation from Keen's perspective, so it is represented as `{"status":"success","exit_code":1}` rather than as a `failed_command` field. A tool execution error is represented as `{"status":"error"}` without the full error text.
+In the default mode, `file_changed` and `failed_command` are tool-result fields and are not stored as separate `TurnMemory` fields. A changed file may still be recognizable from a retained `write_file` or `edit_file` input, but the collector does not infer or persist a change outcome. A bash command that runs and exits non-zero is still a successful tool invocation from Keen's perspective, so it is represented as `{"status":"success","exit_code":1}` rather than as a `failed_command` field. A tool execution error is represented as `{"status":"error"}` without the full error text. In full mode, the original result—including error text—is retained as raw output instead.
 
 The distinction between tool error and command failure is intentional:
 
@@ -58,7 +69,7 @@ The distinction between tool error and command failure is intentional:
 - `status: "success"` means the tool invocation completed, not that its result was useful or that an external mutation had the desired effect.
 - A non-zero bash exit code describes the completed bash invocation and is retained separately.
 
-While an active provider loop is running, provider clients also use `HistoricalToolActivity` values containing `HasRawOutput` and `RawOutput` for in-memory context accounting and compaction. Those fields are not part of persisted `TurnMemory`; normal historical replay uses the compact status and exit-code result instead.
+While an active provider loop is running, provider clients also use `HistoricalToolActivity` values containing `HasRawOutput` and `RawOutput` for in-memory context accounting and compaction. The REPL uses the same fields for cross-turn historical replay when `/tool-history full` is enabled. These fields are not persisted in JSON.
 
 ## Turn Lifecycle
 
@@ -100,9 +111,9 @@ The actual retained input is used in the historical tool call. Empty placeholder
 
 Each replayed activity receives a synthetic ID of the form `historical_<message index>_<activity index>` so the provider can pair the call with its result. Original provider call IDs are not persisted in `TurnMemory`.
 
-Historical results normally contain only the compact status object and optional `exit_code`. If an in-memory activity has `HasRawOutput`, the provider formatter uses that raw output instead; this path is used for active-turn provider state and compaction, not for a persisted historical activity collected by the REPL.
+Historical results normally contain only the compact status object and optional `exit_code`. If an in-memory activity has `HasRawOutput`, the provider formatter uses that raw output instead. This is always used for active-turn provider state and compaction, and is used for later REPL turns when `/tool-history full` was enabled when the activity was collected.
 
-The model therefore receives evidence that an earlier invocation occurred and the bounded arguments that were used, but should refresh files, search results, command output, MCP responses, and other mutable state when it needs them again.
+In the default mode, the model receives evidence that an earlier invocation occurred and the bounded arguments that were used, but should refresh files, search results, command output, MCP responses, and other mutable state when it needs them again. In full mode, it also receives the earlier raw result, which remains historical evidence rather than a substitute for refreshing mutable state.
 
 ## Placement and Validation
 
@@ -167,7 +178,7 @@ Compaction is a separate context-reduction mechanism; it should not be confused 
 ### Costs and limitations
 
 - Retained inputs can still be significant: each eligible top-level field may occupy up to 4 KiB, and write/edit inputs can include bounded content or replacement text.
-- Historical tool outputs, full errors, search results, file contents returned by reads, bash stdout/stderr, MCP responses, and provider call IDs are not available through normal future-turn replay.
+- In the default mode, historical tool outputs, full errors, search results, file contents returned by reads, bash stdout/stderr, MCP responses, and provider call IDs are not available through normal future-turn replay. `/tool-history full` retains result contents in memory for later turns, but increases context size and is not persisted with sessions.
 - Later turns may repeat reads, searches, commands, and MCP calls.
 - Bounded historical arguments can be copied by a model into a new call, but they are historical context, not a substitute for a fresh schema-valid invocation.
 - Byte offsets and persisted input values require validation, which the formatter performs by skipping invalid activities.
@@ -178,6 +189,6 @@ This design works best when the workspace is the source of truth, read-only and 
 
 ## Summary
 
-`TurnMemory` is a bounded historical execution summary, not a raw transcript. For each retained completed tool activity, Keen stores its position in assistant prose, tool name, bounded invocation input, status, and—when applicable—the non-zero bash exit code. It does not persist tool outputs or infer file-change outcomes from them.
+`TurnMemory` is a bounded historical execution summary, not a raw transcript. By default, for each retained completed tool activity, Keen stores its position in assistant prose, tool name, bounded invocation input, status, and—when applicable—the non-zero bash exit code. `/tool-history full` additionally retains complete tool results in memory for later turns in the current session; `/tool-history none` restores the compact default. Raw outputs are excluded from persisted session JSON.
 
 Within an active provider loop, Keen keeps native tool calls and results, including raw outputs where needed for compaction. Across turns, providers receive native historical call/result blocks reconstructed from assistant prose and `TurnMemory`. If a turn fails after native work has accumulated, temporary provider-native pending state is used for recovery; it is separate from and authoritative over the compact historical summary.

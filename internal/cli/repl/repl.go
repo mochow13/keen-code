@@ -80,6 +80,7 @@ type replModel struct {
 	compaction          compactionState
 	contextStatus       contextStatus
 	showThinking        bool
+	toolHistory         toolHistoryMode
 	history             replhistory.InputHistory
 	selection           viewportSelection
 	inputSelection      inputSelection
@@ -95,6 +96,13 @@ type replModel struct {
 	gitBranch           string
 	subagentActivity    <-chan subagents.ToolActivity
 }
+
+type toolHistoryMode uint8
+
+const (
+	toolHistoryNone toolHistoryMode = iota
+	toolHistoryFull
+)
 
 type bangState struct {
 	active bool

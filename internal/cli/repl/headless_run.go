@@ -115,7 +115,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	handler.workingDir = opts.WorkingDir
 	handler.showThinking = false
 	handler.Start(eventCh, "")
-	turnMemory := newTurnMemoryAccumulator()
+	turnMemory := newTurnMemoryAccumulator(false)
 	var completedText strings.Builder
 
 	var lastUsage *llm.TokenUsage
@@ -236,7 +236,7 @@ func checkpointHeadlessAutoCompaction(
 	completedText.WriteString(response)
 	appState.ReplaceMessages(persistedReplacement)
 	handler.ResetContent()
-	*turnMemory = *newTurnMemoryAccumulator()
+	*turnMemory = *newTurnMemoryAccumulator(false)
 	return nil
 }
 

@@ -49,7 +49,7 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 - **Skills system** — Specialized workflows for planning, debugging, refactoring, code review, and more.
 - **Thinking mode** — Extended reasoning for complex tasks. Use `/thinking` to change the thinking effort level for the current model. All models that support thinking can be configured.
 - **Session management** — Persistent sessions with resume capability.
-- **Conservative context management** — Lean cross-turn memory via `TurnMemory` summaries instead of raw tool traces. More information can be found in [docs/turn-memory.md](docs/turn-memory.md).
+- **Configurable tool history** — Lean cross-turn `TurnMemory` summaries by default; use `/tool-history full` to retain full tool outputs for future turns. More information can be found in [docs/turn-memory.md](docs/turn-memory.md).
 - **User-triggered compaction** - When the context window is nearing the limit, use `/compact` to compact the context.
 
 ## Screenshots
@@ -104,7 +104,9 @@ Telemetry delivery is fail-silent. The session-start event is emitted asynchrono
 
 ## How Keen Handles Context
 
-Keen takes a deliberately lean approach to cross-turn context. Within a single assistant turn the model has full access to its tool calls and results, but later model requests do not carry the raw tool results forward as conversation history. Instead, Keen attaches a bounded `TurnMemory` summary to assistant messages. It records where retained tools ran, their bounded invocation inputs, status, and non-zero bash exit codes; it does not persist tool outputs or infer file-change outcomes from them.
+Keen takes a deliberately lean approach to cross-turn context. Within a single assistant turn the model has full access to its tool calls and results. By default, later model requests receive a bounded `TurnMemory` summary attached to assistant messages: where retained tools ran, their bounded invocation inputs, status, and non-zero bash exit codes—not their raw outputs.
+
+For ideation or work that benefits from revisiting exact earlier results, run `/tool-history full`. Tool outputs from future turns are then retained in the current session's cross-turn model context. Run `/tool-history none` to return to the compact default, or `/tool-history` to inspect the setting. Full history increases prompt size and token cost; it is not persisted when a session is saved.
 
 Subsequent turns therefore receive:
 
@@ -112,7 +114,7 @@ Subsequent turns therefore receive:
 - provider-native historical tool-call/result blocks reconstructed from assistant prose and `TurnMemory`
 - any pending provider-native state from a turn that failed mid-loop, so the model can resume instead of starting over
 
-The tradeoff is intentional: smaller context and a better signal-to-noise ratio, at the cost of occasionally re-reading files or re-running searches when older observations are needed again. Read-only facts and external observations are refreshed when needed rather than treated as durable evidence.
+The default tradeoff is intentional: smaller context and a better signal-to-noise ratio, at the cost of occasionally re-reading files or re-running searches when older observations are needed again. Read-only facts and external observations are refreshed when needed rather than treated as durable evidence. `/tool-history full` lets you choose continuity over that default for the remainder of the session.
 
 For the full rationale, lifecycle, and comparison with other coding agents, see [`docs/turn-memory.md`](docs/turn-memory.md).
 

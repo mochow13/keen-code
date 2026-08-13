@@ -1338,6 +1338,28 @@ func TestHandleShowThinkingCommand_NoArgShowsStatus(t *testing.T) {
 	}
 }
 
+func TestHandleToolHistoryCommand(t *testing.T) {
+	m := newTestModel()
+
+	result := m.handleToolHistoryCommand("/tool-history full")
+	if result.toolHistory != toolHistoryFull || !strings.Contains(result.output.Join(), "Full tool outputs") {
+		t.Fatalf("expected full tool history, got mode %v and output %q", result.toolHistory, result.output.Join())
+	}
+
+	result = result.handleToolHistoryCommand("/tool-history none")
+	if result.toolHistory != toolHistoryNone || !strings.Contains(result.output.Join(), "omitted") {
+		t.Fatalf("expected no tool history, got mode %v and output %q", result.toolHistory, result.output.Join())
+	}
+}
+
+func TestHandleToolHistoryCommandRejectsInvalidMode(t *testing.T) {
+	m := newTestModel()
+	result := m.handleToolHistoryCommand("/tool-history invalid")
+	if result.toolHistory != toolHistoryNone || !strings.Contains(result.output.Join(), "Usage: /tool-history full|none") {
+		t.Fatalf("unexpected result: mode %v output %q", result.toolHistory, result.output.Join())
+	}
+}
+
 func TestHandleShowThinkingCommand_PersistsToGlobalConfig(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
@@ -2307,7 +2329,7 @@ func TestDispatchCommandHandlesEmptySessionLists(t *testing.T) {
 }
 
 func TestDispatchCommandRoutesStatusCommands(t *testing.T) {
-	for _, command := range []string{replcommands.Mode, replcommands.Skills, replcommands.Subagents, replcommands.ShowThinking, replcommands.Context} {
+	for _, command := range []string{replcommands.Mode, replcommands.Skills, replcommands.Subagents, replcommands.ShowThinking, replcommands.ToolHistory, replcommands.Context} {
 		t.Run(command, func(t *testing.T) {
 			m := newTestModel()
 			if command == replcommands.Skills || command == replcommands.Subagents {
