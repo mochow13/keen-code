@@ -1,6 +1,6 @@
 module github.com/mochow13/keen-code
 
-go 1.25.12
+go 1.25.13
 
 require (
 	charm.land/bubbles/v2 v2.1.0
