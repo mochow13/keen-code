@@ -381,3 +381,11 @@ Keen supports mouse selection in the output and input areas:
 | `Alt`/`Ctrl` + click on a link | Open the URL in your browser |
 | `Ctrl+C` / `Cmd+C` with a selection | Copy selected text |
 | `Esc` | Clear selection |
+
+## Recording Demos
+
+Terminal session recordings (`.cast` files) can be converted to animated GIFs for documentation and demo assets:
+
+```bash
+agg --renderer fontdue --font-family "Cascadia Code" --font-size 18 --line-height 1.2 --speed 2 input.cast output.gif
+```

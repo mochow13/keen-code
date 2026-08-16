@@ -23,8 +23,3 @@ Guard checks paths before filesystem operations:
 - `PermissionGranted` - Allowed (working directory)
 - `PermissionPending` - User approval required (outside working dir)
 - `PermissionDenied` - Blocked (system paths, .gitignore files)
-
-## Cast to GIF Conversion
-```bash
-agg --renderer fontdue --font-family "Cascadia Code" --font-size 18 --line-height 1.2 --speed 2 input.cast output.gif
-```

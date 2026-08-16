@@ -25,6 +25,10 @@ Keen Code is also an experiment to play with the *new way of working* where engi
   Born as an experiment, Keen is now a fully functional coding agent designed for real-world software development.
 </h3>
 
+<div align="center">
+  <img src="./assets/demo.gif" alt="Keen Code demo" width="1200"/>
+</div>
+
 ## Table of Contents
 
 - [Features](#features)
