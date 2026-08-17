@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.1] - 2026-08-13
+
+### Fixed
+- Bump Go to 1.25.13 to resolve stdlib vulnerabilities.
+
+### Added
+- Add a demo GIF and move the demo recording guide to the docs.
+
 ## [0.48.0] - 2026-08-13
 
 ### Added
@@ -912,7 +920,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.48.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.48.1...HEAD
+[0.48.1]: https://github.com/mochow13/keen-code/compare/v0.48.0...v0.48.1
 [0.48.0]: https://github.com/mochow13/keen-code/compare/v0.47.1...v0.48.0
 [0.47.1]: https://github.com/mochow13/keen-code/compare/v0.47.0...v0.47.1
 [0.47.0]: https://github.com/mochow13/keen-code/compare/v0.46.0...v0.47.0
