@@ -21,13 +21,14 @@ type TurnMemory struct {
 }
 
 type HistoricalToolActivity struct {
-	TextOffset   int            `json:"text_offset"`
-	Tool         string         `json:"tool"`
-	Input        map[string]any `json:"input,omitempty"`
-	Status       string         `json:"status"`
-	ExitCode     *int           `json:"exit_code,omitempty"`
-	HasRawOutput bool           `json:"-"`
-	RawOutput    any            `json:"-"`
+	TextOffset     int            `json:"text_offset"`
+	Tool           string         `json:"tool"`
+	Input          map[string]any `json:"input,omitempty"`
+	Status         string         `json:"status"`
+	ExitCode       *int           `json:"exit_code,omitempty"`
+	HasRawOutput   bool           `json:"-"`
+	RawOutput      any            `json:"-"`
+	RetainedOutput any            `json:"retained_output,omitempty"`
 }
 
 func CloneMessage(message Message) Message {
@@ -56,6 +57,7 @@ func CloneTurnMemory(memory *TurnMemory) *TurnMemory {
 			cloned.ToolActivity[i] = activity
 			cloned.ToolActivity[i].Input = cloneInputMap(activity.Input)
 			cloned.ToolActivity[i].RawOutput = cloneInputValue(activity.RawOutput)
+			cloned.ToolActivity[i].RetainedOutput = cloneInputValue(activity.RetainedOutput)
 		}
 	}
 	return cloned

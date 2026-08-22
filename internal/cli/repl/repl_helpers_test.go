@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	"github.com/mochow13/keen-code/internal/config"
@@ -128,33 +129,40 @@ func TestBuildInitialScreenIncludesLastSession(t *testing.T) {
 }
 
 func TestWaitForAsyncEventRoutesReadyInputs(t *testing.T) {
-	if waitForAsyncEvent(nil, nil, nil, nil) != nil {
+	if waitForAsyncEvent(nil, nil, nil, nil, nil) != nil {
 		t.Fatal("waitForAsyncEvent returned a command without an LLM channel")
 	}
 
 	llmCh := make(chan llm.StreamEvent, 1)
 	llmCh <- llm.StreamEvent{Type: llm.StreamEventTypeChunk, Content: "chunk"}
-	if msg, ok := waitForAsyncEvent(llmCh, nil, nil, nil)().(mainStreamMsg); !ok || msg.event.Content != "chunk" {
+	if msg, ok := waitForAsyncEvent(llmCh, nil, nil, nil, nil)().(mainStreamMsg); !ok || msg.event.Content != "chunk" {
 		t.Fatalf("unexpected LLM message %#v", msg)
 	}
 
 	permissionCh := make(chan *replpermissions.Request, 1)
 	request := &replpermissions.Request{ToolName: "read_file"}
 	permissionCh <- request
-	if msg, ok := waitForAsyncEvent(make(chan llm.StreamEvent), permissionCh, nil, nil)().(permissionReadyMsg); !ok || msg.req != request {
+	if msg, ok := waitForAsyncEvent(make(chan llm.StreamEvent), permissionCh, nil, nil, nil)().(permissionReadyMsg); !ok || msg.req != request {
 		t.Fatalf("unexpected permission message %#v", msg)
 	}
 
 	diffCh := make(chan repltooling.DiffRequest, 1)
 	diffCh <- repltooling.DiffRequest{}
-	if _, ok := waitForAsyncEvent(make(chan llm.StreamEvent), nil, diffCh, nil)().(diffReadyMsg); !ok {
+	if _, ok := waitForAsyncEvent(make(chan llm.StreamEvent), nil, diffCh, nil, nil)().(diffReadyMsg); !ok {
 		t.Fatal("expected diffReadyMsg")
 	}
 
 	subagentCh := make(chan subagents.ToolActivity, 1)
 	subagentCh <- subagents.ToolActivity{}
-	if _, ok := waitForAsyncEvent(make(chan llm.StreamEvent), nil, nil, subagentCh)().(subagentActivityMsg); !ok {
+	if _, ok := waitForAsyncEvent(make(chan llm.StreamEvent), nil, nil, subagentCh, nil)().(subagentActivityMsg); !ok {
 		t.Fatal("expected subagentActivityMsg")
+	}
+
+	askUserCh := make(chan *replaskuser.Request, 1)
+	askRequest := &replaskuser.Request{}
+	askUserCh <- askRequest
+	if msg, ok := waitForAsyncEvent(make(chan llm.StreamEvent), nil, nil, nil, askUserCh)().(askUserReadyMsg); !ok || msg.req != askRequest {
+		t.Fatalf("unexpected ask_user message %#v", msg)
 	}
 }
 

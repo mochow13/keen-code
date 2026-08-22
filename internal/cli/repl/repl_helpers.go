@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/mochow13/keen-code/internal/cleanup"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
@@ -112,7 +113,6 @@ var loadingSpinners = []spinner.Spinner{
 	spinner.MiniDot,
 	spinner.Jump,
 	spinner.Pulse,
-	spinner.Points,
 	keenSparkleSpinner,
 	keenWandTrailSpinner,
 	keenBrailleDriftSpinner,
@@ -626,7 +626,7 @@ func renderInputArea(content string, width int, focused bool, shellMode bool, bt
 	return topRule + "\n" + content + "\n" + bottomRule
 }
 
-func waitForAsyncEvent(llmCh <-chan llm.StreamEvent, permissionCh <-chan *replpermissions.Request, diffCh <-chan repltooling.DiffRequest, subagentCh <-chan subagents.ToolActivity) tea.Cmd {
+func waitForAsyncEvent(llmCh <-chan llm.StreamEvent, permissionCh <-chan *replpermissions.Request, diffCh <-chan repltooling.DiffRequest, subagentCh <-chan subagents.ToolActivity, askUserCh <-chan *replaskuser.Request) tea.Cmd {
 	if llmCh == nil {
 		return nil
 	}
@@ -637,6 +637,8 @@ func waitForAsyncEvent(llmCh <-chan llm.StreamEvent, permissionCh <-chan *replpe
 			return subagentActivityMsg{activity: activity}
 		case req := <-permissionCh:
 			return permissionReadyMsg{req: req}
+		case req := <-askUserCh:
+			return askUserReadyMsg{req: req}
 		case req := <-diffCh:
 			return diffReadyMsg{req: req}
 		case event, ok := <-llmCh:

@@ -9,6 +9,7 @@ import (
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	brtypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/firebase/genkit/go/ai"
+	"github.com/mochow13/keen-code/internal/tools"
 	openai "github.com/openai/openai-go/v3"
 	openaiParam "github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
@@ -116,13 +117,25 @@ func reduceOpenAIContextForRequest(
 		return next, newContextReduction(estimatedInputTokenCount, budget)
 	}
 
+	retainedToolCallIDs := make(map[string]struct{})
+	for _, msg := range next {
+		if msg.OfAssistant == nil {
+			continue
+		}
+		for _, call := range msg.OfAssistant.ToolCalls {
+			if call.OfFunction != nil && call.OfFunction.Function.Name == tools.AskUserToolName {
+				retainedToolCallIDs[call.OfFunction.ID] = struct{}{}
+			}
+		}
+	}
 	targets := make([]toolResultReductionTarget, 0)
 	for i, msg := range next {
 		if msg.OfTool == nil {
 			continue
 		}
 		content := openAIToolContent(msg.OfTool.Content)
-		if content == removedToolResultPlaceholder {
+		_, retained := retainedToolCallIDs[msg.OfTool.ToolCallID]
+		if content == removedToolResultPlaceholder || retained {
 			continue
 		}
 		idx := i
@@ -163,13 +176,20 @@ func reduceResponsesContextForRequest(
 		return next, newContextReduction(estimatedInputTokenCount, budget)
 	}
 
+	retainedToolCallIDs := make(map[string]struct{})
+	for _, item := range next {
+		if item.OfFunctionCall != nil && item.OfFunctionCall.Name == tools.AskUserToolName {
+			retainedToolCallIDs[item.OfFunctionCall.CallID] = struct{}{}
+		}
+	}
 	targets := make([]toolResultReductionTarget, 0)
 	for i, item := range next {
 		if item.OfFunctionCallOutput == nil {
 			continue
 		}
 		content, ok := responsesToolOutputContent(item.OfFunctionCallOutput.Output)
-		if !ok || content == removedToolResultPlaceholder {
+		_, retained := retainedToolCallIDs[item.OfFunctionCallOutput.CallID]
+		if !ok || content == removedToolResultPlaceholder || retained {
 			continue
 		}
 		idx := i
@@ -213,6 +233,14 @@ func reduceAnthropicContextForRequest(
 		return next, newContextReduction(estimatedInputTokenCount, budget)
 	}
 
+	retainedToolUseIDs := make(map[string]struct{})
+	for _, msg := range next {
+		for _, block := range msg.Content {
+			if block.OfToolUse != nil && block.OfToolUse.Name == tools.AskUserToolName {
+				retainedToolUseIDs[block.OfToolUse.ID] = struct{}{}
+			}
+		}
+	}
 	targets := make([]toolResultReductionTarget, 0)
 	for mi := range next {
 		for bi, block := range next[mi].Content {
@@ -220,7 +248,8 @@ func reduceAnthropicContextForRequest(
 				continue
 			}
 			content := anthropicToolResultContent(block.OfToolResult)
-			if content == removedToolResultPlaceholder {
+			_, retained := retainedToolUseIDs[block.OfToolResult.ToolUseID]
+			if content == removedToolResultPlaceholder || retained {
 				continue
 			}
 			messageIdx := mi
@@ -279,7 +308,7 @@ func reduceGenkitContextForRequest(
 			continue
 		}
 		for pi, part := range msg.Content {
-			if part == nil || part.ToolResponse == nil || part.ToolResponse.Output == removedToolResultPlaceholder {
+			if part == nil || part.ToolResponse == nil || part.ToolResponse.Name == tools.AskUserToolName || part.ToolResponse.Output == removedToolResultPlaceholder {
 				continue
 			}
 			messageIdx := mi
@@ -314,6 +343,14 @@ func reduceBedrockContextForRequest(
 		return next, newContextReduction(estimatedInputTokenCount, budget)
 	}
 
+	retainedToolUseIDs := make(map[string]struct{})
+	for _, msg := range next {
+		for _, block := range msg.Content {
+			if toolUse, ok := block.(*brtypes.ContentBlockMemberToolUse); ok && toolUse.Value.Name != nil && *toolUse.Value.Name == tools.AskUserToolName && toolUse.Value.ToolUseId != nil {
+				retainedToolUseIDs[*toolUse.Value.ToolUseId] = struct{}{}
+			}
+		}
+	}
 	targets := make([]toolResultReductionTarget, 0)
 	for mi := range next {
 		for bi, block := range next[mi].Content {
@@ -321,8 +358,12 @@ func reduceBedrockContextForRequest(
 			if !ok {
 				continue
 			}
+			if toolResult.Value.ToolUseId == nil {
+				continue
+			}
 			content := bedrockToolResultContent(toolResult.Value.Content)
-			if content == removedToolResultPlaceholder {
+			_, retained := retainedToolUseIDs[*toolResult.Value.ToolUseId]
+			if content == removedToolResultPlaceholder || retained {
 				continue
 			}
 			messageIdx := mi

@@ -84,7 +84,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	appState := replappstate.New(opts.Client, opts.WorkingDir)
 	permissionRequester := replpermissions.NewAutoApproveRequester()
 	diffEmitter := repltooling.NewDiffEmitter()
-	repltooling.SetupToolRegistry(opts.WorkingDir, appState, permissionRequester, diffEmitter, opts.MCPRuntime, opts.Config, opts.GlobalConfig, nil)
+	repltooling.SetupToolRegistry(opts.WorkingDir, appState, permissionRequester, diffEmitter, nil, opts.MCPRuntime, opts.Config, opts.GlobalConfig, nil)
 
 	sessions := newReplSessionState(opts.WorkingDir)
 	if sessions == nil {

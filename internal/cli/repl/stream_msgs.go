@@ -3,6 +3,7 @@ package repl
 import (
 	"time"
 
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	"github.com/mochow13/keen-code/internal/llm"
@@ -52,6 +53,10 @@ type mainStreamMsg struct {
 type subagentActivityMsg struct {
 	activity subagents.ToolActivity
 }
+type askUserReadyMsg struct {
+	req *replaskuser.Request
+}
+
 type permissionReadyMsg struct {
 	req *replpermissions.Request
 }

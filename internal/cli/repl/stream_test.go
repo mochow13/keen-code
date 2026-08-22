@@ -638,7 +638,7 @@ func TestWaitForAsyncEvent_Chunk(t *testing.T) {
 	}
 	close(eventCh)
 
-	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil)
+	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil, nil)
 	if cmd == nil {
 		t.Fatal("expected non-nil cmd")
 	}
@@ -666,7 +666,7 @@ func TestWaitForAsyncEvent_Done(t *testing.T) {
 	}
 	close(eventCh)
 
-	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil)
+	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil, nil)
 	msg := cmd()
 
 	streamMsg, ok := msg.(mainStreamMsg)
@@ -686,7 +686,7 @@ func TestWaitForAsyncEvent_ReasoningChunk(t *testing.T) {
 	}
 	close(eventCh)
 
-	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil)
+	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil, nil)
 	if cmd == nil {
 		t.Fatal("expected non-nil cmd")
 	}
@@ -710,7 +710,7 @@ func TestWaitForAsyncEvent_Error(t *testing.T) {
 	}
 	close(eventCh)
 
-	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil)
+	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil, nil)
 	msg := cmd()
 
 	streamMsg, ok := msg.(mainStreamMsg)
@@ -726,7 +726,7 @@ func TestWaitForAsyncEvent_ChannelClosed(t *testing.T) {
 	eventCh := make(chan llm.StreamEvent)
 	close(eventCh)
 
-	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil)
+	cmd := waitForAsyncEvent(eventCh, make(chan *replpermissions.Request), make(chan repltooling.DiffRequest), nil, nil)
 	msg := cmd()
 
 	streamMsg, ok := msg.(mainStreamMsg)
@@ -800,7 +800,7 @@ func TestWaitForAsyncEvent_Permission(t *testing.T) {
 	req := makeTestPermissionRequest(false)
 	permissionCh <- req
 
-	cmd := waitForAsyncEvent(make(chan llm.StreamEvent), permissionCh, make(chan repltooling.DiffRequest), nil)
+	cmd := waitForAsyncEvent(make(chan llm.StreamEvent), permissionCh, make(chan repltooling.DiffRequest), nil, nil)
 	msg := cmd()
 
 	permissionMsg, ok := msg.(permissionReadyMsg)
@@ -817,7 +817,7 @@ func TestWaitForAsyncEvent_Diff(t *testing.T) {
 	req := repltooling.DiffRequest{Done: make(chan struct{})}
 	diffCh <- req
 
-	cmd := waitForAsyncEvent(make(chan llm.StreamEvent), make(chan *replpermissions.Request), diffCh, nil)
+	cmd := waitForAsyncEvent(make(chan llm.StreamEvent), make(chan *replpermissions.Request), diffCh, nil, nil)
 	msg := cmd()
 
 	diffMsg, ok := msg.(diffReadyMsg)

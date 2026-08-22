@@ -188,6 +188,16 @@ var (
 	UserPromptStyle                 = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor)
 	UserPromptSelectionStyle        = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
 
+	AskUserProgressStyle        = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
+	AskUserSelectedStyle        = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
+	AskUserCustomStyle          = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	AskUserCursorStyle          = AskUserCustomStyle.Reverse(true)
+	AskUserTypedStyle           = lipgloss.NewStyle().Foreground(SecondaryColor)
+	AskUserQuestionStyle        = lipgloss.NewStyle().Foreground(TextPrimaryColor).Bold(true)
+	AskUserResolvedStyle        = AssistantStyle
+	AskUserHintStyle            = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	AskUserBadgeStyle           = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	AskUserRuleStyle            = InitialScreenRuleStyle
 	SuggestionContainerStyle    = lipgloss.NewStyle().Padding(0, 1)
 	SuggestionSelectedStyle     = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
 	SuggestionCmdStyle          = lipgloss.NewStyle().Foreground(PrimaryColor)

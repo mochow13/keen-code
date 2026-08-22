@@ -253,6 +253,9 @@ func cloneStreamSegments(segments []streamSegment) []streamSegment {
 			copy(diffLines, seg.diffLines)
 			result[i].diffLines = diffLines
 		}
+		if seg.askUser != nil {
+			result[i].askUser = cloneAskUserState(*seg.askUser)
+		}
 	}
 	return result
 }

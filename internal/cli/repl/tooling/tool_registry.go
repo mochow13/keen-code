@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/filesystem"
@@ -18,6 +19,7 @@ func SetupToolRegistry(
 	appState *replappstate.AppState,
 	permissionRequester *replpermissions.Requester,
 	diffEmitter *DiffEmitter,
+	askUserRequester *replaskuser.Requester,
 	mcpRuntime keenmcp.Runtime,
 	cfg *config.ResolvedConfig,
 	globalCfg *config.GlobalConfig,
@@ -48,6 +50,9 @@ func SetupToolRegistry(
 	webFetchTool := tools.NewWebFetchTool()
 	appState.RegisterTool(webFetchTool)
 
+	if askUserRequester != nil {
+		appState.RegisterTool(tools.NewAskUserTool(askUserRequester))
+	}
 	if mcpRuntime != nil {
 		appState.RegisterTool(tools.NewCallMCPTool(mcpRuntime, permissionRequester))
 	}

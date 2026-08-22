@@ -296,6 +296,31 @@ func TestReduceGenkitContextForRequest_ReplacesToolResponseOutput(t *testing.T) 
 	}
 }
 
+func TestReduceGenkitContextForRequest_PreservesAskUserResult(t *testing.T) {
+	longResult := repeatString("answer ", 200)
+	messages := []*ai.Message{
+		ai.NewMessage(ai.RoleModel, nil,
+			ai.NewToolRequestPart(&ai.ToolRequest{Name: "ask_user", Ref: "ask"}),
+			ai.NewToolRequestPart(&ai.ToolRequest{Name: "read_file", Ref: "read"}),
+		),
+		ai.NewMessage(ai.RoleTool, nil,
+			ai.NewToolResponsePart(&ai.ToolResponse{Name: "ask_user", Ref: "ask", Output: map[string]any{"answers": []string{longResult}, "cancelled": false}}),
+			ai.NewToolResponsePart(&ai.ToolResponse{Name: "read_file", Ref: "read", Output: map[string]any{"content": longResult}}),
+		),
+	}
+	budget := estimateGenkitMessagesTokenCount(messages) - estimateContextTokenCount(longResult)/2
+	reduced, reduction := reduceGenkitContextForRequest(contextWindowForInputBudget(budget), messages)
+	if reduction.RemovedToolResults != 1 {
+		t.Fatalf("expected one removable tool result, got %d", reduction.RemovedToolResults)
+	}
+	if reduced[1].Content[0].ToolResponse.Output == removedToolResultPlaceholder {
+		t.Fatal("ask_user result was pruned")
+	}
+	if reduced[1].Content[1].ToolResponse.Output != removedToolResultPlaceholder {
+		t.Fatal("expected ordinary tool result to be pruned")
+	}
+}
+
 func TestReduceBedrockContextForRequest_ReplacesToolResultContentOnly(t *testing.T) {
 	longResult := repeatString("old ", 200)
 	messages := []brtypes.Message{
@@ -341,6 +366,67 @@ func TestReduceBedrockContextForRequest_ReplacesToolResultContentOnly(t *testing
 	if got := bedrockToolResultContent(recentResult.Value.Content); got != "recent result" {
 		t.Fatalf("expected recent tool result to remain, got %q", got)
 	}
+}
+
+func TestContextReducersPreserveAskUserResultsByCallIdentity(t *testing.T) {
+	longResult := repeatString("result ", 200)
+
+	t.Run("OpenAI", func(t *testing.T) {
+		assistant := openai.ChatCompletionAssistantMessageParam{ToolCalls: []openai.ChatCompletionMessageToolCallUnionParam{
+			{OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{ID: "ask", Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{Name: "ask_user", Arguments: `{}`}}},
+			{OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{ID: "read", Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{Name: "read_file", Arguments: `{}`}}},
+		}}
+		messages := []openai.ChatCompletionMessageParamUnion{{OfAssistant: &assistant}, openai.ToolMessage(longResult, "ask"), openai.ToolMessage(longResult, "read")}
+		budget := estimateOpenAIMessagesTokenCount(messages) - estimateContextTokenCount(longResult)/2
+		reduced, reduction := reduceOpenAIContextForRequest(contextWindowForInputBudget(budget), messages)
+		if reduction.RemovedToolResults != 1 || openAIToolContent(reduced[1].OfTool.Content) != longResult || openAIToolContent(reduced[2].OfTool.Content) != removedToolResultPlaceholder {
+			t.Fatalf("unexpected reduction: %#v", reduction)
+		}
+	})
+
+	t.Run("Responses", func(t *testing.T) {
+		input := []responses.ResponseInputItemUnionParam{
+			responses.ResponseInputItemParamOfFunctionCall(`{}`, "ask", "ask_user"), responses.ResponseInputItemParamOfFunctionCallOutput("ask", longResult),
+			responses.ResponseInputItemParamOfFunctionCall(`{}`, "read", "read_file"), responses.ResponseInputItemParamOfFunctionCallOutput("read", longResult),
+		}
+		budget := estimateResponsesInputTokenCount(input) - estimateContextTokenCount(longResult)/2
+		reduced, reduction := reduceResponsesContextForRequest(contextWindowForInputBudget(budget), input)
+		if reduction.RemovedToolResults != 1 || reduced[1].OfFunctionCallOutput.Output.OfString.Value != longResult || reduced[3].OfFunctionCallOutput.Output.OfString.Value != removedToolResultPlaceholder {
+			t.Fatalf("unexpected reduction: %#v", reduction)
+		}
+	})
+
+	t.Run("Anthropic", func(t *testing.T) {
+		messages := []anthropic.MessageParam{
+			anthropic.NewAssistantMessage(anthropic.NewToolUseBlock("ask", map[string]any{}, "ask_user"), anthropic.NewToolUseBlock("read", map[string]any{}, "read_file")),
+			anthropic.NewUserMessage(anthropic.NewToolResultBlock("ask", longResult, false), anthropic.NewToolResultBlock("read", longResult, false)),
+		}
+		budget := estimateAnthropicMessagesTokenCount(messages) - estimateContextTokenCount(longResult)/2
+		reduced, reduction := reduceAnthropicContextForRequest(contextWindowForInputBudget(budget), messages)
+		if reduction.RemovedToolResults != 1 || anthropicToolResultContent(reduced[1].Content[0].OfToolResult) != longResult || anthropicToolResultContent(reduced[1].Content[1].OfToolResult) != removedToolResultPlaceholder {
+			t.Fatalf("unexpected reduction: %#v", reduction)
+		}
+	})
+
+	t.Run("Bedrock", func(t *testing.T) {
+		messages := []brtypes.Message{
+			{Role: brtypes.ConversationRoleAssistant, Content: []brtypes.ContentBlock{
+				&brtypes.ContentBlockMemberToolUse{Value: brtypes.ToolUseBlock{ToolUseId: aws.String("ask"), Name: aws.String("ask_user")}},
+				&brtypes.ContentBlockMemberToolUse{Value: brtypes.ToolUseBlock{ToolUseId: aws.String("read"), Name: aws.String("read_file")}},
+			}},
+			{Role: brtypes.ConversationRoleUser, Content: []brtypes.ContentBlock{
+				&brtypes.ContentBlockMemberToolResult{Value: brtypes.ToolResultBlock{ToolUseId: aws.String("ask"), Content: []brtypes.ToolResultContentBlock{&brtypes.ToolResultContentBlockMemberText{Value: longResult}}}},
+				&brtypes.ContentBlockMemberToolResult{Value: brtypes.ToolResultBlock{ToolUseId: aws.String("read"), Content: []brtypes.ToolResultContentBlock{&brtypes.ToolResultContentBlockMemberText{Value: longResult}}}},
+			}},
+		}
+		budget := estimateBedrockMessagesTokenCount(messages) - estimateContextTokenCount(longResult)/2
+		reduced, reduction := reduceBedrockContextForRequest(contextWindowForInputBudget(budget), messages)
+		ask := reduced[1].Content[0].(*brtypes.ContentBlockMemberToolResult)
+		read := reduced[1].Content[1].(*brtypes.ContentBlockMemberToolResult)
+		if reduction.RemovedToolResults != 1 || bedrockToolResultContent(ask.Value.Content) != longResult || bedrockToolResultContent(read.Value.Content) != removedToolResultPlaceholder {
+			t.Fatalf("unexpected reduction: %#v", reduction)
+		}
+	})
 }
 
 func contextWindowForInputBudget(budget int) int {

@@ -56,6 +56,9 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 		seg := &sh.segments[i]
 		switch seg.kind {
 		case segmentToolStart:
+			if seg.toolCall != nil && seg.toolCall.Name == tools.AskUserToolName {
+				continue
+			}
 			if seg.toolCall != nil {
 				if sh.shouldHideToolStart(i) || (i+1 < len(sh.segments) && sh.segments[i+1].kind == segmentToolEnd) {
 					continue
@@ -64,7 +67,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 			}
 		case segmentToolEnd:
 			if seg.toolCall != nil {
-				if isHiddenToolFailure(seg.toolCall) {
+				if seg.toolCall.Name == tools.AskUserToolName || isHiddenToolFailure(seg.toolCall) {
 					continue
 				}
 				if i > 0 && sh.segments[i-1].kind == segmentToolStart && sh.segments[i-1].toolCall != nil {
@@ -102,6 +105,10 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 			}
 		case segmentDiff:
 			lines = append(lines, renderDiffSegment(seg, width)...)
+		case segmentAskUser:
+			if seg.askUser != nil {
+				lines = append(lines, strings.Split(strings.Trim(renderAskUserCard(*seg.askUser, width), "\n"), "\n")...)
+			}
 		}
 	}
 
@@ -115,6 +122,9 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 		seg := &sh.segments[i]
 		switch seg.kind {
 		case segmentToolStart:
+			if seg.toolCall != nil && seg.toolCall.Name == tools.AskUserToolName {
+				continue
+			}
 			if seg.toolCall != nil {
 				if sh.shouldHideToolStart(i) || (i+1 < len(sh.segments) && sh.segments[i+1].kind == segmentToolEnd) {
 					continue
@@ -123,7 +133,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 			}
 		case segmentToolEnd:
 			if seg.toolCall != nil {
-				if isHiddenToolFailure(seg.toolCall) {
+				if seg.toolCall.Name == tools.AskUserToolName || isHiddenToolFailure(seg.toolCall) {
 					continue
 				}
 				if i > 0 && sh.segments[i-1].kind == segmentToolStart && sh.segments[i-1].toolCall != nil {
@@ -155,6 +165,14 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 			}
 		case segmentDiff:
 			lines = append(lines, renderDiffSegment(seg, sh.lastWidth)...)
+		case segmentAskUser:
+			if seg.askUser != nil {
+				width := sh.lastWidth
+				if width <= 0 {
+					width = defaultWidth
+				}
+				lines = append(lines, strings.Split(strings.Trim(renderAskUserCard(*seg.askUser, width), "\n"), "\n")...)
+			}
 		}
 	}
 

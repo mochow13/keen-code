@@ -97,6 +97,17 @@ func TestHistoricalToolResult_RetainsOnlyCompactOutcome(t *testing.T) {
 	}
 }
 
+func TestHistoricalToolResultRetainsAskUserOutput(t *testing.T) {
+	activity := HistoricalToolActivity{
+		Tool:           "ask_user",
+		Status:         "success",
+		RetainedOutput: map[string]any{"answers": []string{"PostgreSQL"}, "cancelled": false},
+	}
+	if got := historicalToolResult(activity); got != `{"answers":["PostgreSQL"],"cancelled":false}` {
+		t.Fatalf("unexpected retained ask_user result %q", got)
+	}
+}
+
 func TestCloneTurnMemory_ClonesHistoricalActivity(t *testing.T) {
 	original := &TurnMemory{ToolActivity: []HistoricalToolActivity{{
 		Tool:   "call_mcp_tool",

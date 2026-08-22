@@ -15,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	replfilesearch "github.com/mochow13/keen-code/internal/cli/repl/filesearch"
 	replhistory "github.com/mochow13/keen-code/internal/cli/repl/history"
@@ -64,6 +65,7 @@ type replModel struct {
 	output              *reploutput.OutputBuilder
 	modelSelection      *replwidgets.Model
 	permissionRequester *replpermissions.Requester
+	askUser             askUserState
 	projectPerms        *config.ProjectPermissions
 	diffEmitter         *repltooling.DiffEmitter
 	sessions            *replSessionState
@@ -206,7 +208,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	bs.Style = lipgloss.NewStyle().Foreground(repltheme.AccentColor)
 
 	as := spinner.New()
-	as.Spinner = spinner.Points
+	as.Spinner = spinner.MiniDot
 	as.Style = lipgloss.NewStyle().Foreground(repltheme.SecondaryColor)
 
 	appState := replappstate.New(llmClient, ctx.workingDir)
@@ -218,6 +220,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 
 	permissionRequester := replpermissions.NewRequester(projectPerms)
 	diffEmitter := repltooling.NewDiffEmitter()
+	askUserRequester := replaskuser.NewRequester()
 	sessions := newReplSessionState(ctx.workingDir)
 
 	fileGitAwareness := filesystem.NewGitAwareness()
@@ -231,6 +234,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		appState,
 		permissionRequester,
 		diffEmitter,
+		askUserRequester,
 		ctx.mcp,
 		ctx.cfg,
 		ctx.globalCfg,
@@ -262,6 +266,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		stream:              streamState{handler: NewStreamHandler(mdRenderer), renderInterval: streamRenderInterval},
 		mdRenderer:          mdRenderer,
 		permissionRequester: permissionRequester,
+		askUser:             askUserState{requester: askUserRequester},
 		projectPerms:        projectPerms,
 		diffEmitter:         diffEmitter,
 		sessions:            sessions,
@@ -545,6 +550,10 @@ func (m replModel) waitForAsyncEvent() tea.Cmd {
 	if m.stream.handler == nil || !m.stream.handler.IsActive() || m.stream.handler.eventCh == nil {
 		return nil
 	}
+	var askUserCh <-chan *replaskuser.Request
+	if m.askUser.requester != nil {
+		askUserCh = m.askUser.requester.GetRequestChan()
+	}
 	var permissionCh <-chan *replpermissions.Request
 	if m.permissionRequester != nil {
 		permissionCh = m.permissionRequester.GetRequestChan()
@@ -558,6 +567,7 @@ func (m replModel) waitForAsyncEvent() tea.Cmd {
 		permissionCh,
 		diffCh,
 		m.subagentActivity,
+		askUserCh,
 	)
 }
 
@@ -641,6 +651,17 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	case diffReadyMsg:
 		m.stream.handler.HandleDiff(msg.req.Lines)
 		close(msg.req.Done)
+		m.updateViewportContent()
+		m.scrollToBottomIfFollowing()
+		return m, m.waitForAsyncEvent()
+
+	case askUserReadyMsg:
+		if m.askUser.requester == nil || !m.askUser.requester.IsPending(msg.req) {
+			return m, m.waitForAsyncEvent()
+		}
+		m.askUser.begin(msg.req)
+		m.stream.handler.SetAskUser(&m.askUser)
+		m.textarea.Reset()
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
 		return m, m.waitForAsyncEvent()
@@ -876,7 +897,7 @@ func (m replModel) inputMetaLocationLine() string {
 	const sep = " • "
 
 	model := m.inputMetaModel()
-	location := " " + abbreviateHome(m.ctx.workingDir)
+	location := abbreviateHome(m.ctx.workingDir)
 	prefix := leftPad + repltheme.HighlightStyle.Render(model) + repltheme.MetaLabelStyle.Render(sep)
 	available := m.width - lipgloss.Width(prefix)
 	if m.width > 0 && lipgloss.Width(location) > available && available > 1 {
@@ -897,7 +918,7 @@ func (m replModel) inputMetaLocationLine() string {
 	if m.contextStatus.ShouldSuggestCompaction() {
 		hint := repltheme.CompactionSuggestionStyle.Render("Try /compact")
 		if m.width <= 0 || lipgloss.Width(line)+1+lipgloss.Width(hint) <= m.width {
-			line += " " + hint
+			line += repltheme.MetaLabelStyle.Render(sep) + hint
 		}
 	}
 	return line

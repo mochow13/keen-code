@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 func TestSetupToolRegistryOmitsDelegateToolWithoutProfiles(t *testing.T) {
@@ -22,6 +24,7 @@ func TestSetupToolRegistryOmitsDelegateToolWithoutProfiles(t *testing.T) {
 		replpermissions.NewAutoApproveRequester(),
 		NewDiffEmitter(),
 		nil,
+		nil,
 		&config.ResolvedConfig{Model: "model"},
 		config.DefaultGlobalConfig(),
 		nil,
@@ -29,6 +32,33 @@ func TestSetupToolRegistryOmitsDelegateToolWithoutProfiles(t *testing.T) {
 
 	if _, ok := state.GetToolRegistry().Get("delegate_task"); ok {
 		t.Fatal("delegate_task should not be registered without subagent profiles")
+	}
+}
+
+func TestSetupToolRegistryRegistersAskUserOnlyWithRequester(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	workingDir := t.TempDir()
+	setup := func(requester *replaskuser.Requester) *replappstate.AppState {
+		state := replappstate.New(nil, workingDir)
+		SetupToolRegistry(
+			workingDir,
+			state,
+			replpermissions.NewAutoApproveRequester(),
+			NewDiffEmitter(),
+			requester,
+			nil,
+			&config.ResolvedConfig{Model: "model"},
+			config.DefaultGlobalConfig(),
+			nil,
+		)
+		return state
+	}
+
+	if _, ok := setup(nil).GetToolRegistry().Get(tools.AskUserToolName); ok {
+		t.Fatal("ask_user should not be registered without an interactive requester")
+	}
+	if _, ok := setup(replaskuser.NewRequester()).GetToolRegistry().Get(tools.AskUserToolName); !ok {
+		t.Fatal("ask_user should be registered with an interactive requester")
 	}
 }
 
@@ -61,6 +91,7 @@ hidden: true
 		state,
 		replpermissions.NewAutoApproveRequester(),
 		NewDiffEmitter(),
+		nil,
 		nil,
 		&config.ResolvedConfig{Model: "model"},
 		config.DefaultGlobalConfig(),

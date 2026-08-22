@@ -85,6 +85,24 @@ func (sh *StreamHandler) HandleToolEnd(toolCall *llm.ToolCall) {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentToolEnd, toolCall: toolCall})
 }
 
+func (sh *StreamHandler) SetAskUser(state *askUserState) {
+	for i := len(sh.segments) - 1; i >= 0; i-- {
+		segment := &sh.segments[i]
+		if segment.kind != segmentAskUser || segment.askUser == nil || !segment.askUser.active() {
+			continue
+		}
+		if state == nil {
+			sh.segments = append(sh.segments[:i], sh.segments[i+1:]...)
+		} else {
+			segment.askUser = cloneAskUserState(*state)
+		}
+		return
+	}
+	if state != nil {
+		sh.segments = append(sh.segments, streamSegment{kind: segmentAskUser, askUser: cloneAskUserState(*state)})
+	}
+}
+
 func (sh *StreamHandler) HandleSubagentActivity(activity subagents.ToolActivity) {
 	key := activity.RunID + ":" + activity.CallID
 	switch activity.Event.Type {

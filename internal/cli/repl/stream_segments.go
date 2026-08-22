@@ -17,6 +17,7 @@ const (
 	segmentPermission streamSegmentType = "permission"
 	segmentDiff       streamSegmentType = "diff"
 	segmentSubagent   streamSegmentType = "subagent_tool"
+	segmentAskUser    streamSegmentType = "ask_user"
 )
 
 type streamSegment struct {
@@ -33,4 +34,5 @@ type streamSegment struct {
 	agent            string
 	activityKey      string
 	endToolCall      *llm.ToolCall
+	askUser          *askUserState
 }

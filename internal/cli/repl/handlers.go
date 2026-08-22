@@ -14,6 +14,7 @@ import (
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const (
@@ -73,6 +74,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.stopLoading()
 	m.clearStreamCancel()
 	m.adjustTextareaHeight()
+	m.appendResolvedAskUserSegment()
 	responseLines, response := m.stream.handler.HandleDone()
 	assistantMessage := llm.Message{
 		Role:       llm.RoleAssistant,
@@ -95,6 +97,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 
 func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 	m.flushStreamRender()
+	m.clearAskUser()
 	segments := cloneStreamSegments(m.stream.handler.segments)
 	m.recordHistoricalToolActivity(segments)
 	partialResponse := m.stream.handler.GetResponse()
@@ -124,6 +127,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 
 func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.flushStreamRender()
+	m.clearAskUser()
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionError(err)
 	}
@@ -301,6 +305,10 @@ func (m *replModel) handleCompactionError(err error) (replModel, tea.Cmd) {
 
 func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.flushStreamRender()
+	if toolCall != nil && toolCall.Name == tools.AskUserToolName {
+		m.stream.handler.HandleToolStart(toolCall)
+		return *m, m.waitForAsyncEvent()
+	}
 	if toolCall.Name == "bash" {
 		command, _ := toolCall.Input["command"].(string)
 		summary, _ := toolCall.Input["summary"].(string)
@@ -316,6 +324,10 @@ func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd)
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.flushStreamRender()
 	toolCall = sanitizeDelegateToolCall(toolCall)
+	if toolCall != nil && toolCall.Name == tools.AskUserToolName {
+		m.stream.handler.HandleToolEnd(toolCall)
+		return *m, m.waitForAsyncEvent()
+	}
 	if toolCall.Name == "bash" {
 		m.stream.handler.HandleBashEnd(toolCall)
 	} else {
@@ -457,6 +469,49 @@ func (m *replModel) handleSuggestionKeyMsg(keyMsg tea.KeyPressMsg) (bool, replMo
 	return false, *m, nil
 }
 
+func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd) {
+	s := &m.askUser
+	question := s.request.Questionnaire.Questions[s.index]
+	switch msg.String() {
+	case keyCtrlC, keyEsc:
+		s.resolve(s.requester, true)
+	case keyUp:
+		s.move(-1)
+	case keyDown:
+		s.move(1)
+	case "backspace", "ctrl+h":
+		if s.editing && s.draft != "" {
+			s.draft = string([]rune(s.draft)[:len([]rune(s.draft))-1])
+		}
+	case keyEnter:
+		if s.selected < len(question.Options) {
+			if s.answer(question.Options[s.selected]) {
+				s.resolve(s.requester, false)
+			}
+		} else if s.editing {
+			if strings.TrimSpace(s.draft) != "" && s.answer(s.draft) {
+				s.resolve(s.requester, false)
+			}
+		} else {
+			s.editing = true
+		}
+	default:
+		if msg.Text != "" {
+			s.selected = len(question.Options)
+			s.editing = true
+			s.draft += msg.Text
+		}
+	}
+	if s.active() {
+		m.stream.handler.SetAskUser(s)
+	} else {
+		m.appendResolvedAskUserSegment()
+	}
+	m.updateViewportContent()
+	m.scrollToBottomIfFollowing()
+	return *m, nil
+}
+
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	m.flushStreamRender()
 	if m.sessionPicker != nil {
@@ -502,6 +557,10 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		case "up", "down", keyEnter, keyEsc:
 			return m.handlePermissionKeyMsg(keyMsg)
 		}
+	}
+
+	if m.askUser.active() {
+		return m.handleAskUserKeyMsg(keyMsg)
 	}
 
 	if m.suggestion.Visible() {
@@ -713,6 +772,7 @@ func (m *replModel) refreshFileSuggestions(input string) bool {
 
 func (m *replModel) interruptStream(message string) {
 	m.flushStreamRender()
+	m.clearAskUser()
 	if m.stream.cancel != nil {
 		m.stream.cancel()
 		m.clearStreamCancel()

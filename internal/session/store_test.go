@@ -77,6 +77,12 @@ func TestStoreCreateAppendListLoad(t *testing.T) {
 		Kind: KindAssistantTurn,
 		AssistantTurn: &AssistantTurnPayload{
 			Message: "hi",
+			TurnMemory: &llm.TurnMemory{ToolActivity: []llm.HistoricalToolActivity{{
+				Tool:           "ask_user",
+				Input:          map[string]any{"questions": []any{map[string]any{"question": "Database?"}}},
+				Status:         "success",
+				RetainedOutput: map[string]any{"answers": []any{"PostgreSQL"}, "cancelled": false},
+			}}},
 		},
 	}); err != nil {
 		t.Fatalf("Append(assistant) error = %v", err)
@@ -102,6 +108,15 @@ func TestStoreCreateAppendListLoad(t *testing.T) {
 	}
 	if loaded.Session.nextSeq != 4 {
 		t.Fatalf("expected next sequence 4, got %d", loaded.Session.nextSeq)
+	}
+	conversation := BuildConversation(loaded.Events)
+	if len(conversation) != 2 || conversation[1].TurnMemory == nil {
+		t.Fatalf("expected loaded turn memory, got %#v", conversation)
+	}
+	activity := conversation[1].TurnMemory.ToolActivity[0]
+	output, ok := activity.RetainedOutput.(map[string]any)
+	if !ok || activity.Tool != "ask_user" || output["answers"] == nil {
+		t.Fatalf("expected loaded ask_user output, got %#v", activity)
 	}
 }
 

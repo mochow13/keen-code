@@ -779,6 +779,32 @@ func TestToOpenAIMessages_RendersTurnMemoryForAssistant(t *testing.T) {
 	}
 }
 
+func TestToOpenAIMessagesRetainsAskUserInputAndOutput(t *testing.T) {
+	messages := toOpenAIMessages([]Message{{
+		Role: RoleAssistant,
+		TurnMemory: &TurnMemory{ToolActivity: []HistoricalToolActivity{{
+			Tool:           "ask_user",
+			Input:          map[string]any{"questions": []any{map[string]any{"question": "Database?", "options": []any{"PostgreSQL", "SQLite"}}}},
+			Status:         "success",
+			RetainedOutput: map[string]any{"answers": []string{"PostgreSQL"}, "cancelled": false},
+		}}},
+	}})
+
+	body, err := json.Marshal(messages)
+	if err != nil {
+		t.Fatalf("marshal messages: %v", err)
+	}
+	encoded := string(body)
+	for _, want := range []string{"ask_user", "Database?", "PostgreSQL", "cancelled"} {
+		if !strings.Contains(encoded, want) {
+			t.Fatalf("expected %q in OpenAI history, got %s", want, encoded)
+		}
+	}
+	if strings.Contains(encoded, `\"tool\":\"ask_user\"`) {
+		t.Fatalf("ask_user result leaked an internal marker: %s", encoded)
+	}
+}
+
 func TestFunctionToolCalls(t *testing.T) {
 	toolCalls := []openai.ChatCompletionMessageToolCallUnion{
 		{

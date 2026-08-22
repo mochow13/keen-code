@@ -21,6 +21,7 @@ import (
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
 	"github.com/mochow13/keen-code/internal/subagents"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 func TestHandleLLMChunk(t *testing.T) {
@@ -289,6 +290,27 @@ func TestHandleKeyMsg_CtrlC_WithActiveStreamInterrupts(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Error("expected nil cmd for ctrl+c interruption")
+	}
+}
+
+func TestHandleKeyMsg_CtrlC_WithAskUserCancelsQuestionnaireFirst(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Loading...")
+	m.askUser = testAskUserState()
+	m.stream.handler.SetAskUser(&m.askUser)
+	streamCanceled := false
+	m.stream.cancel = func() { streamCanceled = true }
+
+	updated, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+
+	if streamCanceled {
+		t.Fatal("ctrl+c should cancel the questionnaire before interrupting the stream")
+	}
+	if updated.askUser.active() || !updated.stream.handler.IsActive() {
+		t.Fatal("ctrl+c should resolve the questionnaire and leave the stream active")
+	}
+	if cmd != nil {
+		t.Fatal("questionnaire cancellation returned an unexpected command")
 	}
 }
 
@@ -855,6 +877,22 @@ func TestHandleToolStart(t *testing.T) {
 	}
 }
 
+func TestHandleAskUserToolActivityIsRecordedWithoutGenericStatus(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(chan llm.StreamEvent), "Loading...")
+	m := replModel{stream: streamState{handler: sh}, width: 80, output: reploutput.NewOutputBuilder(80, "")}
+	call := &llm.ToolCall{Name: tools.AskUserToolName, Input: map[string]any{"questions": []any{map[string]any{"question": "Pick", "options": []any{"one", "two"}}}}}
+
+	m.handleToolStart(call)
+	m.handleToolEnd(&llm.ToolCall{Name: tools.AskUserToolName, Input: call.Input, Output: map[string]any{"tool": tools.AskUserToolName, "answers": []string{"one"}}})
+	if len(sh.segments) != 2 {
+		t.Fatalf("expected ask_user start and end segments, got %#v", sh.segments)
+	}
+	if got := sh.renderTranscriptLines(); len(got) != 0 {
+		t.Fatalf("expected no generic ask_user status, got %q", got)
+	}
+}
+
 func TestHandleToolStart_BashKeepsSpinnerActive(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	eventCh := make(chan llm.StreamEvent)
@@ -1265,6 +1303,30 @@ func TestHandleLLMIncompleteCancellationOmitsError(t *testing.T) {
 
 	if got := updated.output.Join(); strings.Contains(got, "context canceled") {
 		t.Fatalf("cancellation rendered as an error: %q", got)
+	}
+}
+
+func TestHandleLLMIncompleteClearsAskUser(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.askUser = testAskUserState()
+	m.stream.handler.SetAskUser(&m.askUser)
+
+	updated, _ := m.handleLLMIncomplete(errors.New("response truncated"))
+	if updated.askUser.active() {
+		t.Fatal("incomplete response left questionnaire active")
+	}
+}
+
+func TestHandleLLMErrorClearsAskUser(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan llm.StreamEvent), "Working...")
+	m.askUser = testAskUserState()
+	m.stream.handler.SetAskUser(&m.askUser)
+
+	updated, _ := m.handleLLMError(errors.New("stream failed"))
+	if updated.askUser.active() {
+		t.Fatal("stream error left questionnaire active")
 	}
 }
 
