@@ -149,6 +149,10 @@ providers:
   - id: zai
     name: Z.ai (GLM)
     models:
+      - id: glm-5.3
+        name: GLM-5.3
+        context_window: 1000000
+        thinking_efforts: ["low", "high", "max"]
       - id: glm-5.2
         name: GLM-5.2
         context_window: 1000000
@@ -195,6 +199,10 @@ providers:
         name: GPT-5.6 Luna
         context_window: 1050000
         thinking_efforts: ["none", "low", "medium", "high", "xhigh", "max"]
+      - id: glm-5.3
+        name: GLM-5.3
+        context_window: 1000000
+        thinking_efforts: ["low", "high", "max"]
       - id: glm-5.2
         name: GLM-5.2
         context_window: 1000000
@@ -212,6 +220,10 @@ providers:
       - id: kimi-k2.6
         name: Kimi K2.6
         context_window: 262144
+        thinking_efforts: ["enabled", "disabled"]
+      - id: longcat-2.0
+        name: LongCat-2.0
+        context_window: 1048576
         thinking_efforts: ["enabled", "disabled"]
       - id: mimo-v2.5-pro
         name: MiMo V2.5 Pro

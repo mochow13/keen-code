@@ -674,8 +674,24 @@ func TestOpenAICompatibleClient_OpenCodeGoGLMThinkingEnabled(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatibleClient_OpenCodeGoLongCatThinkingDisabled(t *testing.T) {
+	params := (&OpenAICompatibleClient{
+		provider:       Provider(config.ProviderOpenCodeGo),
+		model:          "longcat-2.0",
+		thinkingEffort: "disabled",
+	}).buildChatParams(nil, nil)
+
+	thinking, ok := params.ExtraFields()["thinking"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected thinking map, got %#v", params.ExtraFields()["thinking"])
+	}
+	if thinking["type"] != "disabled" {
+		t.Fatalf("expected thinking disabled, got %#v", thinking)
+	}
+}
+
 func TestOpenAICompatibleClient_OpenCodeGoReasoningEffortModels(t *testing.T) {
-	for _, model := range []string{"grok-4.5", "glm-5.2", "kimi-k3", "hy3"} {
+	for _, model := range []string{"grok-4.5", "glm-5.2", "glm-5.3", "kimi-k3", "hy3"} {
 		t.Run(model, func(t *testing.T) {
 			params := (&OpenAICompatibleClient{
 				provider:       Provider(config.ProviderOpenCodeGo),
@@ -714,15 +730,19 @@ func TestOpenAICompatibleClient_MoonshotThinkingParameters(t *testing.T) {
 	}
 }
 
-func TestOpenAICompatibleClient_ZAIGLM52ThinkingParameters(t *testing.T) {
-	params := (&OpenAICompatibleClient{
-		provider:       Provider(config.ProviderZAI),
-		model:          "glm-5.2",
-		thinkingEffort: "max",
-	}).buildChatParams(nil, nil)
-	thinking := params.ExtraFields()["thinking"].(map[string]any)
-	if thinking["type"] != "enabled" || params.ReasoningEffort != shared.ReasoningEffort("max") {
-		t.Fatalf("unexpected GLM-5.2 thinking params: thinking=%#v effort=%q", thinking, params.ReasoningEffort)
+func TestOpenAICompatibleClient_ZAIGLM52AndGLM53ThinkingParameters(t *testing.T) {
+	for _, model := range []string{"glm-5.2", "glm-5.3"} {
+		t.Run(model, func(t *testing.T) {
+			params := (&OpenAICompatibleClient{
+				provider:       Provider(config.ProviderZAI),
+				model:          model,
+				thinkingEffort: "max",
+			}).buildChatParams(nil, nil)
+			thinking := params.ExtraFields()["thinking"].(map[string]any)
+			if thinking["type"] != "enabled" || params.ReasoningEffort != shared.ReasoningEffort("max") {
+				t.Fatalf("unexpected %s thinking params: thinking=%#v effort=%q", model, thinking, params.ReasoningEffort)
+			}
+		})
 	}
 }
 

@@ -496,7 +496,7 @@ func openAIThinkingMode(provider Provider, model string) openAIThinkingParamMode
 			return openAIThinkingParamType
 		}
 	case Provider(config.ProviderZAI):
-		if model == "glm-5.2" {
+		if model == "glm-5.2" || model == "glm-5.3" {
 			return openAIThinkingParamToggleAndReasoningEffort
 		}
 		if model == "glm-5.1" {
@@ -509,7 +509,7 @@ func openAIThinkingMode(provider Provider, model string) openAIThinkingParamMode
 		if isOpenCodeGoReasoningEffortModel(model) {
 			return openAIThinkingParamReasoningEffort
 		}
-		if isOpenCodeGoGLMModel(model) || isOpenCodeGoKimiModel(model) {
+		if isOpenCodeGoGLMModel(model) || isOpenCodeGoKimiModel(model) || isOpenCodeGoLongCatModel(model) {
 			return openAIThinkingParamType
 		}
 	}

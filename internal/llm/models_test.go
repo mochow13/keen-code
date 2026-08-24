@@ -335,6 +335,28 @@ func TestNewClient_ZAI(t *testing.T) {
 	}
 }
 
+func TestNewClient_ZAIGLM53(t *testing.T) {
+	client, err := NewClient(&config.ResolvedConfig{
+		Provider:       config.ProviderZAI,
+		Model:          "glm-5.3",
+		APIKey:         "test-api-key",
+		ThinkingEffort: "max",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	oaiClient, ok := client.(*OpenAICompatibleClient)
+	if !ok {
+		t.Fatalf("expected *OpenAICompatibleClient, got %T", client)
+	}
+	if oaiClient.contextWindowTokenCount != 1000000 {
+		t.Fatalf("expected context window 1000000, got %d", oaiClient.contextWindowTokenCount)
+	}
+	if oaiClient.thinkingEffort != "max" {
+		t.Fatalf("expected thinking effort max, got %q", oaiClient.thinkingEffort)
+	}
+}
+
 func TestNewClient_DeepSeek(t *testing.T) {
 	cfg := &config.ResolvedConfig{
 		Provider: "deepseek",

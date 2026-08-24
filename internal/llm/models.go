@@ -189,6 +189,10 @@ func isOpenCodeGoGLMModel(model string) bool {
 	return strings.HasPrefix(model, "glm-")
 }
 
+func isOpenCodeGoLongCatModel(model string) bool {
+	return strings.HasPrefix(model, "longcat-")
+}
+
 func isOpenCodeGoKimiModel(model string) bool {
 	return strings.HasPrefix(model, "kimi-")
 }
@@ -199,7 +203,7 @@ func isOpenCodeGoQwenModel(model string) bool {
 
 func isOpenCodeGoReasoningEffortModel(model string) bool {
 	return model == "grok-4.5" ||
-		model == "glm-5.2" ||
+		model == "glm-5.2" || model == "glm-5.3" ||
 		model == "kimi-k3" ||
 		model == "hy3"
 }
