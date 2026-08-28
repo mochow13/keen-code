@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
@@ -13,10 +14,13 @@ import (
 )
 
 func testAskUserState() askUserState {
-	return askUserState{request: &replaskuser.Request{Questionnaire: tools.AskUserRequest{Questions: []tools.AskUserQuestion{
-		{Question: "Choose one", Options: []string{"Recommended", "Alternative"}},
-		{Question: "Choose two", Options: []string{"First", "Second"}},
-	}}}}
+	return askUserState{
+		input: newAskUserInput(),
+		request: &replaskuser.Request{Questionnaire: tools.AskUserRequest{Questions: []tools.AskUserQuestion{
+			{Question: "Choose one", Options: []string{"Recommended", "Alternative"}},
+			{Question: "Choose two", Options: []string{"First", "Second"}},
+		}}},
+	}
 }
 
 func TestRenderAskUserCardIncludesGuidanceAndRecommendation(t *testing.T) {
@@ -68,7 +72,8 @@ func TestAskUserCustomOptionStartsEditingWhenSelected(t *testing.T) {
 	if !strings.Contains(plain, "› • Type your answer") {
 		t.Fatalf("selected custom option should show a text cursor: %q", plain)
 	}
-	if !strings.Contains(rendered, repltheme.AskUserCursorStyle.Render("T")) {
+	cursorStyle := lipgloss.NewStyle().Foreground(repltheme.TextDimColor).Inline(true).Reverse(true)
+	if !strings.Contains(rendered, cursorStyle.Render("T")) {
 		t.Fatal("text cursor should overlay the first placeholder character")
 	}
 	if !strings.Contains(rendered, styleColorPrefix(repltheme.AskUserCustomStyle)) {
@@ -76,7 +81,7 @@ func TestAskUserCustomOptionStartsEditingWhenSelected(t *testing.T) {
 	}
 
 	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: 'x', Text: "x"})
-	if m.askUser.draft != "x" || !m.askUser.editing {
+	if m.askUser.input.Value() != "x" || !m.askUser.editing {
 		t.Fatalf("selected custom option should accept typing: %#v", m.askUser)
 	}
 }
@@ -101,8 +106,8 @@ func TestAskUserTypingReplacesCustomLabelAndBackspaceEditsDraft(t *testing.T) {
 
 	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: 'h', Text: "h"})
 	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: 'i', Text: "i"})
-	if m.askUser.draft != "hi" || !m.askUser.editing {
-		t.Fatalf("draft = %q, editing = %t", m.askUser.draft, m.askUser.editing)
+	if m.askUser.input.Value() != "hi" || !m.askUser.editing {
+		t.Fatalf("draft = %q, editing = %t", m.askUser.input.Value(), m.askUser.editing)
 	}
 	if got := ansi.Strip(renderAskUserCard(m.askUser, 80)); strings.Contains(got, "Type your answer") || !strings.Contains(got, "› • hi ") || !strings.Contains(got, "Enter submit · Esc cancel") {
 		t.Fatalf("custom answer should replace label: %q", got)
@@ -111,13 +116,14 @@ func TestAskUserTypingReplacesCustomLabelAndBackspaceEditsDraft(t *testing.T) {
 	if !strings.Contains(rendered, styleColorPrefix(repltheme.AskUserTypedStyle)) {
 		t.Fatal("typed custom answer should use the secondary color")
 	}
-	if !strings.Contains(rendered, repltheme.AskUserCursorStyle.Render(" ")) {
+	cursorStyle := lipgloss.NewStyle().Foreground(repltheme.TextDimColor).Inline(true).Reverse(true)
+	if !strings.Contains(rendered, cursorStyle.Render(" ")) {
 		t.Fatal("text cursor should follow the typed answer")
 	}
 
 	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	if m.askUser.draft != "h" {
-		t.Fatalf("draft after backspace = %q, want h", m.askUser.draft)
+	if m.askUser.input.Value() != "h" {
+		t.Fatalf("draft after backspace = %q, want h", m.askUser.input.Value())
 	}
 }
 
@@ -136,6 +142,41 @@ func TestAskUserUpDownNavigateOptions(t *testing.T) {
 	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: tea.KeyUp})
 	if m.askUser.selected != 1 {
 		t.Fatalf("selected after up = %d, want 1", m.askUser.selected)
+	}
+}
+
+func TestAskUserCustomAnswerSupportsArrowKeyEditing(t *testing.T) {
+	m := newTestModel()
+	m.askUser = testAskUserState()
+
+	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: 'b', Text: "b"})
+	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: tea.KeyLeft})
+	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	if got := m.askUser.input.Value(); got != "acb" {
+		t.Fatalf("arrow keys should move the input cursor, got %q, want acb", got)
+	}
+
+	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: tea.KeyRight})
+	m, _ = m.handleAskUserKeyMsg(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	if got := m.askUser.input.Value(); got != "ac" {
+		t.Fatalf("backspace should delete before the cursor, got %q, want ac", got)
+	}
+}
+
+func TestAskUserPasteInsertsIntoCustomAnswer(t *testing.T) {
+	m := newTestModel()
+	m.askUser = testAskUserState()
+
+	m, _ = m.updateNormalMode(tea.PasteMsg{Content: "pasted answer"})
+	if got := m.askUser.input.Value(); got != "pasted answer" {
+		t.Fatalf("paste should fill the custom answer, got %q", got)
+	}
+	if !m.askUser.editing {
+		t.Fatal("paste should switch to editing the custom answer")
+	}
+	if m.textarea.Value() != "" {
+		t.Fatalf("paste should not leak into the main textarea, got %q", m.textarea.Value())
 	}
 }
 

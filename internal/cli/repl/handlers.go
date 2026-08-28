@@ -472,6 +472,7 @@ func (m *replModel) handleSuggestionKeyMsg(keyMsg tea.KeyPressMsg) (bool, replMo
 func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd) {
 	s := &m.askUser
 	question := s.request.Questionnaire.Questions[s.index]
+	var cmd tea.Cmd
 	switch msg.String() {
 	case keyCtrlC, keyEsc:
 		s.resolve(s.requester, true)
@@ -479,27 +480,25 @@ func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd
 		s.move(-1)
 	case keyDown:
 		s.move(1)
-	case "backspace", "ctrl+h":
-		if s.editing && s.draft != "" {
-			s.draft = string([]rune(s.draft)[:len([]rune(s.draft))-1])
-		}
 	case keyEnter:
 		if s.selected < len(question.Options) {
 			if s.answer(question.Options[s.selected]) {
 				s.resolve(s.requester, false)
 			}
 		} else if s.editing {
-			if strings.TrimSpace(s.draft) != "" && s.answer(s.draft) {
+			if value := s.input.Value(); strings.TrimSpace(value) != "" && s.answer(value) {
 				s.resolve(s.requester, false)
 			}
 		} else {
 			s.editing = true
+			s.input.Focus()
 		}
 	default:
-		if msg.Text != "" {
+		if s.editing || msg.Text != "" {
 			s.selected = len(question.Options)
 			s.editing = true
-			s.draft += msg.Text
+			s.input.Focus()
+			s.input, cmd = s.input.Update(msg)
 		}
 	}
 	if s.active() {
@@ -509,7 +508,20 @@ func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd
 	}
 	m.updateViewportContent()
 	m.scrollToBottomIfFollowing()
-	return *m, nil
+	return *m, cmd
+}
+
+func (m *replModel) handleAskUserPasteMsg(msg tea.PasteMsg) (replModel, tea.Cmd) {
+	s := &m.askUser
+	s.selected = len(s.request.Questionnaire.Questions[s.index].Options)
+	s.editing = true
+	s.input.Focus()
+	var cmd tea.Cmd
+	s.input, cmd = s.input.Update(msg)
+	m.stream.handler.SetAskUser(s)
+	m.updateViewportContent()
+	m.scrollToBottomIfFollowing()
+	return *m, cmd
 }
 
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {

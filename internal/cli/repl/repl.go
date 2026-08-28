@@ -681,6 +681,11 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		m.applyWindowSize(msg)
 		return m, nil
 
+	case tea.PasteMsg:
+		if m.askUser.active() {
+			return m.handleAskUserPasteMsg(msg)
+		}
+
 	case tea.KeyPressMsg:
 		if m.inputSelection.hasSelection() {
 			if msg.String() == keyEsc {

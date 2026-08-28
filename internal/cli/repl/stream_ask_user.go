@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
@@ -11,6 +12,9 @@ import (
 )
 
 const askUserHorizontalMargin = 4
+
+// askUserInputPrefixWidth matches the "› • " cursor and bullet prefix used by renderAskUserOption.
+const askUserInputPrefixWidth = 4
 
 type askUserAnswer struct {
 	question string
@@ -23,15 +27,28 @@ type askUserState struct {
 	index     int
 	selected  int
 	answers   []string
-	draft     string
+	input     textinput.Model
 	editing   bool
 	resolved  []askUserAnswer
 	cancelled bool
 	completed bool
 }
 
+func newAskUserInput() textinput.Model {
+	input := textinput.New()
+	input.Prompt = ""
+	input.Placeholder = "Type your answer"
+	var styles textinput.Styles
+	styles.Focused.Text = repltheme.AskUserTypedStyle
+	styles.Focused.Placeholder = repltheme.AskUserCustomStyle
+	styles.Blurred = styles.Focused
+	styles.Cursor.Color = repltheme.TextDimColor
+	input.SetStyles(styles)
+	return input
+}
+
 func (s *askUserState) begin(request *replaskuser.Request) {
-	*s = askUserState{requester: s.requester, request: request}
+	*s = askUserState{requester: s.requester, request: request, input: newAskUserInput()}
 }
 func (s askUserState) active() bool  { return s.request != nil }
 func (s askUserState) visible() bool { return s.active() || s.completed }
@@ -49,6 +66,14 @@ func (s *askUserState) clear() {
 	*s = askUserState{requester: requester}
 }
 
+func (s *askUserState) syncInputFocus() {
+	if s.editing {
+		s.input.Focus()
+	} else {
+		s.input.Blur()
+	}
+}
+
 func (s *askUserState) move(delta int) {
 	if !s.active() {
 		return
@@ -56,12 +81,15 @@ func (s *askUserState) move(delta int) {
 	rows := len(s.request.Questionnaire.Questions[s.index].Options) + 1
 	s.selected = (s.selected + delta + rows) % rows
 	s.editing = s.selected == len(s.request.Questionnaire.Questions[s.index].Options)
+	s.syncInputFocus()
 }
 
 func (s *askUserState) answer(value string) bool {
 	s.answers = append(s.answers, value)
 	s.index++
-	s.selected, s.draft, s.editing = 0, "", false
+	s.selected, s.editing = 0, false
+	s.input.SetValue("")
+	s.input.Blur()
 	return s.index == len(s.request.Questionnaire.Questions)
 }
 
@@ -136,17 +164,15 @@ func renderActiveAskUserCard(content *strings.Builder, s askUserState, width int
 		}
 		content.WriteString(renderAskUserOption(i == s.selected, option+badge, repltheme.NormalStyle, true, width))
 	}
-	custom := "Type your answer"
-	if s.draft != "" {
-		custom = s.draft + repltheme.AskUserCursorStyle.Render(" ")
-	} else if s.editing {
-		custom = repltheme.AskUserCursorStyle.Render("T") + "ype your answer"
-	}
+	customRow := "Type your answer"
 	customStyle := repltheme.AskUserCustomStyle
-	if s.draft != "" {
-		customStyle = repltheme.AskUserTypedStyle
+	if s.editing || s.input.Value() != "" {
+		input := s.input
+		input.SetWidth(max(width-askUserInputPrefixWidth, 1))
+		customRow = input.View()
+		customStyle = lipgloss.NewStyle()
 	}
-	content.WriteString(renderAskUserOption(s.selected == len(question.Options), custom, customStyle, false, width))
+	content.WriteString(renderAskUserOption(s.selected == len(question.Options), customRow, customStyle, false, width))
 	content.WriteString("\n")
 	hint := "↑/↓ navigate · Enter select · Esc cancel"
 	if s.selected == len(question.Options) && s.editing {

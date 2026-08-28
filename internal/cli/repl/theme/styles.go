@@ -191,7 +191,6 @@ var (
 	AskUserProgressStyle        = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
 	AskUserSelectedStyle        = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
 	AskUserCustomStyle          = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
-	AskUserCursorStyle          = AskUserCustomStyle.Reverse(true)
 	AskUserTypedStyle           = lipgloss.NewStyle().Foreground(SecondaryColor)
 	AskUserQuestionStyle        = lipgloss.NewStyle().Foreground(TextPrimaryColor).Bold(true)
 	AskUserResolvedStyle        = AssistantStyle
