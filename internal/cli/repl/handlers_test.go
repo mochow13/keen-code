@@ -519,15 +519,34 @@ func TestHandleKeyMsg_Esc_CancelsCompactionBeforeSuggestions(t *testing.T) {
 	}
 }
 
-func TestHandleKeyMsg_IgnoresTypingDuringCompaction(t *testing.T) {
+func TestHandleKeyMsg_AllowsTypingDuringCompaction(t *testing.T) {
 	m := newTestModel()
 	m.compaction.active = true
 	m.textarea.SetValue("draft")
 
-	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'x', Text: "x"})
 
-	if newM.textarea.Value() != "draft" {
-		t.Fatalf("expected typing to be ignored during compaction, got %q", newM.textarea.Value())
+	if newM.textarea.Value() != "draftx" {
+		t.Fatalf("expected typing to reach the textarea during compaction, got %q", newM.textarea.Value())
+	}
+}
+
+func TestHandleKeyMsg_IgnoresCtrlCDuringCompaction(t *testing.T) {
+	m := newTestModel()
+	m.compaction.active = true
+	m.compaction.mode = compactionManual
+	cancelled := false
+	m.compaction.cancel = func() {
+		cancelled = true
+	}
+
+	newM, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+
+	if cancelled {
+		t.Fatal("expected ctrl+c not to cancel compaction")
+	}
+	if newM.quitting {
+		t.Fatal("expected ctrl+c not to quit during compaction")
 	}
 	if cmd != nil {
 		t.Fatal("expected no cmd while compacting")

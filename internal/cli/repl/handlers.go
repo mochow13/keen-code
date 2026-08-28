@@ -538,11 +538,16 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	}
 
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
-		if keyMsg.String() == keyEsc && m.compaction.cancel != nil {
-			m.compaction.cancel()
-			m.compaction.cancel = nil
+		switch keyMsg.String() {
+		case keyEsc:
+			if m.compaction.cancel != nil {
+				m.compaction.cancel()
+				m.compaction.cancel = nil
+			}
+			return *m, nil
+		case keyCtrlC, keyCtrlD:
+			return *m, nil
 		}
-		return *m, nil
 	}
 	if m.compaction.mode == compactionAutomatic && keyMsg.String() == keyEsc {
 		if m.compaction.cancel != nil {
