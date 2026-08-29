@@ -152,26 +152,12 @@ func TestGlobTool_Execute_GrantedSearch(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	if resultMap["pattern"] != "*.go" {
-		t.Errorf("expected pattern '*.go', got %q", resultMap["pattern"])
-	}
-
 	files, ok := resultMap["files"].([]string)
 	if !ok {
 		t.Fatal("files should be a string slice")
 	}
-
 	if len(files) != 2 {
-		t.Errorf("expected 2 files, got %d", len(files))
-	}
-
-	count, ok := resultMap["count"].(int)
-	if !ok {
-		t.Fatal("count should be an int")
-	}
-
-	if count != 2 {
-		t.Errorf("expected count 2, got %d", count)
+		t.Errorf("expected 2 files, got %#v", resultMap)
 	}
 }
 
@@ -333,14 +319,6 @@ func TestGlobTool_Execute_NoMatches(t *testing.T) {
 		t.Errorf("expected 0 files, got %d", len(files))
 	}
 
-	count, ok := resultMap["count"].(int)
-	if !ok {
-		t.Fatal("count should be an int")
-	}
-
-	if count != 0 {
-		t.Errorf("expected count 0, got %d", count)
-	}
 }
 
 func TestGlobTool_Execute_AbsolutePathPattern(t *testing.T) {

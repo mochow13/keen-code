@@ -323,7 +323,6 @@ func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd)
 
 func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.flushStreamRender()
-	toolCall = sanitizeDelegateToolCall(toolCall)
 	if toolCall != nil && toolCall.Name == tools.AskUserToolName {
 		m.stream.handler.HandleToolEnd(toolCall)
 		return *m, m.waitForAsyncEvent()
@@ -338,25 +337,6 @@ func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 	m.updateViewportContent()
 	m.scrollToBottomIfFollowing()
 	return *m, m.waitForAsyncEvent()
-}
-
-func sanitizeDelegateToolCall(toolCall *llm.ToolCall) *llm.ToolCall {
-	if toolCall == nil || toolCall.Name != "delegate_task" {
-		return toolCall
-	}
-	cloned := *toolCall
-	output, ok := toolCall.Output.(map[string]any)
-	if !ok {
-		return &cloned
-	}
-	clonedOutput := make(map[string]any, 4)
-	for _, key := range []string{"completed", "failed", "completed_by_agent", "failed_by_agent"} {
-		if value, exists := output[key]; exists {
-			clonedOutput[key] = value
-		}
-	}
-	cloned.Output = clonedOutput
-	return &cloned
 }
 
 // extractAtToken scans backwards from cursorPos in input to find a @<token>.

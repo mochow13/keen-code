@@ -159,10 +159,7 @@ func (t *CallMCPTool) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	content := formatMCPContent(result.Content)
-	output := map[string]any{
-		"server": server,
-		"tool":   tool,
-	}
+	output := make(map[string]any)
 
 	if len(content) <= maxInlineMCPResultSize {
 		output["content"] = content
@@ -177,7 +174,6 @@ func (t *CallMCPTool) Execute(ctx context.Context, input any) (any, error) {
 	output["content"] = summary.preview
 	output["truncated"] = true
 	output["artifact_path"] = summary.path
-	output["artifact_size_bytes"] = summary.size
 	return output, nil
 }
 
@@ -244,7 +240,6 @@ func formatMCPContent(content []mcpsdk.Content) string {
 type mcpResultSummary struct {
 	preview string
 	path    string
-	size    int
 }
 
 func summarizeMCPResult(content string) (mcpResultSummary, error) {
@@ -269,7 +264,6 @@ func summarizeMCPResult(content string) (mcpResultSummary, error) {
 	return mcpResultSummary{
 		preview: preview,
 		path:    path,
-		size:    len(data),
 	}, nil
 }
 

@@ -63,11 +63,9 @@ Every displayed line is prefixed with an `N:HASH|` anchor: the 1-based line numb
 **Returns:**
 ```json
 {
-  "path": "/absolute/path/to/file",
   "content": "1:69c|package main\n2:811|\n3:9a9|import \"fmt\"",
-  "bytes_read": 1234,
-  "offset": 1,
-  "limit": 1000,
+  "bytes_read": 34,
+  "lines_read": 3,
   "total_lines": 10,
   "truncated": false
 }
@@ -99,8 +97,6 @@ type WriteFileTool struct {
 **Returns:**
 ```json
 {
-  "path": "/absolute/path/to/file",
-  "bytes_written": 1234,
   "created": true
 }
 ```
@@ -180,13 +176,11 @@ Error: op 2: anchor "42:7f0" not found in file snapshot; re-read the file to obt
 **Returns:**
 ```json
 {
-  "success": true,
-  "path": "/absolute/path/to/file",
-  "replacementCount": 1
+  "edited": true
 }
 ```
 
-`file_changed` is included in the result when the content actually changed. No fresh anchors are returned — call `read_file` again before another same-file edit.
+No fresh anchors are returned — call `read_file` again before another same-file edit.
 
 ## glob
 
@@ -209,10 +203,7 @@ type GlobTool struct {
 **Returns:**
 ```json
 {
-  "pattern": "*.go",
-  "base_path": "/project",
-  "files": ["/project/main.go", "/project/pkg/foo.go"],
-  "count": 2
+  "files": ["/project/main.go", "/project/pkg/foo.go"]
 }
 ```
 
@@ -239,14 +230,10 @@ type GrepTool struct {
 **Returns (content mode):**
 ```json
 {
-  "pattern": "func foo",
-  "base_path": "/project",
-  "output_mode": "content",
   "matches": [
     {"file": "/project/main.go", "line_number": 10, "line": "func foo() {", "line_hash": "719"},
     {"file": "/project/main.go", "line_number": 25, "line": "func foo() error {", "line_hash": "452"}
-  ],
-  "count": 2
+  ]
 }
 ```
 
@@ -286,23 +273,19 @@ When `truncated` is true, the agent should not rerun the same broad command just
 **Returns:**
 ```json
 {
-  "command": "go test ./...",
   "exit_code": 0,
   "stdout": "PASS\nok      github.com/user/keen-code    0.015s",
-  "truncated": false,
-  "summary": "Run Go tests"
+  "truncated": false
 }
 ```
 
 **Returns (truncated output):**
 ```json
 {
-  "command": "grep -R plan.md ~/.keen/sessions",
   "exit_code": 0,
   "stdout": "first preview...\n\n... (1048576 bytes omitted; full stdout saved to /Users/alice/.keen/bash/keen-bash-abc123.stdout) ...\n\nlast preview...",
   "truncated": true,
   "stdout_file": "/Users/alice/.keen/bash/keen-bash-abc123.stdout"
-}
 ```
 
 ## web_fetch
@@ -328,7 +311,6 @@ type WebFetchTool struct{}
 **Returns:**
 ```json
 {
-  "url": "https://example.com",
   "status_code": 200,
   "content": "markdown or raw content..."
 }
@@ -361,8 +343,6 @@ type CallMCPTool struct {
 **Returns:**
 ```json
 {
-  "server": "server-name",
-  "tool": "tool-name",
   "content": "tool output text"
 }
 ```

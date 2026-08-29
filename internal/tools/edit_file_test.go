@@ -273,14 +273,8 @@ func TestEditFileTool_Execute_SingleReplacement(t *testing.T) {
 	}
 
 	resultMap := result.(map[string]any)
-	if resultMap["success"] != true {
-		t.Error("expected success true")
-	}
-	if resultMap["path"] != testFile {
-		t.Errorf("expected path %q, got %v", testFile, resultMap["path"])
-	}
-	if len(resultMap) != 2 {
-		t.Errorf("expected only success and path, got %#v", resultMap)
+	if resultMap["edited"] != true {
+		t.Errorf("expected edited=true, got %#v", resultMap)
 	}
 
 	got, _ := os.ReadFile(testFile)
@@ -315,14 +309,8 @@ func TestEditFileTool_Execute_MultiOpSameFileEdit(t *testing.T) {
 	}
 
 	resultMap := result.(map[string]any)
-	if resultMap["success"] != true {
-		t.Error("expected success true")
-	}
-	if resultMap["path"] != testFile {
-		t.Errorf("expected path %q, got %v", testFile, resultMap["path"])
-	}
-	if len(resultMap) != 2 {
-		t.Errorf("expected only success and path, got %#v", resultMap)
+	if resultMap["edited"] != true {
+		t.Errorf("expected edited=true, got %#v", resultMap)
 	}
 
 	got, _ := os.ReadFile(testFile)
@@ -372,27 +360,6 @@ func TestEditFileTool_Execute_MultiOpEditProducesExpectedDiff(t *testing.T) {
 	if !hasHunk || !removedTwo || !addedTwo || !removedFour || !addedFour {
 		t.Errorf("expected unified diff to cover both ops; hunk=%v two(-%v/+%v) four(-%v/+%v)",
 			hasHunk, removedTwo, addedTwo, removedFour, addedFour)
-	}
-}
-
-func TestEditFileTool_Execute_UnchangedEditReturnsSuccessAndPath(t *testing.T) {
-	tmpDir := t.TempDir()
-	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("same\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	tool := NewEditFileTool(newGuard(tmpDir), &mockDiffEmitter{}, &mockPermissionRequester{allow: true})
-	result, err := tool.Execute(context.Background(), map[string]any{
-		"path": testFile,
-		"ops":  []any{map[string]any{"start": anchorForLine(t, "same\n", 1), "text": "same"}},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	resultMap := result.(map[string]any)
-	if resultMap["success"] != true || resultMap["path"] != testFile || len(resultMap) != 2 {
-		t.Fatalf("expected only success and path, got %#v", result)
 	}
 }
 

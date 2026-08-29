@@ -61,7 +61,7 @@ The current REPL collector retains inputs for `read_file`, `grep`, `glob`, `web_
 
 This means that turn memory can include a bounded portion of file content, replacement text, command text, URLs, MCP wrapper arguments, and other tool inputs. By default, it does **not** include the corresponding tool output merely because the output contains useful metadata. With `/tool-history full`, it additionally retains the complete raw result in memory for future turns in the current session.
 
-In the default mode, `file_changed` and `failed_command` are tool-result fields and are not stored as separate `TurnMemory` fields. A changed file may still be recognizable from a retained `write_file` or `edit_file` input, but the collector does not infer or persist a change outcome. A bash command that runs and exits non-zero is still a successful tool invocation from Keen's perspective, so it is represented as `{"status":"success","exit_code":1}` rather than as a `failed_command` field. A tool execution error is represented as `{"status":"error"}` without the full error text. In full mode, the original result—including error text—is retained as raw output instead.
+In the default mode, a changed file may still be recognizable from a retained `write_file` or `edit_file` input, but the collector does not infer or persist a change outcome. A bash command that runs and exits non-zero is still a successful tool invocation from Keen's perspective, so it is represented as `{"status":"success","exit_code":1}`. A tool execution error is represented as `{"status":"error"}` without the full error text. In full mode, the original result—including error text—is retained as raw output instead.
 
 The distinction between tool error and command failure is intentional:
 

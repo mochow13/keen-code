@@ -121,10 +121,7 @@ func (t *GlobTool) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	return map[string]any{
-		"pattern":   pattern,
-		"base_path": resolvedBasePath,
-		"files":     files,
-		"count":     len(files),
+		"files": files,
 	}, nil
 }
 

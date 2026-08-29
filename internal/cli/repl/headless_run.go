@@ -201,7 +201,6 @@ func handleHeadlessToolEnd(handler *StreamHandler, toolCall *llm.ToolCall) {
 	if toolCall == nil {
 		return
 	}
-	toolCall = sanitizeDelegateToolCall(toolCall)
 	if toolCall.Name == "bash" {
 		handler.HandleBashEnd(toolCall)
 		return

@@ -130,17 +130,15 @@ func (t *ReadFileTool) Execute(ctx context.Context, input any) (any, error) {
 		return nil, err
 	}
 
-	content, totalLines, truncated, err := formatFileContent(rawContent, offset, limit)
+	content, totalLines, linesRead, bytesRead, truncated, err := formatFileContent(rawContent, offset, limit)
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]any{
-		"path":        resolvedPath,
 		"content":     content,
-		"bytes_read":  len(rawContent),
-		"offset":      offset,
-		"limit":       limit,
+		"bytes_read":  bytesRead,
+		"lines_read":  linesRead,
 		"total_lines": totalLines,
 		"truncated":   truncated,
 	}, nil
@@ -211,25 +209,26 @@ func containsNullByte(content []byte) bool {
 	return slices.Contains(content, 0x00)
 }
 
-func formatFileContent(content []byte, offset, limit int) (string, int, bool, error) {
+func formatFileContent(content []byte, offset, limit int) (formatted string, total, linesRead, bytesRead int, truncated bool, err error) {
 	lines := splitRawLines(content)
-	total := len(lines)
+	total = len(lines)
 	if total == 0 {
 		if offset > 1 {
-			return "", total, false, fmt.Errorf("offset %d is out of range for empty file", offset)
+			return "", total, 0, 0, false, fmt.Errorf("offset %d is out of range for empty file", offset)
 		}
-		return "", total, false, nil
+		return "", total, 0, 0, false, nil
 	}
 	if offset > total {
-		return "", total, false, fmt.Errorf("offset %d is out of range for file with %d lines", offset, total)
+		return "", total, 0, 0, false, fmt.Errorf("offset %d is out of range for file with %d lines", offset, total)
 	}
 
 	start := offset - 1
 	end := min(start+limit, total)
-	truncated := end < total
-
-	numbered := make([]string, 0, end-start)
-	for i, line := range lines[start:end] {
+	truncated = end < total
+	selected := lines[start:end]
+	numbered := make([]string, 0, len(selected))
+	for i, line := range selected {
+		bytesRead += len(line)
 		hash := computeLineHash(line)
 		display := string(line)
 		if runes := []rune(display); len(runes) > maxLineLength {
@@ -238,5 +237,5 @@ func formatFileContent(content []byte, offset, limit int) (string, int, bool, er
 		numbered = append(numbered, fmt.Sprintf("%d:%s|%s", start+i+1, hash, display))
 	}
 
-	return strings.Join(numbered, "\n"), total, truncated, nil
+	return strings.Join(numbered, "\n"), total, len(selected), bytesRead, truncated, nil
 }

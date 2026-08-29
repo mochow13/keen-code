@@ -225,8 +225,7 @@ func (t *EditFileTool) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	return map[string]any{
-		"success": true,
-		"path":    resolvedPath,
+		"edited": true,
 	}, nil
 }
 

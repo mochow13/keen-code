@@ -1429,40 +1429,6 @@ func TestHandleCompactionErrorReportsFailureAndFlushesStream(t *testing.T) {
 	}
 }
 
-func TestSanitizeDelegateToolCall(t *testing.T) {
-	original := &llm.ToolCall{Name: "delegate_task", Output: map[string]any{
-		"completed":          2,
-		"failed":             1,
-		"completed_by_agent": map[string]any{"reviewer": 2},
-		"failed_by_agent":    map[string]any{"tester": 1},
-		"results":            []any{"large detail"},
-	}}
-
-	sanitized := sanitizeDelegateToolCall(original)
-	output, ok := sanitized.Output.(map[string]any)
-	if !ok {
-		t.Fatalf("sanitized output type = %T", sanitized.Output)
-	}
-	if len(output) != 4 || output["completed"] != 2 {
-		t.Fatalf("sanitized output = %#v", output)
-	}
-	if _, exists := output["results"]; exists {
-		t.Fatal("sanitized output retained verbose results")
-	}
-	if _, exists := original.Output.(map[string]any)["results"]; !exists {
-		t.Fatal("sanitization mutated original tool call")
-	}
-
-	plain := &llm.ToolCall{Name: "read_file", Output: "content"}
-	if sanitizeDelegateToolCall(plain) != plain || sanitizeDelegateToolCall(nil) != nil {
-		t.Fatal("non-delegate tool call was cloned")
-	}
-	delegateWithText := &llm.ToolCall{Name: "delegate_task", Output: "summary"}
-	if got := sanitizeDelegateToolCall(delegateWithText); got == delegateWithText || got.Output != "summary" {
-		t.Fatal("delegate call with text output was not safely cloned")
-	}
-}
-
 func TestExtractAtToken(t *testing.T) {
 	tests := []struct {
 		name   string

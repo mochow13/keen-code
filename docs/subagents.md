@@ -112,7 +112,7 @@ Keen's existing hard checks still run before approval and cannot be overridden b
 
 > Granting `bash` allows unattended command execution. Configure it only for profiles you trust.
 
-The parent can submit one to ten non-empty tasks in a `delegate_task` call. Tasks run concurrently, and results are returned in input order with per-task status and aggregate completion/failure counts. One task's failure does not cancel sibling tasks; parent context cancellation still propagates to every child. The parent model waits for the full `delegate_task` result before continuing.
+The parent can submit one to ten non-empty tasks in a `delegate_task` call. Tasks run concurrently, and results are returned in input order with per-task status. One task's failure does not cancel sibling tasks; parent context cancellation still propagates to every child. The parent model waits for the full `delegate_task` result before continuing.
 
 Parallel write-capable subagents can conflict. Scheduling, worktree isolation, write coordination, execution budgets, typed handoff contracts, and interactive child permission UX are not currently provided; they remain the user/orchestrator's responsibility.
 

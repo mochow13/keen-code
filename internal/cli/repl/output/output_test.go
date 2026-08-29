@@ -204,20 +204,16 @@ func TestFormatToolDone_DelegateTaskShowsResultCounts(t *testing.T) {
 	}{
 		{
 			name: "success",
-			output: map[string]any{
-				"completed": 3, "failed": 0,
-				"completed_by_agent": map[string]int{"explorer": 2, "reviewer": 1},
-				"failed_by_agent":    map[string]int{},
-			},
+			output: map[string]any{"results": []map[string]any{
+				{"agent": "explorer"}, {"agent": "reviewer"}, {"agent": "explorer"},
+			}},
 			wantStatus: "3 completed (explorer ×2, reviewer ×1)", wantMarker: "✓",
 		},
 		{
 			name: "partial failure",
-			output: map[string]any{
-				"completed": 2, "failed": 1,
-				"completed_by_agent": map[string]int{"explorer": 1, "reviewer": 1},
-				"failed_by_agent":    map[string]int{"explorer": 1},
-			},
+			output: map[string]any{"results": []map[string]any{
+				{"agent": "explorer"}, {"agent": "reviewer"}, {"agent": "explorer", "error": "failed"},
+			}},
 			wantStatus: "2 completed (explorer ×1, reviewer ×1), 1 failed (explorer ×1)", wantMarker: "✗",
 		},
 	}
@@ -342,16 +338,16 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 			name:   "read_file",
 			tool:   "read_file",
 			input:  map[string]any{"path": "go.mod"},
-			output: map[string]any{"total_lines": 42, "bytes_read": 2048, "truncated": false},
+			output: map[string]any{"lines_read": 12, "bytes_read": 768, "total_lines": 42, "truncated": false},
 			contains: []string{
-				"✓ Read", "go.mod", "42 lines", "2.0 KB", "8ms",
+				"✓ Read", "go.mod", "12 lines", "768 bytes", "8ms",
 			},
 		},
 		{
 			name:   "grep",
 			tool:   "grep",
 			input:  map[string]any{"pattern": "foo", "path": "internal"},
-			output: map[string]any{"count": 6, "output_mode": "content"},
+			output: map[string]any{"matches": make([]map[string]any, 6)},
 			contains: []string{
 				"✓ Search", `foo in internal`, "6 matches",
 			},
@@ -360,7 +356,7 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 			name:   "glob",
 			tool:   "glob",
 			input:  map[string]any{"pattern": "**/*.go"},
-			output: map[string]any{"count": 84},
+			output: map[string]any{"files": make([]string, 84)},
 			contains: []string{
 				"✓ Find", "84 files",
 			},
@@ -368,19 +364,10 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 		{
 			name:   "write_file created",
 			tool:   "write_file",
-			input:  map[string]any{"path": "README.md"},
-			output: map[string]any{"created": true, "bytes_written": 512},
+			input:  map[string]any{"path": "README.md", "content": strings.Repeat("x", 512)},
+			output: map[string]any{"created": true},
 			contains: []string{
 				"✓ Write", "created", "512 bytes",
-			},
-		},
-		{
-			name:   "edit_file",
-			tool:   "edit_file",
-			input:  map[string]any{"path": "output.go"},
-			output: map[string]any{"replacementCount": 2},
-			contains: []string{
-				"✓ Edit", "2 replacements",
 			},
 		},
 		{
@@ -689,21 +676,12 @@ func TestCompactDisplayPathBranches(t *testing.T) {
 	}
 }
 
-func TestGenericValueAndAgentCountBranches(t *testing.T) {
+func TestGenericValueBranches(t *testing.T) {
 	if value, ok := formatGenericValue(unknownOutputValue{}); !ok || value != "{…}" {
 		t.Fatalf("formatGenericValue(custom) = %q, %v", value, ok)
 	}
 	if value, ok := formatGenericValue(nil); ok || value != "" {
 		t.Fatalf("formatGenericValue(nil) = %q, %v", value, ok)
-	}
-	if counts, ok := agentCountsValue(map[string]int{"reviewer": 2}); !ok || counts["reviewer"] != 2 {
-		t.Fatalf("agentCountsValue(map[string]int) = %#v, %v", counts, ok)
-	}
-	if counts, ok := agentCountsValue(map[string]any{"reviewer": "two"}); ok || counts != nil {
-		t.Fatalf("agentCountsValue(invalid) = %#v, %v", counts, ok)
-	}
-	if counts, ok := agentCountsValue("invalid"); ok || counts != nil {
-		t.Fatalf("agentCountsValue(string) = %#v, %v", counts, ok)
 	}
 }
 

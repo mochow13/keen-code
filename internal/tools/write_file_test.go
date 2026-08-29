@@ -151,19 +151,8 @@ func TestWriteFileTool_Execute_GrantedWrite(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	if resultMap["path"] != testFile {
-		t.Errorf("expected path %q, got %q", testFile, resultMap["path"])
-	}
-
-	if resultMap["bytes_written"] != len(content) {
-		t.Errorf("expected bytes_written %d, got %v", len(content), resultMap["bytes_written"])
-	}
-
 	if resultMap["created"] != true {
-		t.Errorf("expected created true for new file, got %v", resultMap["created"])
-	}
-	if resultMap["file_changed"] != testFile {
-		t.Errorf("expected file_changed %q, got %v", testFile, resultMap["file_changed"])
+		t.Errorf("expected created=true, got %#v", resultMap)
 	}
 
 	writtenContent, err := os.ReadFile(testFile)
@@ -202,8 +191,8 @@ func TestWriteFileTool_Execute_PendingWrite_Allow(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	if resultMap["bytes_written"] != len(content) {
-		t.Errorf("expected bytes_written %d, got %v", len(content), resultMap["bytes_written"])
+	if resultMap["created"] != true {
+		t.Errorf("expected created=true, got %#v", resultMap)
 	}
 
 	writtenContent, err := os.ReadFile(testFile)
@@ -334,24 +323,6 @@ func TestWriteFileTool_Execute_OverwriteExisting(t *testing.T) {
 	}
 }
 
-func TestWriteFileTool_Execute_UnchangedContentOmitsFileChanged(t *testing.T) {
-	tmpDir := t.TempDir()
-	testFile := filepath.Join(tmpDir, "unchanged.txt")
-	content := "same content"
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	tool := NewWriteFileTool(filesystem.NewGuard(tmpDir, nil), nil, &mockPermissionRequester{allow: true})
-	result, err := tool.Execute(context.Background(), map[string]any{"path": testFile, "content": content})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, ok := result.(map[string]any)["file_changed"]; ok {
-		t.Fatalf("expected unchanged write to omit file_changed, got %#v", result)
-	}
-}
-
 func TestWriteFileTool_Execute_RelativePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := "relative.txt"
@@ -373,11 +344,11 @@ func TestWriteFileTool_Execute_RelativePath(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	expectedPath := filepath.Join(tmpDir, testFile)
-	if resultMap["path"] != expectedPath {
-		t.Errorf("expected path %q, got %q", expectedPath, resultMap["path"])
+	if resultMap["created"] != true {
+		t.Errorf("expected created=true, got %#v", resultMap)
 	}
 
+	expectedPath := filepath.Join(tmpDir, testFile)
 	writtenContent, err := os.ReadFile(expectedPath)
 	if err != nil {
 		t.Fatalf("failed to read written file: %v", err)
@@ -409,8 +380,8 @@ func TestWriteFileTool_Execute_EmptyContent(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	if resultMap["bytes_written"] != 0 {
-		t.Errorf("expected bytes_written 0, got %v", resultMap["bytes_written"])
+	if resultMap["created"] != true {
+		t.Errorf("expected created=true, got %#v", resultMap)
 	}
 
 	writtenContent, err := os.ReadFile(testFile)

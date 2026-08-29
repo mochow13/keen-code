@@ -1,18 +1,18 @@
 package output
 
 import (
+	"charm.land/lipgloss/v2"
+	"encoding/json"
 	"fmt"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	"github.com/mochow13/keen-code/internal/llm"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"charm.land/lipgloss/v2"
-	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
-	"github.com/mochow13/keen-code/internal/llm"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 const (
@@ -167,7 +167,7 @@ func FormatToolStart(toolCall *llm.ToolCall, workingDir string) string {
 
 func FormatToolDone(startCall, endCall *llm.ToolCall, workingDir string) string {
 	detail := formatToolInputDetail(startCall.Name, startCall.Input, workingDir)
-	metadata, failed := formatToolResultMetadata(startCall.Name, endCall)
+	metadata, failed := formatToolResultMetadata(startCall.Name, startCall.Input, endCall)
 	errText := formatToolError(startCall.Name, endCall.Error)
 	if failed {
 		return "  " + renderToolStatus("✗", startCall.Name, toolDisplayName(startCall.Name), detail, metadata, errText, true)
@@ -194,7 +194,7 @@ func FormatSubagentTool(agent string, startCall, endCall *llm.ToolCall, workingD
 }
 
 func FormatToolEnd(toolCall *llm.ToolCall) string {
-	metadata, failed := formatToolResultMetadata(toolCall.Name, toolCall)
+	metadata, failed := formatToolResultMetadata(toolCall.Name, toolCall.Input, toolCall)
 	errText := formatToolError(toolCall.Name, toolCall.Error)
 	if failed {
 		return "  " + renderToolStatus("✗", toolCall.Name, toolDisplayName(toolCall.Name), "", metadata, errText, true)
@@ -361,7 +361,7 @@ func formatGenericValue(value any) (string, bool) {
 	}
 }
 
-func formatToolResultMetadata(toolName string, endCall *llm.ToolCall) ([]string, bool) {
+func formatToolResultMetadata(toolName string, input map[string]any, endCall *llm.ToolCall) ([]string, bool) {
 	if endCall.Error != "" {
 		return withDuration(nil, endCall.Duration), true
 	}
@@ -374,8 +374,8 @@ func formatToolResultMetadata(toolName string, endCall *llm.ToolCall) ([]string,
 		case "grep":
 			metadata = grepMetadata(result)
 		case "glob":
-			if count, ok := intValue(result["count"]); ok {
-				metadata = append(metadata, pluralize(count, "file"))
+			if files, ok := stringSlice(result["files"]); ok {
+				metadata = append(metadata, pluralize(len(files), "file"))
 			}
 		case "write_file":
 			if created, ok := result["created"].(bool); ok {
@@ -385,12 +385,8 @@ func formatToolResultMetadata(toolName string, endCall *llm.ToolCall) ([]string,
 					metadata = append(metadata, "updated")
 				}
 			}
-			if bytes, ok := intValue(result["bytes_written"]); ok {
-				metadata = append(metadata, formatByteCount(bytes))
-			}
-		case "edit_file":
-			if count, ok := intValue(result["replacementCount"]); ok {
-				metadata = append(metadata, pluralize(count, "replacement"))
+			if content, ok := input["content"].(string); ok {
+				metadata = append(metadata, formatByteCount(len(content)))
 			}
 		case "web_fetch":
 			if content, ok := result["content"].(string); ok {
@@ -420,7 +416,7 @@ func formatToolResultMetadata(toolName string, endCall *llm.ToolCall) ([]string,
 
 func readFileMetadata(result map[string]any) []string {
 	var metadata []string
-	if lines, ok := intValue(result["total_lines"]); ok {
+	if lines, ok := intValue(result["lines_read"]); ok {
 		metadata = append(metadata, pluralize(lines, "line"))
 	}
 	if bytes, ok := intValue(result["bytes_read"]); ok {
@@ -430,18 +426,13 @@ func readFileMetadata(result map[string]any) []string {
 }
 
 func grepMetadata(result map[string]any) []string {
-	var metadata []string
-	mode, _ := result["output_mode"].(string)
-	count, ok := intValue(result["count"])
-	if !ok {
-		return metadata
+	if files, ok := stringSlice(result["files"]); ok {
+		return []string{pluralize(len(files), "file")}
 	}
-	if mode == "file" {
-		metadata = append(metadata, pluralize(count, "file"))
-	} else {
-		metadata = append(metadata, pluralize(count, "match"))
+	if matches, ok := sliceLength(result["matches"]); ok {
+		return []string{pluralize(matches, "match")}
 	}
-	return metadata
+	return nil
 }
 
 func delegateTaskSummary(result map[string]any) (string, bool) {
@@ -612,32 +603,49 @@ func delegateResultCounts(output any) (completed, failed int, completedByAgent, 
 	if !ok {
 		return 0, 0, nil, nil, false
 	}
-	completed, completedOK := intValue(result["completed"])
-	failed, failedOK := intValue(result["failed"])
-	completedByAgent, completedAgentsOK := agentCountsValue(result["completed_by_agent"])
-	failedByAgent, failedAgentsOK := agentCountsValue(result["failed_by_agent"])
-	return completed, failed, completedByAgent, failedByAgent, completedOK && failedOK && completedAgentsOK && failedAgentsOK
+	data, err := json.Marshal(result["results"])
+	if err != nil {
+		return 0, 0, nil, nil, false
+	}
+	var results []struct {
+		Agent string `json:"agent"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(data, &results); err != nil {
+		return 0, 0, nil, nil, false
+	}
+	completedByAgent = make(map[string]int)
+	failedByAgent = make(map[string]int)
+	for _, result := range results {
+		if result.Agent == "" {
+			return 0, 0, nil, nil, false
+		}
+		if result.Error != "" {
+			failed++
+			failedByAgent[result.Agent]++
+			continue
+		}
+		completed++
+		completedByAgent[result.Agent]++
+	}
+	return completed, failed, completedByAgent, failedByAgent, true
 }
 
-func agentCountsValue(value any) (map[string]int, bool) {
-	counts := make(map[string]int)
-	switch value := value.(type) {
-	case map[string]int:
-		for agent, count := range value {
-			counts[agent] = count
-		}
-	case map[string]any:
-		for agent, value := range value {
-			count, ok := intValue(value)
-			if !ok {
-				return nil, false
-			}
-			counts[agent] = count
-		}
-	default:
-		return nil, false
+func stringSlice(value any) ([]string, bool) {
+	files, ok := value.([]string)
+	return files, ok
+}
+
+func sliceLength(value any) (int, bool) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return 0, false
 	}
-	return counts, true
+	var items []json.RawMessage
+	if err := json.Unmarshal(data, &items); err != nil {
+		return 0, false
+	}
+	return len(items), true
 }
 
 func formatAgentCounts(agentCounts map[string]int) string {

@@ -120,24 +120,7 @@ func (t *DelegateTool) Execute(ctx context.Context, input any) (any, error) {
 		})
 	}
 	wg.Wait()
-	failed := 0
-	completedByAgent := make(map[string]int)
-	failedByAgent := make(map[string]int)
-	for _, result := range results {
-		if result.Error != "" {
-			failed++
-			failedByAgent[result.Agent]++
-			continue
-		}
-		completedByAgent[result.Agent]++
-	}
-	return map[string]any{
-		"results":            results,
-		"completed":          len(results) - failed,
-		"failed":             failed,
-		"completed_by_agent": completedByAgent,
-		"failed_by_agent":    failedByAgent,
-	}, nil
+	return map[string]any{"results": results}, nil
 }
 
 func (t *DelegateTool) validateAgents(parsed delegateBatchInput) error {

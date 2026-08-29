@@ -185,11 +185,6 @@ func TestWebFetchTool_Execute_LargeResponseSpillsToArtifact(t *testing.T) {
 		t.Fatal("artifact_path missing or empty")
 	}
 
-	artifactSize, ok := output["artifact_size_bytes"].(int)
-	if !ok || artifactSize != len(large) {
-		t.Errorf("artifact_size_bytes = %v, want %d", output["artifact_size_bytes"], len(large))
-	}
-
 	content, ok := output["content"].(string)
 	if !ok || !strings.Contains(content, "...") {
 		t.Error("content preview missing omission marker")

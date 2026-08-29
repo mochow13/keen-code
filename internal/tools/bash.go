@@ -203,13 +203,9 @@ func (t *BashTool) executeCommand(ctx context.Context, command, summary string) 
 	}
 
 	result := map[string]any{
-		"command":   command,
 		"exit_code": exitCode,
 		"stdout":    stdoutResult.content,
 		"truncated": stdoutResult.truncated || stderrResult.truncated,
-	}
-	if exitCode != 0 {
-		result["failed_command"] = command
 	}
 	if stderrResult.content != "" {
 		result["stderr"] = stderrResult.content
@@ -219,10 +215,6 @@ func (t *BashTool) executeCommand(ctx context.Context, command, summary string) 
 	}
 	if stderrResult.file != "" {
 		result["stderr_file"] = stderrResult.file
-	}
-
-	if summary != "" {
-		result["summary"] = summary
 	}
 
 	return result, nil

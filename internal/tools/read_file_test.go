@@ -140,6 +140,9 @@ func TestReadFileTool_Execute_GrantedRead(t *testing.T) {
 	if resultMap["bytes_read"] != len(content) {
 		t.Errorf("expected bytes_read %d, got %v", len(content), resultMap["bytes_read"])
 	}
+	if resultMap["lines_read"] != 1 {
+		t.Errorf("expected lines_read 1, got %v", resultMap["lines_read"])
+	}
 
 	if resultMap["total_lines"] != 1 {
 		t.Errorf("expected total_lines 1, got %v", resultMap["total_lines"])
@@ -464,16 +467,12 @@ func TestReadFileTool_Execute_OffsetAndLimit(t *testing.T) {
 		t.Errorf("expected content %q, got %q", expectedContent, resultMap["content"])
 	}
 
-	if resultMap["offset"] != 2 {
-		t.Errorf("expected offset 2, got %v", resultMap["offset"])
-	}
-
-	if resultMap["limit"] != 2 {
-		t.Errorf("expected limit 2, got %v", resultMap["limit"])
-	}
-
 	if resultMap["total_lines"] != 4 {
 		t.Errorf("expected total_lines 4, got %v", resultMap["total_lines"])
+	}
+
+	if resultMap["lines_read"] != 2 || resultMap["bytes_read"] != len("line two")+len("line three") {
+		t.Errorf("expected 2 lines and 18 bytes read, got %#v", resultMap)
 	}
 
 	if resultMap["truncated"] != true {
@@ -622,6 +621,10 @@ func TestReadFileTool_Execute_EmptyFile(t *testing.T) {
 	}
 	if resultMap["total_lines"] != 0 {
 		t.Errorf("expected total_lines 0, got %v", resultMap["total_lines"])
+	}
+
+	if resultMap["lines_read"] != 0 || resultMap["bytes_read"] != 0 {
+		t.Errorf("expected no content read, got %#v", resultMap)
 	}
 	if resultMap["truncated"] != false {
 		t.Errorf("expected truncated false, got %v", resultMap["truncated"])

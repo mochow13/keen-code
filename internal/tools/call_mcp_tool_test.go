@@ -261,11 +261,6 @@ func TestCallMCPTool_LargeResultSpillsToArtifact(t *testing.T) {
 		t.Fatalf("artifact_path missing or empty")
 	}
 
-	artifactSize, ok := m["artifact_size_bytes"].(int)
-	if !ok || artifactSize != len(largeContent) {
-		t.Errorf("artifact_size_bytes = %v, want %d", m["artifact_size_bytes"], len(largeContent))
-	}
-
 	preview, ok := m["content"].(string)
 	if !ok || !strings.Contains(preview, "...") {
 		t.Errorf("content preview missing omission marker")

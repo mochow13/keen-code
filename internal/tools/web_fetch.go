@@ -111,10 +111,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, input any) (any, error) {
 		}
 	}
 
-	output := map[string]any{
-		"url":         url,
-		"status_code": resp.StatusCode,
-	}
+	output := map[string]any{"status_code": resp.StatusCode}
 	if len(content) <= maxInlineWebFetchSize {
 		output["content"] = content
 		return output, nil
@@ -128,14 +125,12 @@ func (t *WebFetchTool) Execute(ctx context.Context, input any) (any, error) {
 	output["content"] = summary.preview
 	output["truncated"] = true
 	output["artifact_path"] = summary.path
-	output["artifact_size_bytes"] = summary.size
 	return output, nil
 }
 
 type webFetchResultSummary struct {
 	preview string
 	path    string
-	size    int
 }
 
 func summarizeWebFetchResult(content string) (webFetchResultSummary, error) {
@@ -160,7 +155,6 @@ func summarizeWebFetchResult(content string) (webFetchResultSummary, error) {
 	return webFetchResultSummary{
 		preview: preview,
 		path:    path,
-		size:    len(data),
 	}, nil
 }
 

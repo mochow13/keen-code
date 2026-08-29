@@ -173,21 +173,12 @@ func TestGrepTool_Execute_ContentMode(t *testing.T) {
 		t.Fatal("result should be map[string]any")
 	}
 
-	if resultMap["output_mode"] != "content" {
-		t.Errorf("output_mode = %v, want 'content'", resultMap["output_mode"])
-	}
-
 	matches, ok := resultMap["matches"].([]map[string]any)
 	if !ok {
 		t.Fatal("matches should be []map[string]any")
 	}
-
 	if len(matches) != 2 {
-		t.Errorf("len(matches) = %d, want 2", len(matches))
-	}
-
-	if resultMap["count"] != 2 {
-		t.Errorf("count = %v, want 2", resultMap["count"])
+		t.Errorf("expected 2 matches, got %#v", resultMap)
 	}
 }
 
@@ -374,21 +365,12 @@ func TestGrepTool_Execute_FileMode(t *testing.T) {
 		t.Fatal("result should be map[string]any")
 	}
 
-	if resultMap["output_mode"] != "file" {
-		t.Errorf("output_mode = %v, want 'file'", resultMap["output_mode"])
-	}
-
 	files, ok := resultMap["files"].([]string)
 	if !ok {
 		t.Fatal("files should be []string")
 	}
-
 	if len(files) != 2 {
-		t.Errorf("len(files) = %d, want 2", len(files))
-	}
-
-	if resultMap["count"] != 2 {
-		t.Errorf("count = %v, want 2", resultMap["count"])
+		t.Errorf("expected 2 files, got %#v", resultMap)
 	}
 }
 
@@ -414,10 +396,6 @@ func TestGrepTool_Execute_DefaultContentMode(t *testing.T) {
 	resultMap, ok := result.(map[string]any)
 	if !ok {
 		t.Fatal("result should be map[string]any")
-	}
-
-	if resultMap["output_mode"] != "content" {
-		t.Errorf("output_mode = %v, want 'content'", resultMap["output_mode"])
 	}
 
 	matches, ok := resultMap["matches"].([]map[string]any)
@@ -553,9 +531,6 @@ func TestGrepTool_Execute_NoMatches(t *testing.T) {
 		t.Errorf("len(matches) = %d, want 0", len(matches))
 	}
 
-	if resultMap["count"] != 0 {
-		t.Errorf("count = %v, want 0", resultMap["count"])
-	}
 }
 
 func TestGrepTool_Execute_BinaryFileSkipped(t *testing.T) {
@@ -640,8 +615,8 @@ func TestGrepTool_Execute_PendingSearch_Allow(t *testing.T) {
 		t.Fatal("result should be map[string]any")
 	}
 
-	if resultMap["count"] != 1 {
-		t.Errorf("count = %v, want 1", resultMap["count"])
+	if matches, ok := resultMap["matches"].([]map[string]any); !ok || len(matches) != 1 {
+		t.Errorf("matches = %#v, want one match", resultMap["matches"])
 	}
 }
 
@@ -799,22 +774,9 @@ func TestGrepTool_Execute_LargeFileSkipped(t *testing.T) {
 	input := map[string]any{
 		"pattern": "x",
 	}
-	result, err := tool.Execute(ctx, input)
+	_, err = tool.Execute(ctx, input)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	resultMap, ok := result.(map[string]any)
-	if !ok {
-		t.Fatal("result should be map[string]any")
-	}
-
-	count, ok := resultMap["count"].(int)
-	if !ok {
-		t.Fatalf("count should be int, got %T", resultMap["count"])
-	}
-
-	if count != 0 {
-		t.Errorf("count = %d, want 0 (large file should be skipped)", count)
-	}
 }

@@ -427,11 +427,9 @@ func TestStreamHandler_DelegateTaskShowsBatchAndPartialFailure(t *testing.T) {
 	sh.HandleToolEnd(&llm.ToolCall{
 		Name:  "delegate_task",
 		Input: input,
-		Output: map[string]any{
-			"completed": 2, "failed": 1,
-			"completed_by_agent": map[string]int{"explorer": 1, "reviewer": 1},
-			"failed_by_agent":    map[string]int{"explorer": 1},
-		},
+		Output: map[string]any{"results": []map[string]any{
+			{"agent": "explorer"}, {"agent": "reviewer"}, {"agent": "explorer", "error": "failed"},
+		}},
 	})
 	view = sh.View(120)
 	want := "2 completed (explorer ×1, reviewer ×1), 1 failed (explorer ×1)"

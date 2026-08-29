@@ -394,20 +394,7 @@ func (s *fileSearcher) scanContentForMatches(path string, content []byte) ([]map
 
 func (t *GrepTool) formatResult(config *searchConfig, result *searchResult) any {
 	if config.outputMode == "file" {
-		return map[string]any{
-			"pattern":     config.pattern,
-			"base_path":   config.basePath,
-			"output_mode": config.outputMode,
-			"files":       result.files,
-			"count":       len(result.files),
-		}
+		return map[string]any{"files": result.files}
 	}
-
-	return map[string]any{
-		"pattern":     config.pattern,
-		"base_path":   config.basePath,
-		"output_mode": config.outputMode,
-		"matches":     result.matches,
-		"count":       len(result.matches),
-	}
+	return map[string]any{"matches": result.matches}
 }

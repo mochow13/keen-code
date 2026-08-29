@@ -222,38 +222,10 @@ func TestBashTool_Execute_InvalidCommand(t *testing.T) {
 	if resultMap["exit_code"] == 0 {
 		t.Error("expected non-zero exit code for invalid command")
 	}
-	if resultMap["failed_command"] != "nonexistentcommand12345" {
-		t.Errorf("expected failed command in result, got %v", resultMap["failed_command"])
-	}
 
 	stderr := resultMap["stderr"].(string)
 	if stderr == "" {
 		t.Error("expected stderr to contain error message")
-	}
-}
-
-func TestBashTool_Execute_WithSummary(t *testing.T) {
-	tempDir := t.TempDir()
-	guard := filesystem.NewGuard(tempDir, nil)
-	mockPR := &mockBashPermissionRequester{allow: true}
-	tool := NewBashTool(guard, mockPR)
-
-	result, err := tool.Execute(context.Background(), map[string]any{
-		"command": "echo test",
-		"summary": "Print test message",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	resultMap, ok := result.(map[string]any)
-	if !ok {
-		t.Fatal("result should be a map")
-	}
-
-	summary, ok := resultMap["summary"].(string)
-	if !ok || summary != "Print test message" {
-		t.Errorf("expected summary 'Print test message', got %v", resultMap["summary"])
 	}
 }
 
@@ -386,9 +358,6 @@ func TestBashTool_Execute_OmitsStderrForSuccessfulCommand(t *testing.T) {
 	}
 	if resultMap["exit_code"] != 0 {
 		t.Fatalf("expected exit code 0, got %v", resultMap["exit_code"])
-	}
-	if _, ok := resultMap["failed_command"]; ok {
-		t.Fatal("failed_command should be omitted for successful commands")
 	}
 	if _, ok := resultMap["stderr"]; ok {
 		t.Fatal("stderr should be omitted for successful commands")
@@ -591,7 +560,7 @@ func TestBashTool_Execute_ResultStructure(t *testing.T) {
 		t.Fatal("result should be a map")
 	}
 
-	requiredFields := []string{"command", "exit_code", "stdout", "truncated"}
+	requiredFields := []string{"exit_code", "stdout", "truncated"}
 	for _, field := range requiredFields {
 		if _, ok := resultMap[field]; !ok {
 			t.Errorf("result should contain %s field", field)
@@ -599,14 +568,6 @@ func TestBashTool_Execute_ResultStructure(t *testing.T) {
 	}
 	if _, ok := resultMap["stderr"]; ok {
 		t.Error("result should not contain stderr when command writes no stderr")
-	}
-
-	if resultMap["command"] != "echo hello" {
-		t.Errorf("expected command 'echo hello', got %v", resultMap["command"])
-	}
-
-	if resultMap["summary"] != "Test command" {
-		t.Errorf("expected summary 'Test command', got %v", resultMap["summary"])
 	}
 }
 

@@ -124,15 +124,6 @@ func TestDelegateTool_ExecutePassesTasksToRunner(t *testing.T) {
 	if len(results) != 1 || !reflect.DeepEqual(results[0].Result, runner.result) {
 		t.Fatalf("results = %#v, want runner result", results)
 	}
-	if output["completed"] != 1 || output["failed"] != 0 {
-		t.Fatalf("counts = completed:%v failed:%v, want 1 and 0", output["completed"], output["failed"])
-	}
-	if !reflect.DeepEqual(output["completed_by_agent"], map[string]int{"explorer": 1}) {
-		t.Fatalf("completed_by_agent = %#v, want explorer:1", output["completed_by_agent"])
-	}
-	if !reflect.DeepEqual(output["failed_by_agent"], map[string]int{}) {
-		t.Fatalf("failed_by_agent = %#v, want empty", output["failed_by_agent"])
-	}
 }
 
 func TestDelegateTool_AssignsPerAgentInstancePositions(t *testing.T) {
@@ -218,15 +209,6 @@ func TestDelegateTool_ExecuteReturnsPerTaskErrors(t *testing.T) {
 	}
 	if !reflect.DeepEqual(results[0].Result, runner.result) {
 		t.Fatalf("result = %#v, want %#v", results[0].Result, runner.result)
-	}
-	if output["completed"] != 0 || output["failed"] != 1 {
-		t.Fatalf("counts = completed:%v failed:%v, want 0 and 1", output["completed"], output["failed"])
-	}
-	if !reflect.DeepEqual(output["completed_by_agent"], map[string]int{}) {
-		t.Fatalf("completed_by_agent = %#v, want empty", output["completed_by_agent"])
-	}
-	if !reflect.DeepEqual(output["failed_by_agent"], map[string]int{"explorer": 1}) {
-		t.Fatalf("failed_by_agent = %#v, want explorer:1", output["failed_by_agent"])
 	}
 }
 
