@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.1] - 2026-08-29
+
+### Fixed
+- Make manual compaction accept typed input, and make custom ask-user responses fully editable.
+- Return only tool-result data discovered during execution and show read-file metadata for the returned slice.
+
 ## [0.50.0] - 2026-08-25
 
 ### Added
@@ -933,7 +939,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.50.1...HEAD
+[0.50.1]: https://github.com/mochow13/keen-code/compare/v0.50.0...v0.50.1
 [0.50.0]: https://github.com/mochow13/keen-code/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/mochow13/keen-code/compare/v0.48.1...v0.49.0
 [0.48.1]: https://github.com/mochow13/keen-code/compare/v0.48.0...v0.48.1
