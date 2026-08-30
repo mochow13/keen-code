@@ -80,6 +80,55 @@ func TestRenderViewAndTranscriptHandleStandaloneToolEnd(t *testing.T) {
 	}
 }
 
+func TestRenderFoldsOnlyConsecutiveReadsOfSameFile(t *testing.T) {
+	read := func(path string, lines, bytes int) []streamSegment {
+		return []streamSegment{
+			{kind: segmentToolStart, toolCall: &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": path}}},
+			{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "read_file", Output: map[string]any{"lines_read": lines, "bytes_read": bytes}}},
+		}
+	}
+
+	handler := NewStreamHandler(nil)
+	handler.lastWidth = 120
+	handler.segments = append(handler.segments, read("same.go", 10, 100)...)
+	handler.segments = append(handler.segments, read("same.go", 5, 50)...)
+	handler.segments = append(handler.segments, read("other.go", 2, 20)...)
+	handler.segments = append(handler.segments, read("same.go", 1, 10)...)
+
+	for _, rendered := range []string{
+		ansi.Strip(strings.Join(handler.renderViewLines(120), "\n")),
+		ansi.Strip(strings.Join(handler.renderTranscriptLines(), "\n")),
+	} {
+		if strings.Count(rendered, "same.go") != 2 {
+			t.Fatalf("expected consecutive reads to fold without crossing other.go: %q", rendered)
+		}
+		for _, want := range []string{"2 chunks", "15 lines", "150 bytes", "other.go"} {
+			if !strings.Contains(rendered, want) {
+				t.Fatalf("rendered output %q missing %q", rendered, want)
+			}
+		}
+	}
+}
+
+func TestConsecutiveReadCallsRequireSuccessfulAdjacentPairs(t *testing.T) {
+	segments := []streamSegment{
+		{kind: segmentToolStart, toolCall: &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
+		{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "read_file"}},
+		{kind: segmentAssistant, content: "between"},
+		{kind: segmentToolStart, toolCall: &llm.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
+		{kind: segmentToolEnd, toolCall: &llm.ToolCall{Name: "read_file", Error: "failed"}},
+	}
+
+	calls, endIndex := consecutiveReadCalls(segments, 0)
+	if len(calls) != 1 || endIndex != 1 {
+		t.Fatalf("consecutiveReadCalls = %d calls ending at %d", len(calls), endIndex)
+	}
+	calls, _ = consecutiveReadCalls(segments, 3)
+	if len(calls) != 0 {
+		t.Fatalf("failed read should not fold: %d calls", len(calls))
+	}
+}
+
 func TestRenderDiffBoundaryBranches(t *testing.T) {
 	if lines := renderDiffSegment(&streamSegment{}, 20); lines != nil {
 		t.Fatalf("empty diff segment = %#v", lines)

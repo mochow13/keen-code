@@ -52,11 +52,16 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 		}
 	}
 
-	for i := range sh.segments {
+	for i := 0; i < len(sh.segments); i++ {
 		seg := &sh.segments[i]
 		switch seg.kind {
 		case segmentToolStart:
 			if seg.toolCall != nil && seg.toolCall.Name == tools.AskUserToolName {
+				continue
+			}
+			if endCalls, endIndex := consecutiveReadCalls(sh.segments, i); len(endCalls) > 1 {
+				lines = append(lines, renderToolStatusLines(reploutput.FormatFoldedReads(seg.toolCall, endCalls, sh.workingDir), width)...)
+				i = endIndex
 				continue
 			}
 			if seg.toolCall != nil {
@@ -118,11 +123,16 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 func (sh *StreamHandler) renderTranscriptLines() []string {
 	lines := make([]string, 0)
 
-	for i := range sh.segments {
+	for i := 0; i < len(sh.segments); i++ {
 		seg := &sh.segments[i]
 		switch seg.kind {
 		case segmentToolStart:
 			if seg.toolCall != nil && seg.toolCall.Name == tools.AskUserToolName {
+				continue
+			}
+			if endCalls, endIndex := consecutiveReadCalls(sh.segments, i); len(endCalls) > 1 {
+				lines = append(lines, renderToolStatusLines(reploutput.FormatFoldedReads(seg.toolCall, endCalls, sh.workingDir), sh.lastWidth)...)
+				i = endIndex
 				continue
 			}
 			if seg.toolCall != nil {
@@ -177,6 +187,35 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 	}
 
 	return lines
+}
+
+func consecutiveReadCalls(segments []streamSegment, startIndex int) ([]*llm.ToolCall, int) {
+	if startIndex >= len(segments) || segments[startIndex].kind != segmentToolStart {
+		return nil, startIndex
+	}
+	startCall := segments[startIndex].toolCall
+	if startCall == nil || startCall.Name != "read_file" {
+		return nil, startIndex
+	}
+	path, _ := startCall.Input["path"].(string)
+
+	var endCalls []*llm.ToolCall
+	endIndex := startIndex
+	for i := startIndex; i+1 < len(segments); i += 2 {
+		start := segments[i]
+		end := segments[i+1]
+		if start.kind != segmentToolStart || start.toolCall == nil || start.toolCall.Name != "read_file" ||
+			end.kind != segmentToolEnd || end.toolCall == nil || end.toolCall.Name != "read_file" || end.toolCall.Error != "" {
+			break
+		}
+		readPath, _ := start.toolCall.Input["path"].(string)
+		if readPath != path {
+			break
+		}
+		endCalls = append(endCalls, end.toolCall)
+		endIndex = i + 1
+	}
+	return endCalls, endIndex
 }
 
 func (sh *StreamHandler) shouldHideToolStart(index int) bool {

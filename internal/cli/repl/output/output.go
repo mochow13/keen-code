@@ -175,6 +175,33 @@ func FormatToolDone(startCall, endCall *llm.ToolCall, workingDir string) string 
 	return "  " + renderToolStatus("✓", startCall.Name, toolDisplayName(startCall.Name), detail, metadata, errText, false)
 }
 
+func FormatFoldedReads(startCall *llm.ToolCall, endCalls []*llm.ToolCall, workingDir string) string {
+	detail := formatToolInputDetail(startCall.Name, startCall.Input, workingDir)
+	metadata := []string{pluralize(len(endCalls), "chunk")}
+	linesRead := 0
+	bytesRead := 0
+	var duration time.Duration
+	for _, endCall := range endCalls {
+		if result, ok := endCall.Output.(map[string]any); ok {
+			if lines, ok := intValue(result["lines_read"]); ok {
+				linesRead += lines
+			}
+			if bytes, ok := intValue(result["bytes_read"]); ok {
+				bytesRead += bytes
+			}
+		}
+		duration += endCall.Duration
+	}
+	if linesRead > 0 {
+		metadata = append(metadata, pluralize(linesRead, "line"))
+	}
+	if bytesRead > 0 {
+		metadata = append(metadata, formatByteCount(bytesRead))
+	}
+	metadata = withDuration(metadata, duration)
+	return "  " + renderToolStatus("✓", startCall.Name, toolDisplayName(startCall.Name), detail, metadata, nil, false)
+}
+
 func FormatSubagentTool(agent string, startCall, endCall *llm.ToolCall, workingDir string) string {
 	prefix := "[" + agent + "] "
 	if startCall == nil {
