@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-09-01
+
+### Added
+- Add GLM-5.3 Flash to the Z.ai and OpenCode Go providers with a 1M context window and low/high/max thinking efforts.
+- Fold consecutive reads of the same file in the REPL into one status line so multi-offset reads stay readable.
 ## [0.50.1] - 2026-08-29
 
 ### Fixed
@@ -939,7 +944,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.50.1...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/mochow13/keen-code/compare/v0.50.1...v0.51.0
 [0.50.1]: https://github.com/mochow13/keen-code/compare/v0.50.0...v0.50.1
 [0.50.0]: https://github.com/mochow13/keen-code/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/mochow13/keen-code/compare/v0.48.1...v0.49.0
