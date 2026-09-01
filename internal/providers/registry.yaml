@@ -149,6 +149,10 @@ providers:
   - id: zai
     name: Z.ai (GLM)
     models:
+      - id: glm-5.3-flash
+        name: GLM-5.3 Flash
+        context_window: 1000000
+        thinking_efforts: ["low", "high", "max"]
       - id: glm-5.3
         name: GLM-5.3
         context_window: 1000000
@@ -199,6 +203,10 @@ providers:
         name: GPT-5.6 Luna
         context_window: 1050000
         thinking_efforts: ["none", "low", "medium", "high", "xhigh", "max"]
+      - id: glm-5.3-flash
+        name: GLM-5.3 Flash
+        context_window: 1000000
+        thinking_efforts: ["low", "high", "max"]
       - id: glm-5.3
         name: GLM-5.3
         context_window: 1000000
