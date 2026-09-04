@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-09-05
+
 ### Added
 - Make `call_mcp_tool` cache successful responses behind `checkCache`: results up to 16 KiB in a session-scoped in-memory LRU (512 entries), larger ones on disk as `~/.keen/mcp-artifacts/keen-mcp-<hash>.txt` shared with artifacts and `/cleanup` retention. Cache hits skip the permission prompt; large cached results keep the preview plus `artifact_path` shape.
 
-## [0.51.0] - 2026-09-01
+### Changed
+- Centralize tool-name literals into shared constants in `internal/tools`.
+- Refresh the README feature list (MCP, skill-driven MCP, subagents, memory, queuing, adversarial review, headless mode, hashline editing), rework the skills description, and remove the outdated telemetry section.
+- Document headless mode (`keen run`) flags, progress output, and completion signals in `docs/cli-usage.md`.
+- Bump `google.golang.org/grpc` from 1.82.1 to 1.83.1.
 
 ### Added
 - Add GLM-5.3 Flash to the Z.ai and OpenCode Go providers with a 1M context window and low/high/max thinking efforts.
@@ -947,7 +953,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.51.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.52.0...HEAD
+[0.52.0]: https://github.com/mochow13/keen-code/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/mochow13/keen-code/compare/v0.50.1...v0.51.0
 [0.50.1]: https://github.com/mochow13/keen-code/compare/v0.50.0...v0.50.1
 [0.50.0]: https://github.com/mochow13/keen-code/compare/v0.49.0...v0.50.0
