@@ -41,7 +41,6 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 - [Run Keen](#run-keen)
 - [Supported Providers](#supported-providers)
 - [Built-in Tools](#built-in-tools)
-- [Telemetry](#telemetry)
 - [How Keen Handles Context](#how-keen-handles-context)
 - [Further Reading](#further-reading)
 
@@ -49,12 +48,21 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 ## Features
 
 - **Multi-provider** — Anthropic, OpenAI, Codex (via OAuth), Gemini, DeepSeek, Kimi, GLM, MiniMax, OpenCode Go, and Amazon Bedrock. Switch with `/model`. More providers will be added in the future.
-- **6 minimal tools** — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`. Deliberately lean.
-- **Skills system** — Specialized workflows for planning, debugging, refactoring, code review, and more.
+- **10 built-in tools** — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_fetch`, `ask_user`, `delegate_task`, and `call_mcp_tool`. Core coding tools stay deliberately lean.
+- **Hashline editing** — `read_file` prefixes every line with an `N:HASH|` anchor (line number + 3-character FNV-1a hash of the line), and `edit_file` applies a multi-op `ops[]` array validated against one file snapshot, atomically — stale anchors are rejected instead of editing drifted content. Inspired by [pi-hashline-edit](https://pi.dev/packages/pi-hashline-edit).
+- **MCP (Model Context Protocol)** — Connect external tool providers from `~/.keen/mcp/configs.json` over streamable HTTP or stdio, with `none`, `api_key`, or browser-based `oauth` auth. Connect and inspect servers with `/mcp`. See [docs/mcp-servers.md](docs/mcp-servers.md).
+- **Skill-driven MCP servers** — Each connected MCP server generates an ordinary skill (`mcp:<server>`) with a tool table and JSON schemas, so tool discovery stays prompt-efficient and detailed schemas load on demand. No tool-search-tool needed to discover MCP tools. See [docs/mcp-skills.md](docs/mcp-skills.md).
+- **Skills system** — User-defined skills discovered from project and home directories (`.agents/skills`, `.keen/skills`, `.claude/skills`), activated as slash commands and managed with `/skills`. Bundled `commit` and `review` utility skills ship out of the box. See [docs/skills-system.md](docs/skills-system.md).
+- **Subagents** — Define focused profiles as markdown files in `.agents/agents/` (project or home) with their own provider, model, thinking effort, and permissions. The main agent delegates up to 10 bounded tasks in parallel with `delegate_task`. See [docs/subagents.md](docs/subagents.md).
+- **Persistent memory** — Global (`~/.keen/memory/global/MEMORY.md`) and project (`.keen/MEMORY.md`) markdown files are loaded into the system prompt every session; the agent records to them when you ask it to remember. Manage with `/memory`. See [docs/memory.md](docs/memory.md).
 - **Thinking mode** — Extended reasoning for complex tasks. Use `/thinking` to change the thinking effort level for the current model. All models that support thinking can be configured.
 - **Session management** — Persistent sessions with resume capability.
+- **Context compaction** — Summarize the conversation into a smaller continuation context with `/compact`, or let Keen compact automatically when the context approaches the model's budget. See [docs/compaction.md](docs/compaction.md).
 - **Configurable tool history** — Lean cross-turn `TurnMemory` summaries by default; use `/tool-history full` to retain full tool outputs for future turns. More information can be found in [docs/turn-memory.md](docs/turn-memory.md).
-- **User-triggered compaction** - When the context window is nearing the limit, use `/compact` to compact the context.
+- **Adversarial review and side questions** — Run a separately-configured second model as an adversarial critic of the main agent's work with `/adversary`, and ask quick side questions with `/btw` without touching the main conversation. See [docs/cli-usage.md](docs/cli-usage.md).
+- **Input queuing** — Prompts and skill activations typed while the agent streams are queued, previewed, and submitted one at a time as turns complete. Clear the queue with `/emptyq`. See [docs/queuing.md](docs/queuing.md).
+- **Headless mode** — Run a non-interactive turn with `keen run "<prompt>"`, with `--format json` output, provider/model overrides, `--completion-signal` gating, and `--session` resume. See [docs/cli-usage.md#headless-mode-keen-run](docs/cli-usage.md#headless-mode-keen-run).
+- **Permission system** — Filesystem access is guard-checked: working-directory paths pass, sensitive paths prompt for approval, and system or `.gitignore` paths are denied. Always-allow tools with `/allow-permission`. See [docs/permission-system.md](docs/permission-system.md).
 
 ## Screenshots
 
@@ -96,14 +104,6 @@ Keen Code is also an experiment to play with the *new way of working* where engi
     </td>
   </tr>
 </table>
-
-## Telemetry
-
-Keen Code collects two minimal anonymous usage events for actual interactive and headless coding sessions: `keen_session_start` and `keen_session_end`. Help, version, and invalid command invocations are not counted. The events contain a random resettable installation ID, a session ID, Keen version, OS, architecture, interactive/headless mode, and session duration in milliseconds. Google Analytics derives coarse country from the request connection, so no separate country event or country value is sent.
-
-Keen Code never sends prompts, responses, code, paths, commands, repository details, model/provider details, or raw errors. Set `KEEN_TELEMETRY=off` or `DO_NOT_TRACK=1` to disable telemetry. It is also disabled automatically in CI.
-
-Telemetry delivery is fail-silent. The session-start event is emitted asynchronously, and the session-end event is emitted on normal exit. Each event has a one-second timeout. Forced termination, crashes, and network failures can still prevent delivery.
 
 
 ## How Keen Handles Context
@@ -244,6 +244,10 @@ Keen Code aims to support minimal set of useful tools for coding. Currently, the
 - `write_file` — create or overwrite files
 - `edit_file` — hash-anchored multi-op edits (`LINE:HASH` anchors in one `ops` array, applied atomically)
 - `bash` — run shell commands
+- `web_fetch` — fetch a URL and return the content as text (HTML converted to Markdown)
+- `ask_user` — ask the interactive user clarification questions with preselected recommendations
+- `delegate_task` — delegate up to 10 bounded tasks to named subagents and run them in parallel
+- `call_mcp_tool` — call a tool on a connected MCP (Model Context Protocol) server
 
 ## Further Reading
 

@@ -389,3 +389,39 @@ Terminal session recordings (`.cast` files) can be converted to animated GIFs fo
 ```bash
 agg --renderer fontdue --font-family "Cascadia Code" --font-size 18 --line-height 1.2 --speed 2 input.cast output.gif
 ```
+
+## Headless Mode (`keen run`)
+
+`keen run` executes a single non-interactive turn and exits. It runs the same agent loop, tools, MCP servers, and permission prompts as the interactive REPL, but prints the result to stdout instead of starting the TUI:
+
+```bash
+keen run "Summarize the changes in the working tree"
+```
+
+Piped stdin is appended to the prompt:
+
+```bash
+cat error.log | keen run "Explain this error"
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--format <text\|json>` | Output format. `text` (default) prints the final response to stdout; `json` prints a JSON object with the response, session ID, and token usage |
+| `--session <id>` | Resume an existing Keen session instead of starting a new one |
+| `--provider <id>` | Override the configured provider for this run |
+| `--model <id>` | Override the configured model for this run |
+| `--completion-signal <str>` | Exit 0 only if the response contains `<str>`; exit 2 if it is missing |
+
+### Progress and errors
+
+While the turn is in flight, live text chunks and tool completion lines stream to **stderr**, so stdout stays clean for piping in both formats. MCP startup failures are reported to stderr as warnings and the run continues without MCP tools.
+
+### Completion signals
+
+`--completion-signal` supports autonomous loops (e.g. Ralph-style harnesses): the process exits 0 when the marker is present in the response, and exits 2 (with an unprefixed stderr message) when it is missing, so the loop can decide to continue:
+
+```bash
+keen run --completion-signal "BUILD PASSED" "Fix the failing tests. End with BUILD PASSED only when the suite is green."
+```
