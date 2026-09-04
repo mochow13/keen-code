@@ -14,16 +14,16 @@ import (
 const maxHistoricalToolInputFieldBytes = 4 * 1024
 
 var retainedHistoricalToolInputs = map[string]struct{}{
-	"read_file":           {},
-	"grep":                {},
-	"glob":                {},
-	"web_fetch":           {},
-	"bash":                {},
-	"delegate_task":       {},
-	"call_mcp_tool":       {},
-	"write_file":          {},
-	"edit_file":           {},
-	tools.AskUserToolName: {},
+	tools.ReadFileToolName:  {},
+	tools.GrepToolName:      {},
+	tools.GlobToolName:      {},
+	tools.WebFetchToolName:  {},
+	tools.BashToolName:      {},
+	tools.DelegateToolName:  {},
+	tools.CallMCPToolName:   {},
+	tools.WriteFileToolName: {},
+	tools.EditFileToolName:  {},
+	tools.AskUserToolName:   {},
 }
 
 type turnMemoryAccumulator struct {
@@ -92,7 +92,7 @@ func historicalToolActivity(toolCall *llm.ToolCall, textOffset int, workingDir, 
 				input["path"] = relativizePath(path, workingDir)
 			}
 		}
-		if toolCall.Name == "bash" && bashCommand != "" {
+		if toolCall.Name == tools.BashToolName && bashCommand != "" {
 			input = cloneToolInput(input)
 			input["command"] = bashCommand
 		}
@@ -103,7 +103,7 @@ func historicalToolActivity(toolCall *llm.ToolCall, textOffset int, workingDir, 
 		}
 	}
 
-	if toolCall.Name == "bash" {
+	if toolCall.Name == tools.BashToolName {
 		exitCode, ok := extractIntField(toolCall.Output, "exit_code")
 		if ok && exitCode != 0 {
 			activity.ExitCode = &exitCode
@@ -151,11 +151,11 @@ func cloneToolInput(input map[string]any) map[string]any {
 }
 
 func retainsPathInput(tool string) bool {
-	return tool == "read_file" || tool == "grep" || tool == "glob" || tool == "write_file" || tool == "edit_file"
+	return tool == tools.ReadFileToolName || tool == tools.GrepToolName || tool == tools.GlobToolName || tool == tools.WriteFileToolName || tool == tools.EditFileToolName
 }
 
 func truncatesHistoricalToolInput(tool string) bool {
-	return tool == "write_file" || tool == "edit_file"
+	return tool == tools.WriteFileToolName || tool == tools.EditFileToolName
 }
 
 func (a *turnMemoryAccumulator) Build() *llm.TurnMemory {

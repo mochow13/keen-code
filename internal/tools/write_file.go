@@ -25,7 +25,7 @@ func NewWriteFileTool(guard *filesystem.Guard, diffEmitter DiffEmitter, permissi
 }
 
 func (t *WriteFileTool) Name() string {
-	return "write_file"
+	return WriteFileToolName
 }
 
 func (t *WriteFileTool) Description() string {
@@ -83,7 +83,7 @@ func (t *WriteFileTool) ValidateInput(_ context.Context, input any) error {
 
 func missingWriteFileParameter(name string) error {
 	return missingRequiredParameter(
-		"write_file",
+		WriteFileToolName,
 		name,
 		`{"path":"<file path>","content":"<complete file content>"}`,
 		"content may be empty, but it must be provided",

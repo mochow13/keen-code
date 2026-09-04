@@ -31,7 +31,7 @@ func NewBashTool(guard *filesystem.Guard, permissionRequester PermissionRequeste
 }
 
 func (t *BashTool) Name() string {
-	return "bash"
+	return BashToolName
 }
 
 func (t *BashTool) Description() string {
@@ -110,7 +110,7 @@ func (t *BashTool) ValidateInput(_ context.Context, input any) error {
 	command, ok := params["command"].(string)
 	if !ok || command == "" {
 		if _, exists := params["command"]; !exists {
-			return missingRequiredParameter("bash", "command", `{"command":"<shell command>"}`, "Provide the exact command to execute; include isDangerous when it may modify files or system state")
+			return missingRequiredParameter(BashToolName, "command", `{"command":"<shell command>"}`, "Provide the exact command to execute; include isDangerous when it may modify files or system state")
 		}
 		return fmt.Errorf("invalid input: command must be a non-empty string")
 	}

@@ -43,7 +43,7 @@ func NewDelegateTool(runner SubagentRunner, namedAgents []string) *DelegateTool 
 }
 
 func (t *DelegateTool) Name() string {
-	return "delegate_task"
+	return DelegateToolName
 }
 
 func (t *DelegateTool) Description() string {
@@ -159,7 +159,12 @@ func parseDelegateInput(input any) (delegateBatchInput, error) {
 		return parsed, fmt.Errorf("invalid input: expected map[string]any, got %T", input)
 	}
 	if _, exists := params["tasks"]; !exists {
-		return parsed, missingRequiredParameter("delegate_task", "tasks", `{"tasks":[{"agent":"<subagent profile>","task":"<bounded task with relevant paths>"}]}`, "Provide between 1 and 10 independent tasks")
+		return parsed, missingRequiredParameter(
+			DelegateToolName,
+			"tasks",
+			`{"tasks":[{"agent":"<subagent profile>","task":"<bounded task with relevant paths>"}]}`,
+			"Provide between 1 and 10 independent tasks",
+		)
 	}
 	data, err := json.Marshal(input)
 	if err != nil {

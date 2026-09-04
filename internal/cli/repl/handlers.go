@@ -309,7 +309,7 @@ func (m *replModel) handleToolStart(toolCall *llm.ToolCall) (replModel, tea.Cmd)
 		m.stream.handler.HandleToolStart(toolCall)
 		return *m, m.waitForAsyncEvent()
 	}
-	if toolCall.Name == "bash" {
+	if toolCall.Name == tools.BashToolName {
 		command, _ := toolCall.Input["command"].(string)
 		summary, _ := toolCall.Input["summary"].(string)
 		m.stream.handler.HandleBashStart(command, summary)
@@ -327,7 +327,7 @@ func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 		m.stream.handler.HandleToolEnd(toolCall)
 		return *m, m.waitForAsyncEvent()
 	}
-	if toolCall.Name == "bash" {
+	if toolCall.Name == tools.BashToolName {
 		m.stream.handler.HandleBashEnd(toolCall)
 	} else {
 		m.stream.handler.HandleToolEnd(toolCall)

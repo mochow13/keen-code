@@ -25,7 +25,7 @@ func NewGlobTool(guard *filesystem.Guard, permissionRequester PermissionRequeste
 }
 
 func (t *GlobTool) Name() string {
-	return "glob"
+	return GlobToolName
 }
 
 func (t *GlobTool) Description() string {
@@ -71,7 +71,12 @@ func (t *GlobTool) ValidateInput(_ context.Context, input any) error {
 	pattern, ok := params["pattern"].(string)
 	if !ok || pattern == "" {
 		if _, exists := params["pattern"]; !exists {
-			return missingRequiredParameter("glob", "pattern", `{"pattern":"<glob pattern>"}`, "Use **/ for recursive matching; path is optional")
+			return missingRequiredParameter(
+				GlobToolName,
+				"pattern",
+				`{"pattern":"<glob pattern>"}`,
+				"Use **/ for recursive matching; path is optional",
+			)
 		}
 		return fmt.Errorf("invalid input: pattern must be a non-empty string")
 	}

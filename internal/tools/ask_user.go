@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-const AskUserToolName = "ask_user"
-
 type AskUserQuestion struct {
 	Question string   `json:"question"`
 	Options  []string `json:"options"`

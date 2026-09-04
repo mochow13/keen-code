@@ -43,7 +43,7 @@ func NewEditFileTool(guard *filesystem.Guard, diffEmitter DiffEmitter, permissio
 }
 
 func (t *EditFileTool) Name() string {
-	return "edit_file"
+	return EditFileToolName
 }
 
 func (t *EditFileTool) Description() string {
@@ -129,7 +129,7 @@ func (t *EditFileTool) ValidateInput(_ context.Context, input any) error {
 
 func missingEditFileParameter(name string) error {
 	return missingRequiredParameter(
-		"edit_file",
+		EditFileToolName,
 		name,
 		`{"path":"<existing file path>","ops":[{"start":"1:a3f","text":"<replacement text>"}]}`,
 		"Read the file first; put all edits to one file in one ops array, validated against one snapshot and applied atomically",
@@ -171,7 +171,7 @@ func (t *EditFileTool) Execute(ctx context.Context, input any) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal edit_file request: %w", err)
 	}
-	slog.Debug("edit_file", "request", string(requestJSON))
+	slog.Debug(EditFileToolName, "request", string(requestJSON))
 
 	path := params["path"].(string)
 	ops, err := parseEditOps(params["ops"])

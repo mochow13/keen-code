@@ -16,6 +16,7 @@ import (
 	"github.com/mochow13/keen-code/internal/llm"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const (
@@ -188,7 +189,7 @@ func handleHeadlessToolStart(handler *StreamHandler, toolCall *llm.ToolCall) {
 	if toolCall == nil {
 		return
 	}
-	if toolCall.Name == "bash" {
+	if toolCall.Name == tools.BashToolName {
 		command, _ := toolCall.Input["command"].(string)
 		summary, _ := toolCall.Input["summary"].(string)
 		handler.HandleBashStart(command, summary)
@@ -201,7 +202,7 @@ func handleHeadlessToolEnd(handler *StreamHandler, toolCall *llm.ToolCall) {
 	if toolCall == nil {
 		return
 	}
-	if toolCall.Name == "bash" {
+	if toolCall.Name == tools.BashToolName {
 		handler.HandleBashEnd(toolCall)
 		return
 	}

@@ -43,7 +43,7 @@ func NewCallMCPTool(manager keenmcp.Runtime, permissionRequester PermissionReque
 }
 
 func (t *CallMCPTool) Name() string {
-	return "call_mcp_tool"
+	return CallMCPToolName
 }
 
 func (t *CallMCPTool) Description() string {
@@ -103,14 +103,24 @@ func (t *CallMCPTool) ValidateInput(ctx context.Context, input any) error {
 	server, err := requiredString(params, "server")
 	if err != nil {
 		if _, exists := params["server"]; !exists {
-			return missingRequiredParameter("call_mcp_tool", "server", `{"server":"<configured server name>","tool":"<exact tool name>"}`, "Read the server skill and tool schema before retrying; arguments must match that schema")
+			return missingRequiredParameter(
+				CallMCPToolName,
+				"server",
+				`{"server":"<configured server name>","tool":"<exact tool name>"}`,
+				"Read the server skill and tool schema before retrying; arguments must match that schema",
+			)
 		}
 		return err
 	}
 	tool, err := requiredString(params, "tool")
 	if err != nil {
 		if _, exists := params["tool"]; !exists {
-			return missingRequiredParameter("call_mcp_tool", "tool", `{"server":"<configured server name>","tool":"<exact tool name>"}`, "Read the server skill and tool schema before retrying; arguments must match that schema")
+			return missingRequiredParameter(
+				CallMCPToolName,
+				"tool",
+				`{"server":"<configured server name>","tool":"<exact tool name>"}`,
+				"Read the server skill and tool schema before retrying; arguments must match that schema",
+			)
 		}
 		return err
 	}

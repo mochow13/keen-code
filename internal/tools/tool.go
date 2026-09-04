@@ -6,6 +6,19 @@ import (
 	"sort"
 )
 
+const (
+	AskUserToolName   = "ask_user"
+	BashToolName      = "bash"
+	CallMCPToolName   = "call_mcp_tool"
+	DelegateToolName  = "delegate_task"
+	EditFileToolName  = "edit_file"
+	GlobToolName      = "glob"
+	GrepToolName      = "grep"
+	ReadFileToolName  = "read_file"
+	WebFetchToolName  = "web_fetch"
+	WriteFileToolName = "write_file"
+)
+
 type Tool interface {
 	Name() string
 	Description() string

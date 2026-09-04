@@ -6,6 +6,7 @@ import (
 	"fmt"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/tools"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"path/filepath"
@@ -140,15 +141,15 @@ func (ob *OutputBuilder) AddToolEnd(toolCall *llm.ToolCall) {
 }
 
 var toolDisplayNames = map[string]string{
-	"read_file":     "Read",
-	"write_file":    "Write",
-	"edit_file":     "Edit",
-	"grep":          "Search",
-	"glob":          "Find",
-	"bash":          "Run",
-	"web_fetch":     "Fetch",
-	"call_mcp_tool": "MCP",
-	"delegate_task": "Delegate",
+	tools.ReadFileToolName:  "Read",
+	tools.WriteFileToolName: "Write",
+	tools.EditFileToolName:  "Edit",
+	tools.GrepToolName:      "Search",
+	tools.GlobToolName:      "Find",
+	tools.BashToolName:      "Run",
+	tools.WebFetchToolName:  "Fetch",
+	tools.CallMCPToolName:   "MCP",
+	tools.DelegateToolName:  "Delegate",
 }
 
 var toolLabelCaser = cases.Title(language.English)
@@ -233,7 +234,7 @@ func formatToolError(toolName, message string) *string {
 	if message == "" {
 		return nil
 	}
-	if toolName == "call_mcp_tool" {
+	if toolName == tools.CallMCPToolName {
 		minimal := "failed"
 		return &minimal
 	}
@@ -270,7 +271,7 @@ func renderToolStatus(marker, toolName, label, detail string, metadata []string,
 }
 
 func renderToolDetail(toolName, detail string) string {
-	if toolName != "grep" && toolName != "glob" {
+	if toolName != tools.GrepToolName && toolName != tools.GlobToolName {
 		return detail
 	}
 
@@ -287,23 +288,23 @@ func formatToolInputDetail(toolName string, input map[string]any, workingDir str
 	}
 
 	switch toolName {
-	case "call_mcp_tool":
+	case tools.CallMCPToolName:
 		return formatMCPToolInput(input)
-	case "delegate_task":
+	case tools.DelegateToolName:
 		return formatDelegateTaskInput(input)
-	case "read_file", "write_file", "edit_file":
+	case tools.ReadFileToolName, tools.WriteFileToolName, tools.EditFileToolName:
 		if path, ok := input["path"].(string); ok && path != "" {
 			return compactDisplayPath(formatToolPathForUI(path, workingDir))
 		}
 		return ""
-	case "grep", "glob":
+	case tools.GrepToolName, tools.GlobToolName:
 		return formatSearchInput(input, workingDir)
-	case "bash":
+	case tools.BashToolName:
 		if command, ok := input["command"].(string); ok && command != "" {
 			return compactDisplayValue(command, maxDisplayValueRunes)
 		}
 		return ""
-	case "web_fetch":
+	case tools.WebFetchToolName:
 		if url, ok := input["url"].(string); ok && url != "" {
 			return compactDisplayValue(url, maxDisplayValueRunes)
 		}
@@ -396,15 +397,15 @@ func formatToolResultMetadata(toolName string, input map[string]any, endCall *ll
 	var metadata []string
 	if result, ok := endCall.Output.(map[string]any); ok {
 		switch toolName {
-		case "read_file":
+		case tools.ReadFileToolName:
 			metadata = readFileMetadata(result)
-		case "grep":
+		case tools.GrepToolName:
 			metadata = grepMetadata(result)
-		case "glob":
+		case tools.GlobToolName:
 			if files, ok := stringSlice(result["files"]); ok {
 				metadata = append(metadata, pluralize(len(files), "file"))
 			}
-		case "write_file":
+		case tools.WriteFileToolName:
 			if created, ok := result["created"].(bool); ok {
 				if created {
 					metadata = append(metadata, "created")
@@ -415,15 +416,15 @@ func formatToolResultMetadata(toolName string, input map[string]any, endCall *ll
 			if content, ok := input["content"].(string); ok {
 				metadata = append(metadata, formatByteCount(len(content)))
 			}
-		case "web_fetch":
+		case tools.WebFetchToolName:
 			if content, ok := result["content"].(string); ok {
 				metadata = append(metadata, formatByteCount(len(content)))
 			}
-		case "bash":
+		case tools.BashToolName:
 			if code, ok := intValue(result["exit_code"]); ok && code != 0 {
 				metadata = append(metadata, fmt.Sprintf("exit %d", code))
 			}
-		case "delegate_task":
+		case tools.DelegateToolName:
 			summary, failed := delegateTaskSummary(result)
 			if summary != "" {
 				metadata = append([]string{summary}, metadata...)
@@ -431,7 +432,7 @@ func formatToolResultMetadata(toolName string, input map[string]any, endCall *ll
 					return withDuration(metadata, endCall.Duration), true
 				}
 			}
-		case "call_mcp_tool":
+		case tools.CallMCPToolName:
 			if truncated, _ := result["truncated"].(bool); truncated {
 				metadata = append(metadata, "truncated")
 			}

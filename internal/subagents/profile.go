@@ -3,6 +3,8 @@ package subagents
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type Profile struct {
@@ -34,10 +36,10 @@ func Find(profiles []Profile, name string) (Profile, bool) {
 }
 
 var permissionTools = map[string][]string{
-	"read":  {"read_file", "glob", "grep"},
-	"write": {"write_file", "edit_file"},
-	"bash":  {"bash"},
-	"web":   {"web_fetch"},
+	"read":  {tools.ReadFileToolName, tools.GlobToolName, tools.GrepToolName},
+	"write": {tools.WriteFileToolName, tools.EditFileToolName},
+	"bash":  {tools.BashToolName},
+	"web":   {tools.WebFetchToolName},
 }
 
 func validatePermissions(profile Profile) error {
@@ -77,7 +79,7 @@ func filterChildToolNames(names []string) []string {
 	seen := map[string]bool{}
 	for _, name := range names {
 		name = strings.TrimSpace(name)
-		if name == "" || name == "delegate_task" || name == "call_mcp_tool" || seen[name] {
+		if name == "" || name == tools.DelegateToolName || name == tools.CallMCPToolName || seen[name] {
 			continue
 		}
 		seen[name] = true

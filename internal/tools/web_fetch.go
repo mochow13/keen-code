@@ -28,7 +28,7 @@ func NewWebFetchTool() *WebFetchTool {
 }
 
 func (t *WebFetchTool) Name() string {
-	return "web_fetch"
+	return WebFetchToolName
 }
 
 func (t *WebFetchTool) Description() string {
@@ -73,7 +73,12 @@ func (t *WebFetchTool) ValidateInput(_ context.Context, input any) error {
 	url, ok := params["url"].(string)
 	if !ok || url == "" {
 		if _, exists := params["url"]; !exists {
-			return missingRequiredParameter("web_fetch", "url", `{"url":"https://example.com"}`, "Provide the complete public URL to fetch")
+			return missingRequiredParameter(
+				WebFetchToolName,
+				"url",
+				`{"url":"https://example.com"}`,
+				"Provide the complete public URL to fetch",
+			)
 		}
 		return fmt.Errorf("invalid input: url must be a non-empty string")
 	}

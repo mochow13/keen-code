@@ -42,7 +42,7 @@ func NewGrepTool(guard *filesystem.Guard, permissionRequester PermissionRequeste
 }
 
 func (t *GrepTool) Name() string {
-	return "grep"
+	return GrepToolName
 }
 
 func (t *GrepTool) Description() string {
@@ -165,7 +165,12 @@ func (t *GrepTool) parseSearchConfig(input any) (*searchConfig, error) {
 func (t *GrepTool) extractPattern(params map[string]any) (string, error) {
 	patternValue, ok := params["pattern"]
 	if !ok {
-		return "", missingRequiredParameter("grep", "pattern", `{"pattern":"<Go/RE2 regular expression>"}`, "Use path or include to narrow the search when possible")
+		return "", missingRequiredParameter(
+			GrepToolName,
+			"pattern",
+			`{"pattern":"<Go/RE2 regular expression>"}`,
+			"Use path or include to narrow the search when possible",
+		)
 	}
 
 	pattern, ok := patternValue.(string)

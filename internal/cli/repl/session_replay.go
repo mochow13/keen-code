@@ -188,7 +188,7 @@ func replayBashPayload(handler *StreamHandler, payload *session.BashPayload) {
 
 	handler.HandleBashStart(payload.Command, payload.Summary)
 	handler.HandleBashEnd(&llm.ToolCall{
-		Name:     "bash",
+		Name:     tools.BashToolName,
 		Output:   map[string]any{"stdout": payload.Output},
 		Error:    payload.Error,
 		Duration: time.Duration(payload.DurationNS),

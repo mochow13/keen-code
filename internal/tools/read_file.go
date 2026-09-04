@@ -30,7 +30,7 @@ func NewReadFileTool(guard *filesystem.Guard, permissionRequester PermissionRequ
 }
 
 func (t *ReadFileTool) Name() string {
-	return "read_file"
+	return ReadFileToolName
 }
 
 func (t *ReadFileTool) Description() string {
@@ -85,7 +85,12 @@ func (t *ReadFileTool) ValidateInput(_ context.Context, input any) error {
 	path, ok := params["path"].(string)
 	if !ok || path == "" {
 		if _, exists := params["path"]; !exists {
-			return missingRequiredParameter("read_file", "path", `{"path":"<file path>"}`, "Provide an absolute or relative file path; offset and limit are optional")
+			return missingRequiredParameter(
+				ReadFileToolName,
+				"path",
+				`{"path":"<file path>"}`,
+				"Provide an absolute or relative file path; offset and limit are optional",
+			)
 		}
 		return fmt.Errorf("invalid input: path must be a non-empty string")
 	}

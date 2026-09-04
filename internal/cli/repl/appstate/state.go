@@ -255,7 +255,13 @@ func (s *AppState) StreamAdversary(ctx context.Context, focus string) (<-chan ll
 		instruction = focus
 	}
 	messages = append(messages, llm.Message{Role: llm.RoleUser, Content: instruction})
-	readOnlyRegistry := s.toolRegistry.Without("write_file", "edit_file", "bash", "call_mcp_tool", "delegate_task")
+	readOnlyRegistry := s.toolRegistry.Without(
+		tools.WriteFileToolName,
+		tools.EditFileToolName,
+		tools.BashToolName,
+		tools.CallMCPToolName,
+		tools.DelegateToolName,
+	)
 	return s.adversaryClient.StreamChat(ctx, messages, readOnlyRegistry, llm.StreamOptions{OneShot: true})
 }
 
@@ -314,7 +320,7 @@ func (s *AppState) GetToolRegistry() *tools.Registry {
 
 func (s *AppState) EffectiveToolRegistry() *tools.Registry {
 	if s.mode == llm.ModePlan {
-		return s.toolRegistry.Without("write_file", "edit_file")
+		return s.toolRegistry.Without(tools.WriteFileToolName, tools.EditFileToolName)
 	}
 	return s.toolRegistry
 }

@@ -30,13 +30,13 @@ func (f ToolFactory) Registry(profile Profile, parent *tools.Registry) *tools.Re
 	}
 	approver := AutoApprover{}
 	available := map[string]tools.Tool{
-		"read_file":  tools.NewReadFileTool(f.Guard, approver),
-		"glob":       tools.NewGlobTool(f.Guard, approver),
-		"grep":       tools.NewGrepTool(f.Guard, approver),
-		"write_file": tools.NewWriteFileTool(f.Guard, NoopDiffEmitter{}, approver),
-		"edit_file":  tools.NewEditFileTool(f.Guard, NoopDiffEmitter{}, approver),
-		"bash":       tools.NewBashTool(f.Guard, approver),
-		"web_fetch":  tools.NewWebFetchTool(),
+		tools.ReadFileToolName:  tools.NewReadFileTool(f.Guard, approver),
+		tools.GlobToolName:      tools.NewGlobTool(f.Guard, approver),
+		tools.GrepToolName:      tools.NewGrepTool(f.Guard, approver),
+		tools.WriteFileToolName: tools.NewWriteFileTool(f.Guard, NoopDiffEmitter{}, approver),
+		tools.EditFileToolName:  tools.NewEditFileTool(f.Guard, NoopDiffEmitter{}, approver),
+		tools.BashToolName:      tools.NewBashTool(f.Guard, approver),
+		tools.WebFetchToolName:  tools.NewWebFetchTool(),
 	}
 	for _, name := range permissionToolNames(profile, registryNames(parent)) {
 		if tool, ok := available[name]; ok {

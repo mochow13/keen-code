@@ -194,7 +194,7 @@ func consecutiveReadCalls(segments []streamSegment, startIndex int) ([]*llm.Tool
 		return nil, startIndex
 	}
 	startCall := segments[startIndex].toolCall
-	if startCall == nil || startCall.Name != "read_file" {
+	if startCall == nil || startCall.Name != tools.ReadFileToolName {
 		return nil, startIndex
 	}
 	path, _ := startCall.Input["path"].(string)
@@ -204,8 +204,8 @@ func consecutiveReadCalls(segments []streamSegment, startIndex int) ([]*llm.Tool
 	for i := startIndex; i+1 < len(segments); i += 2 {
 		start := segments[i]
 		end := segments[i+1]
-		if start.kind != segmentToolStart || start.toolCall == nil || start.toolCall.Name != "read_file" ||
-			end.kind != segmentToolEnd || end.toolCall == nil || end.toolCall.Name != "read_file" || end.toolCall.Error != "" {
+		if start.kind != segmentToolStart || start.toolCall == nil || start.toolCall.Name != tools.ReadFileToolName ||
+			end.kind != segmentToolEnd || end.toolCall == nil || end.toolCall.Name != tools.ReadFileToolName || end.toolCall.Error != "" {
 			break
 		}
 		readPath, _ := start.toolCall.Input["path"].(string)
@@ -226,10 +226,10 @@ func isHiddenToolFailure(toolCall *llm.ToolCall) bool {
 	if toolCall == nil {
 		return false
 	}
-	if toolCall.Name == "read_file" {
+	if toolCall.Name == tools.ReadFileToolName {
 		return strings.HasPrefix(toolCall.Error, "not found: file ")
 	}
-	if toolCall.Name != "edit_file" {
+	if toolCall.Name != tools.EditFileToolName {
 		return false
 	}
 	return strings.Contains(toolCall.Error, "line hash mismatch") ||
