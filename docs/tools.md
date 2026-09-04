@@ -324,6 +324,7 @@ Calls a tool on a connected MCP (Model Context Protocol) server.
 type CallMCPTool struct {
     manager             keenmcp.Runtime
     permissionRequester PermissionRequester
+    cache               *lru.Cache[string, mcpCacheEntry]
 }
 ```
 
@@ -331,14 +332,16 @@ type CallMCPTool struct {
 - `server` (string, required): The MCP server name as configured
 - `tool` (string, required): The exact tool name to call on the server
 - `arguments` (object, optional): Key-value arguments matching the tool's input schema
-- `checkCache` (boolean, optional): Reserved for future caching; set to false or omit
+- `checkCache` (boolean, optional): Set true when the same call was made recently and the result is not expected to have changed; reuses the cached result. Set false or omit to call the server and refresh the cache
 
 **Behavior:**
-- Requires user permission before execution
+- Requires user permission before execution (a `checkCache` hit is served locally without prompting)
 - Server name must match a configured MCP server
 - Arguments must match the tool's input schema exactly
 - Skill file at `~/.keen/skills/mcp:<server>/SKILL.md` describes available tools
 - Schema file at `~/.keen/skills/mcp:<server>/schemas/<tool>.json` describes required arguments
+- Successful responses are cached under a deterministic key (SHA-256 of server, tool, and JSON-encoded arguments): results up to 16 KiB in an in-memory LRU (512 entries, session-scoped), larger results on disk at `~/.keen/mcp-artifacts/keen-mcp-<hash>.txt` (pruned by `/cleanup` after 7 days)
+- With `checkCache: true`, the memory cache is checked first, then disk; on a miss the server is called normally and the result is cached, so the flag never fails. Fresh calls always refresh the cache; errors are never cached
 
 **Returns:**
 ```json
@@ -346,6 +349,18 @@ type CallMCPTool struct {
   "content": "tool output text"
 }
 ```
+
+Large results return a preview plus the on-disk cache file:
+
+```json
+{
+  "content": "preview with head and tail...",
+  "truncated": true,
+  "artifact_path": "~/.keen/mcp-artifacts/keen-mcp-<hash>.txt"
+}
+```
+
+Use read_file with offset/limit or grep with path set to `artifact_path` to inspect large results incrementally.
 
 ## DiffEmitter
 

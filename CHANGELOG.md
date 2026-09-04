@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Make `call_mcp_tool` cache successful responses behind `checkCache`: results up to 16 KiB in a session-scoped in-memory LRU (512 entries), larger ones on disk as `~/.keen/mcp-artifacts/keen-mcp-<hash>.txt` shared with artifacts and `/cleanup` retention. Cache hits skip the permission prompt; large cached results keep the preview plus `artifact_path` shape.
+
 ## [0.51.0] - 2026-09-01
 
 ### Added

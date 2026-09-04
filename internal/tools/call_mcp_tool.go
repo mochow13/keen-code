@@ -2,32 +2,43 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/mochow13/keen-code/internal/filesystem"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
-	maxInlineMCPResultSize   = 64 * 1024
-	mcpResultPreviewHeadSize = 4 * 1024
-	mcpResultPreviewTailSize = 2 * 1024
-	mcpArtifactFileMode      = 0600
+	maxInlineMCPResultSize       = 64 * 1024
+	maxMemoryCachedMCPResultSize = 16 * 1024
+	mcpResultPreviewHeadSize     = 4 * 1024
+	mcpResultPreviewTailSize     = 2 * 1024
+	mcpArtifactFileMode          = 0600
+	mcpCacheLRUCapacity          = 512
+	mcpCacheFilePrefix           = "keen-mcp-"
 )
 
 type CallMCPTool struct {
 	manager             keenmcp.Runtime
 	permissionRequester PermissionRequester
+	cache               *lru.Cache[string, mcpCacheEntry]
 }
 
 func NewCallMCPTool(manager keenmcp.Runtime, permissionRequester PermissionRequester) *CallMCPTool {
+	cache, _ := lru.New[string, mcpCacheEntry](mcpCacheLRUCapacity)
 	return &CallMCPTool{
 		manager:             manager,
 		permissionRequester: permissionRequester,
+		cache:               cache,
 	}
 }
 
@@ -53,7 +64,6 @@ IMPORTANT:
   transform names (e.g. swap "-" for "_"). If a call fails with "tool not
   found", re-read the skill file and use a name from that table.
 - Arguments must match the tool's input schema exactly.
-- Set checkCache to false or omit it (reserved for future use).
 - If the result is very large, the full output is saved to a file and the response includes
   truncated: true, artifact_path, and a preview in content. Use read_file with offset/limit or
   grep with path set to artifact_path to inspect the saved result incrementally.`
@@ -77,7 +87,7 @@ func (t *CallMCPTool) InputSchema() map[string]any {
 			},
 			"checkCache": map[string]any{
 				"type":        "boolean",
-				"description": "Reserved for future caching; set to false or omit",
+				"description": "Set true when the same call was made recently and the result is not expected to have changed; reuses the cached result. Set false or omit to call the server and refresh the cache",
 			},
 		},
 		"required":             []string{"server", "tool"},
@@ -112,6 +122,11 @@ func (t *CallMCPTool) ValidateInput(ctx context.Context, input any) error {
 	if raw, exists := params["arguments"]; exists && raw != nil {
 		arguments, _ = raw.(map[string]any)
 	}
+	if raw, exists := params["checkCache"]; exists && raw != nil {
+		if _, ok := raw.(bool); !ok {
+			return fmt.Errorf("invalid input: %q must be a boolean", "checkCache")
+		}
+	}
 	return t.validateRequiredArguments(ctx, server, tool, arguments)
 }
 
@@ -126,7 +141,14 @@ func (t *CallMCPTool) Execute(ctx context.Context, input any) (any, error) {
 		arguments, _ = raw.(map[string]any)
 	}
 
-	_ = params["checkCache"] // reserved, no-op
+	checkCache, _ := params["checkCache"].(bool)
+
+	key := mcpCacheKey(server, tool, arguments)
+	if checkCache {
+		if cached, ok := t.lookupCache(key); ok {
+			return cached, nil
+		}
+	}
 
 	argsJSON := ""
 	if len(arguments) > 0 {
@@ -159,22 +181,22 @@ func (t *CallMCPTool) Execute(ctx context.Context, input any) (any, error) {
 	}
 
 	content := formatMCPContent(result.Content)
-	output := make(map[string]any)
 
 	if len(content) <= maxInlineMCPResultSize {
-		output["content"] = content
-		return output, nil
+		_, _ = t.storeCache(key, content)
+		return map[string]any{"content": content}, nil
 	}
 
-	summary, err := summarizeMCPResult(content)
+	path, err := t.storeCache(key, content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write MCP result artifact: %w", err)
 	}
 
-	output["content"] = summary.preview
-	output["truncated"] = true
-	output["artifact_path"] = summary.path
-	return output, nil
+	return map[string]any{
+		"content":       buildMCPPreview([]byte(content)),
+		"truncated":     true,
+		"artifact_path": path,
+	}, nil
 }
 
 func requiredString(params map[string]any, name string) (string, error) {
@@ -237,62 +259,127 @@ func formatMCPContent(content []mcpsdk.Content) string {
 	return strings.Join(parts, "\n")
 }
 
-type mcpResultSummary struct {
-	preview string
-	path    string
+type mcpCacheEntry struct {
+	content  string
+	cachedAt time.Time
 }
 
-func summarizeMCPResult(content string) (mcpResultSummary, error) {
-	data := []byte(content)
-	path, err := writeMCPArtifact(data)
+func mcpCacheKey(server, tool string, arguments map[string]any) string {
+	argsJSON, err := json.Marshal(arguments)
 	if err != nil {
-		return mcpResultSummary{}, err
+		argsJSON = []byte(fmt.Sprintf("%v", arguments))
+	}
+	sum := sha256.Sum256([]byte(server + "\x00" + tool + "\x00" + string(argsJSON)))
+	// first 16 bytes keep 128-bit collision resistance while keeping filenames short
+	return hex.EncodeToString(sum[:16])
+}
+
+func mcpCachePath(key string) (string, error) {
+	dir, err := filesystem.KeenMCPArtifactsDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve MCP artifacts directory: %w", err)
+	}
+	return filepath.Join(dir, mcpCacheFilePrefix+key+".txt"), nil
+}
+
+func (t *CallMCPTool) lookupCache(key string) (map[string]any, bool) {
+	if cache := t.cache; cache != nil {
+		if entry, ok := cache.Get(key); ok {
+			return map[string]any{
+				"content":   entry.content,
+				"cached_at": entry.cachedAt.UTC().Format(time.RFC3339),
+			}, true
+		}
 	}
 
+	path, err := mcpCachePath(key)
+	if err != nil {
+		return nil, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, false
+	}
+
+	output := map[string]any{
+		"content":   string(data),
+		"cached_at": info.ModTime().UTC().Format(time.RFC3339),
+	}
+	if len(data) > maxInlineMCPResultSize {
+		output["content"] = buildMCPPreview(data)
+		output["truncated"] = true
+		output["artifact_path"] = path
+	}
+	return output, true
+}
+
+func (t *CallMCPTool) storeCache(key, content string) (string, error) {
+	if len(content) <= maxMemoryCachedMCPResultSize {
+		if cache := t.cache; cache != nil {
+			cache.Add(key, mcpCacheEntry{content: content, cachedAt: time.Now()})
+		}
+		return "", nil
+	}
+
+	path, err := mcpCachePath(key)
+	if err != nil {
+		return "", err
+	}
+	if err := writeMCPCacheFile(path, []byte(content)); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func buildMCPPreview(data []byte) string {
 	headSize := min(mcpResultPreviewHeadSize, len(data))
 	tailSize := min(mcpResultPreviewTailSize, len(data)-headSize)
 	tailStart := len(data) - tailSize
 	omitted := len(data) - headSize - tailSize
 
-	preview := fmt.Sprintf(
+	return fmt.Sprintf(
 		"%s\n\n... (%d bytes omitted; full result saved to artifact_path) ...\n\n%s",
 		string(data[:headSize]),
 		omitted,
 		string(data[tailStart:]),
 	)
-
-	return mcpResultSummary{
-		preview: preview,
-		path:    path,
-	}, nil
 }
 
-func writeMCPArtifact(data []byte) (string, error) {
-	dir, err := filesystem.KeenMCPArtifactsDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve MCP artifacts directory: %w", err)
-	}
+func writeMCPCacheFile(path string, data []byte) error {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", fmt.Errorf("failed to create MCP artifacts directory %q: %w", dir, err)
+		return fmt.Errorf("failed to create MCP artifacts directory %q: %w", dir, err)
 	}
 	if err := os.Chmod(dir, 0700); err != nil {
-		return "", fmt.Errorf("failed to secure MCP artifacts directory %q: %w", dir, err)
+		return fmt.Errorf("failed to secure MCP artifacts directory %q: %w", dir, err)
 	}
 
-	file, err := os.CreateTemp(dir, "keen-mcp-*"+".txt")
+	temp, err := os.CreateTemp(dir, ".keen-mcp-cache-*")
 	if err != nil {
-		return "", fmt.Errorf("failed to create MCP artifact file: %w", err)
+		return fmt.Errorf("failed to create MCP cache file: %w", err)
 	}
-	path := file.Name()
-	defer file.Close()
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
 
-	if err := file.Chmod(mcpArtifactFileMode); err != nil {
-		return "", fmt.Errorf("failed to secure MCP artifact file %q: %w", path, err)
+	if err := temp.Chmod(mcpArtifactFileMode); err != nil {
+		temp.Close()
+		return fmt.Errorf("failed to secure MCP cache file %q: %w", tempPath, err)
 	}
-	if _, err := file.Write(data); err != nil {
-		return "", fmt.Errorf("failed to write MCP artifact file %q: %w", path, err)
+	if _, err := temp.Write(data); err != nil {
+		temp.Close()
+		return fmt.Errorf("failed to write MCP cache file %q: %w", tempPath, err)
 	}
-	return path, nil
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("failed to write MCP cache file %q: %w", tempPath, err)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("failed to store MCP cache file %q: %w", path, err)
+	}
+	return nil
 }
 
 func (t *CallMCPTool) validateRequiredArguments(ctx context.Context, server, tool string, arguments map[string]any) error {
