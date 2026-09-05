@@ -61,6 +61,14 @@ var loadingTexts = []string{
 	"`/emptyq` clears the queue",
 }
 
+const (
+	initialScreenPreviewHorizontalPadding = 24
+	initialScreenPreviewMinWidth          = 12
+	initialScreenIndent                   = "  "
+	modelCardHorizontalPadding            = 2
+	ruleChipTrailingDashCount             = 3
+)
+
 func displayModelName(providerID, modelID string) string {
 	if providerID == config.ProviderBedrock {
 		return strings.TrimPrefix(modelID, "global.")
@@ -256,7 +264,7 @@ func (m *replModel) messageWidth() int {
 	if width <= 0 {
 		width = defaultWidth
 	}
-	return max(width-4, 1)
+	return max(width-contentHorizontalPadding, 1)
 }
 
 func renderTipText(text string, width int) string {
@@ -479,7 +487,7 @@ func buildInitialScreen(ctx *replContext, lastSession *session.Summary, width in
 			end := (i + 1) * len(runes) / len(artStyles)
 			artLine.WriteString(style.Render(string(runes[start:end])))
 		}
-		renderedLine := "  " + artLine.String()
+		renderedLine := initialScreenIndent + artLine.String()
 		if lineIndex == len(art)-1 {
 			renderedLine += " " + header
 		}
@@ -489,20 +497,20 @@ func buildInitialScreen(ctx *replContext, lastSession *session.Summary, width in
 
 	if lastSession != nil && lastSession.LastUserMessage != "" {
 		preview := strings.Join(strings.Fields(lastSession.LastUserMessage), " ")
-		previewWidth := max(width-24, 12)
+		previewWidth := max(width-initialScreenPreviewHorizontalPadding, initialScreenPreviewMinWidth)
 		if len([]rune(preview)) > previewWidth {
 			preview = string([]rune(preview)[:previewWidth-1]) + "…"
 		}
 
 		rail := metadataStyle.Render("┃")
-		lines = append(lines, "  "+rail+"  "+metadataStyle.Render("Last session")+" "+metadataStyle.Render("·")+" "+repltheme.InitialScreenWordmarkStyle.Render("“"+preview+"”"))
-		lines = append(lines, "  "+rail+"  "+metadataStyle.Render(formatTimeAgo(lastSession.UpdatedAt))+" "+metadataStyle.Render("·")+" "+metadataStyle.Render("/resume to begin where you left off"))
+		lines = append(lines, initialScreenIndent+rail+initialScreenIndent+metadataStyle.Render("Last session")+" "+metadataStyle.Render("·")+" "+repltheme.InitialScreenWordmarkStyle.Render("“"+preview+"”"))
+		lines = append(lines, initialScreenIndent+rail+initialScreenIndent+metadataStyle.Render(formatTimeAgo(lastSession.UpdatedAt))+" "+metadataStyle.Render("·")+" "+metadataStyle.Render("/resume to begin where you left off"))
 		lines = append(lines, "")
 	}
 
 	rule := repltheme.InitialScreenRuleStyle.Render(strings.Repeat("─", width))
-	label := "  " + repltheme.InitialScreenTipLabelStyle.Render("✦ Tip of the session")
-	indent := "  "
+	label := initialScreenIndent + repltheme.InitialScreenTipLabelStyle.Render("✦ Tip of the session")
+	indent := initialScreenIndent
 	tipText := indent + strings.ReplaceAll(renderTipText(randomTip(), width-len(indent)), "\n", "\n"+indent)
 	lines = append(lines, rule)
 	lines = append(lines, label)
@@ -551,7 +559,7 @@ func formatModelSelectionCard(ms *replwidgets.Model, width int) string {
 		ruleWidth = 1
 	}
 
-	contentWidth := max(ruleWidth-2, 1)
+	contentWidth := max(ruleWidth-modelCardHorizontalPadding, 1)
 
 	rule := repltheme.ModelSelectionRuleStyle.Render(strings.Repeat("─", ruleWidth))
 	lines := strings.Split(strings.TrimRight(ms.ViewString(), "\n"), "\n")
@@ -562,7 +570,7 @@ func formatModelSelectionCard(ms *replwidgets.Model, width int) string {
 	for _, l := range lines {
 		wrapped := wrapTextWithStyle(l, lipgloss.NewStyle(), contentWidth)
 		for _, wrappedLine := range strings.Split(wrapped, "\n") {
-			sb.WriteString("  ")
+			sb.WriteString(strings.Repeat(" ", modelCardHorizontalPadding))
 			sb.WriteString(wrappedLine)
 			sb.WriteString("\n")
 		}
@@ -576,8 +584,7 @@ func formatModelSelectionCard(ms *replwidgets.Model, width int) string {
 func renderRulesWithChip(width int, ruleStyle lipgloss.Style, chipText string, chipStyle lipgloss.Style) (topRule string, bottomRule string) {
 	chip := chipStyle.Render(chipText)
 	chipWidth := lipgloss.Width(chip)
-	trailingDash := 3
-	leftDashLen := max(width-chipWidth-trailingDash, 0)
+	leftDashLen := max(width-chipWidth-ruleChipTrailingDashCount, 0)
 	rightDashLen := max(width-leftDashLen-chipWidth, 0)
 	topRule = ruleStyle.Render(strings.Repeat("─", leftDashLen)) + chip + ruleStyle.Render(strings.Repeat("─", rightDashLen))
 	bottomRule = ruleStyle.Render(strings.Repeat("─", width))
@@ -649,7 +656,7 @@ func waitForAsyncEvent(llmCh <-chan llm.StreamEvent, permissionCh <-chan *replpe
 
 func (m *replModel) spinnerHeight() int {
 	if m.loading.showSpinner {
-		return 2
+		return statusBlockHeight
 	}
 	return 0
 }
@@ -658,12 +665,12 @@ func (m *replModel) notificationHeight() int {
 	if m.notification.text == "" || m.loading.showSpinner {
 		return 0
 	}
-	return 2
+	return statusBlockHeight
 }
 
 func (m *replModel) elapsedTimeHeight() int {
 	if !m.loading.showSpinner && m.notification.text == "" && m.loading.lastTurnElapsedMsg != "" {
-		return 2
+		return statusBlockHeight
 	}
 	return 0
 }
@@ -672,7 +679,7 @@ func (m *replModel) adjustTextareaHeight() {
 	if m.height <= 0 {
 		return
 	}
-	m.viewport.SetHeight(m.height - m.textarea.Height() - 5 - m.spinnerHeight() - m.notificationHeight() - m.elapsedTimeHeight() - m.suggestion.Height() - m.queuedHeight())
+	m.viewport.SetHeight(m.height - m.textarea.Height() - viewportChromeHeight - m.spinnerHeight() - m.notificationHeight() - m.elapsedTimeHeight() - m.suggestion.Height() - m.queuedHeight())
 }
 
 func (m replModel) isAtTopOfInput() bool {
@@ -909,7 +916,7 @@ func waitForBtwEvent(llmCh <-chan llm.StreamEvent) tea.Cmd {
 func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
 	m.width = msg.Width
 	m.height = msg.Height
-	m.textarea.SetWidth(msg.Width - 3)
+	m.textarea.SetWidth(msg.Width - inputPromptWidth)
 	if m.mdRenderer != nil {
 		m.mdRenderer.UpdateWidth(msg.Width)
 	}
@@ -917,7 +924,7 @@ func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
 		m.output.SetWidth(msg.Width)
 	}
 	m.viewport.SetWidth(msg.Width)
-	m.viewport.SetHeight(msg.Height - m.textarea.Height() - 5 - m.spinnerHeight() - m.notificationHeight() - m.elapsedTimeHeight() - m.suggestion.Height() - m.queuedHeight())
+	m.viewport.SetHeight(msg.Height - m.textarea.Height() - viewportChromeHeight - m.spinnerHeight() - m.notificationHeight() - m.elapsedTimeHeight() - m.suggestion.Height() - m.queuedHeight())
 
 	if !m.initialScreenDone && msg.Width > 0 {
 		for _, line := range buildInitialScreen(m.ctx, m.lastSession, m.width) {

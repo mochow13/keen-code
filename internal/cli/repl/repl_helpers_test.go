@@ -44,8 +44,8 @@ func TestMessageWidthFallbacks(t *testing.T) {
 		t.Fatalf("messageWidth() = %d, want 46", got)
 	}
 	m.viewport.SetWidth(0)
-	if got := m.messageWidth(); got != defaultWidth-4 {
-		t.Fatalf("default messageWidth() = %d, want %d", got, defaultWidth-4)
+	if got := m.messageWidth(); got != defaultWidth-contentHorizontalPadding {
+		t.Fatalf("default messageWidth() = %d, want %d", got, defaultWidth-contentHorizontalPadding)
 	}
 	m.width = 2
 	if got := m.messageWidth(); got != 1 {

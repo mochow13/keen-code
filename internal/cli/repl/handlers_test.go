@@ -1446,6 +1446,7 @@ func TestExtractAtToken(t *testing.T) {
 		{name: "empty token", input: "read @", cursor: 6},
 		{name: "space in token", input: "@one two", cursor: 8},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, start, found := extractAtToken(tt.input, tt.cursor)
@@ -1453,6 +1454,21 @@ func TestExtractAtToken(t *testing.T) {
 				t.Fatalf("extractAtToken() = (%q, %d, %v), want (%q, %d, %v)", token, start, found, tt.token, tt.start, tt.found)
 			}
 		})
+	}
+}
+
+func TestHandleKeyMsg_FileSuggestionsAtStartOfSecondLine(t *testing.T) {
+	m, _ := newTestModelWithFileSearcher(t)
+	m.textarea.SetValue("\n@fo")
+	m.textarea.SetCursorColumn(len("@fo"))
+
+	newM, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: 'o', Text: "o"})
+
+	if !newM.suggestion.Visible() || !newM.suggestion.IsFileMode() {
+		t.Fatal("expected file suggestions at the start of the second line")
+	}
+	if !strings.Contains(newM.suggestion.View(80), "foo.txt") {
+		t.Fatalf("expected foo.txt in suggestions, got %q", newM.suggestion.View(80))
 	}
 }
 

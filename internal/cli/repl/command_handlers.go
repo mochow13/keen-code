@@ -1196,7 +1196,7 @@ func (m *replModel) helpWidth() int {
 		width = m.viewport.Width()
 	}
 	if width <= 0 {
-		width = 80
+		width = defaultHelpWidth
 	}
 	return width
 }

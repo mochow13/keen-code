@@ -10,7 +10,11 @@ import (
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
-const maxQueuedInputs = 5
+const (
+	maxQueuedInputs          = 5
+	queueItemHorizontalSpace = 3
+	minQueuedItemWidth       = 10
+)
 
 func (m *replModel) isQueueable(input string) bool {
 	if !strings.HasPrefix(input, "/") {
@@ -50,9 +54,9 @@ func (m replModel) renderQueuedInputs() string {
 	}
 	chip := repltheme.QueueChipStyle.Render("queue")
 	chipWidth := lipgloss.Width(chip)
-	maxWidth := m.width - chipWidth - 3
-	if maxWidth < 10 {
-		maxWidth = 10
+	maxWidth := m.width - chipWidth - queueItemHorizontalSpace
+	if maxWidth < minQueuedItemWidth {
+		maxWidth = minQueuedItemWidth
 	}
 	var b strings.Builder
 	b.WriteString("\n")

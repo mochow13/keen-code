@@ -36,13 +36,18 @@ import (
 )
 
 const (
-	defaultWidth            = 120
-	inputMinHeight          = 1
-	inputMaxHeight          = 15
-	inputMaxContentHeight   = 10000
-	copyNotificationTimeout = 2 * time.Second
-	copyNotificationMessage = "Copied to clipboard"
-	streamRenderInterval    = 200 * time.Millisecond
+	defaultWidth             = 120
+	defaultViewportHeight    = 24
+	defaultHelpWidth         = 80
+	inputMinHeight           = 1
+	inputMaxHeight           = 15
+	inputMaxContentHeight    = 10000
+	contentHorizontalPadding = 4
+	viewportChromeHeight     = 5
+	statusBlockHeight        = 2
+	copyNotificationTimeout  = 2 * time.Second
+	copyNotificationMessage  = "Copied to clipboard"
+	streamRenderInterval     = 200 * time.Millisecond
 )
 
 type replContext struct {
@@ -173,7 +178,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	ta.Placeholder = "What are we building?"
 	ta.Focus()
 	ta.CharLimit = 0
-	ta.SetWidth(defaultWidth - 3)
+	ta.SetWidth(defaultWidth - inputPromptWidth)
 	ta.DynamicHeight = true
 	ta.MinHeight = inputMinHeight
 	ta.MaxHeight = inputMaxHeight
@@ -253,7 +258,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		lastSession = &summaries[0]
 	}
 
-	vp := viewport.New(viewport.WithWidth(defaultWidth), viewport.WithHeight(24))
+	vp := viewport.New(viewport.WithWidth(defaultWidth), viewport.WithHeight(defaultViewportHeight))
 
 	model := replModel{
 		textarea:            ta,

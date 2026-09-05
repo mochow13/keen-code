@@ -340,7 +340,7 @@ func (m *replModel) handleToolEnd(toolCall *llm.ToolCall) (replModel, tea.Cmd) {
 }
 
 // extractAtToken scans backwards from cursorPos in input to find a @<token>.
-// The @ must be at the start of input or preceded by a space.
+// The @ must be at the start of input or line, or preceded by a space.
 // Returns the token text (without @), the start index of @, and found=true if valid.
 func extractAtToken(input string, cursorPos int) (token string, startIdx int, found bool) {
 	if cursorPos <= 0 || cursorPos > len(input) {
@@ -351,7 +351,7 @@ func extractAtToken(input string, cursorPos int) (token string, startIdx int, fo
 	if atIdx < 0 {
 		return "", 0, false
 	}
-	if atIdx > 0 && input[atIdx-1] != ' ' {
+	if atIdx > 0 && input[atIdx-1] != ' ' && input[atIdx-1] != '\n' {
 		return "", 0, false
 	}
 	tok := sub[atIdx+1:]

@@ -11,8 +11,11 @@ import (
 	"github.com/mochow13/keen-code/internal/tools"
 )
 
-const bashOutputMaxLines = 16
-const diffRightPadding = 2
+const (
+	bashOutputMaxLines = 16
+	diffLeftPadding    = 2
+	diffRightPadding   = 2
+)
 
 // wrapAndIndent wraps an already-styled string to wrapWidth and prefixes every
 // produced sub-line with two spaces so wrapped continuations stay aligned with
@@ -35,7 +38,7 @@ func renderToolStatusLines(line string, width int) []string {
 		width = defaultWidth
 	}
 	line = strings.TrimPrefix(line, "  ")
-	return wrapAndIndent(line, width-4)
+	return wrapAndIndent(line, width-contentHorizontalPadding)
 }
 
 func (sh *StreamHandler) renderViewLines(width int) []string {
@@ -260,7 +263,7 @@ func (sh *StreamHandler) renderAssistantViewLines(content string, width int) []s
 	}
 
 	responseLines := strings.Split(content, "\n")
-	wrapWidth := width - 4
+	wrapWidth := width - contentHorizontalPadding
 	formatted := make([]string, 0, len(responseLines))
 	for _, line := range responseLines {
 		formatted = append(formatted, wrapAndIndent(repltheme.AssistantStyle.Render(line), wrapWidth)...)
@@ -295,7 +298,7 @@ func (sh *StreamHandler) renderReasoningViewLines(content string, width int) []s
 	}
 
 	responseLines := strings.Split(content, "\n")
-	wrapWidth := width - 4
+	wrapWidth := width - contentHorizontalPadding
 	formatted := make([]string, 0, len(responseLines))
 	for _, line := range responseLines {
 		formatted = append(formatted, wrapAndIndent(repltheme.ReasoningStyle.Render(line), wrapWidth)...)
@@ -309,9 +312,9 @@ func (sh *StreamHandler) renderReasoningTranscriptLines(content string) []string
 	}
 
 	lines := strings.Split(content, "\n")
-	wrapWidth := sh.lastWidth - 4
+	wrapWidth := sh.lastWidth - contentHorizontalPadding
 	if wrapWidth < 1 {
-		wrapWidth = 120
+		wrapWidth = defaultWidth
 	}
 
 	result := make([]string, 0, len(lines))
@@ -345,7 +348,7 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []stri
 	lines = append(lines, "")
 	lines = append(lines, rule)
 	if width > 0 {
-		lines = append(lines, wrapAndIndent(repltheme.BashCommandStyle.Render("$ "+seg.command), width-4)...)
+		lines = append(lines, wrapAndIndent(repltheme.BashCommandStyle.Render("$ "+seg.command), width-contentHorizontalPadding)...)
 	} else {
 		lines = append(lines, repltheme.BashCommandStyle.Render("  $ "+seg.command))
 	}
@@ -365,7 +368,7 @@ func (sh *StreamHandler) renderBashSegment(seg *streamSegment, width int) []stri
 		}
 		for _, line := range visible {
 			if width > 0 {
-				lines = append(lines, wrapAndIndent(repltheme.BashOutputStyle.Render(line), width-4)...)
+				lines = append(lines, wrapAndIndent(repltheme.BashOutputStyle.Render(line), width-contentHorizontalPadding)...)
 			} else {
 				lines = append(lines, "  "+repltheme.BashOutputStyle.Render(line))
 			}
@@ -437,15 +440,15 @@ func renderDiffSegment(seg *streamSegment, width int) []string {
 		rendered = append(rendered, renderDiffLines(dl, width)...)
 	}
 
-	ruleWidth := defaultWidth - 2 - diffRightPadding
+	ruleWidth := defaultWidth - diffLeftPadding - diffRightPadding
 	if width > 0 {
-		ruleWidth = width - 2 - diffRightPadding
+		ruleWidth = width - diffLeftPadding - diffRightPadding
 	}
 	if ruleWidth < 1 {
 		ruleWidth = 1
 	}
 
-	rule := "  " + repltheme.RuleStyle.Render(strings.Repeat("─", ruleWidth))
+	rule := strings.Repeat(" ", diffLeftPadding) + repltheme.RuleStyle.Render(strings.Repeat("─", ruleWidth))
 	lines := make([]string, 0, len(rendered)+3)
 	lines = append(lines, "")
 	lines = append(lines, rule)
@@ -465,7 +468,7 @@ func renderBtwLeftBorder(line string) string {
 }
 
 func (m *replModel) renderBtwInline(width int) string {
-	contentWidth := width - 4
+	contentWidth := width - contentHorizontalPadding
 	if contentWidth < 1 {
 		contentWidth = 1
 	}
@@ -521,7 +524,7 @@ func renderAdversaryLeftBorder(line string) string {
 }
 
 func (m *replModel) renderAdversaryInline(width int) string {
-	contentWidth := max(width-4, 1)
+	contentWidth := max(width-contentHorizontalPadding, 1)
 
 	var view strings.Builder
 	view.WriteString("\n\n")

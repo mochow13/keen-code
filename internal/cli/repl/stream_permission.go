@@ -9,7 +9,10 @@ import (
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
-const permissionPreviewMaxLines = 120
+const (
+	permissionPreviewMaxLines = 120
+	permissionCardMinWidth    = 20
+)
 
 func (sh *StreamHandler) HandlePermissionRequest(req *replpermissions.Request) {
 	sh.segments = append(sh.segments, streamSegment{
@@ -96,9 +99,9 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 		return renderPermissionResolved(req)
 	}
 
-	cardWidth := width - 4
-	if cardWidth < 20 {
-		cardWidth = 20
+	cardWidth := width - contentHorizontalPadding
+	if cardWidth < permissionCardMinWidth {
+		cardWidth = permissionCardMinWidth
 	}
 	cardStyle := repltheme.UserPromptCardStyle.MaxWidth(cardWidth)
 	contentWidth := cardWidth - cardStyle.GetHorizontalFrameSize()
