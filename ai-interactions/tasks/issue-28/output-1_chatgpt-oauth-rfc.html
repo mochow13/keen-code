@@ -1,0 +1,8615 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://mochow13.github.io/keen-code/ai-interactions/tasks/issue-28/output-1_chatgpt-oauth-rfc.html">
+      
+      
+        <link rel="prev" href="prompt-1_oauth-chatgpt.html">
+      
+      
+        <link rel="next" href="../issue-29/output-1_repl-refactor-plan.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/keen-code.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Chatgpt OAuth RFC - Keen Code</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CCascadia+Code:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Cascadia Code"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../extra.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-1BLBXTQNSW"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-1BLBXTQNSW",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-1BLBXTQNSW",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#rfc-chatgpt-account-oauth-support-for-openai-codex-models" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../index.html" title="Keen Code" class="md-header__button md-logo" aria-label="Keen Code" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Keen Code
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Chatgpt OAuth RFC
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/mochow13/keen-code" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mochow13/keen-code
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../index.html" title="Keen Code" class="md-nav__button md-logo" aria-label="Keen Code" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Keen Code
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/mochow13/keen-code" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mochow13/keen-code
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../TOUR.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tour
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../ROADMAP.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CHANGELOG.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../CONTRIBUTING.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../AGENTS.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AGENTS.md
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Documentation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/ai-providers.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/architecture.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/cli-usage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/mcp-oauth.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP OAuth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/mcp-servers.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Servers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/mcp-skills.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/multi-agent-orchestration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi Agent Orchestration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/permission-system.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/queuing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queuing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/session-management.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/skills-system.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/subagents.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Subagents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../docs/turn-memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Turn Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Interactions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    AI Interactions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_1" id="__nav_9_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outputs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_9_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Outputs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_1_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_1_1" id="__nav_9_1_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 1
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_1_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_1_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 1
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-1/output-1_rfc.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RFC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-1/output-2_rfc-review.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RFC Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-1/output-3_phase-1-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 1 Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-1/output-4_config-design.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-1/output-5_basic-cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Basic CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-1/output-6_phase-1-review.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 1 Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_1_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_1_2" id="__nav_9_1_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 2
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_1_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_1_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 2
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-2/output-1_stream-chat-todo.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stream Chat Todo
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-2/output-2_repl-refactor.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Refactor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_1_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_1_3" id="__nav_9_1_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 3
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_1_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_1_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 3
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-1_design-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-2_tool-design-review.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Design Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-3_read-file-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read File Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-4_glob-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glob Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-5_ui-improvements.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Improvements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-6_grep-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grep Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-7_interrupt.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interrupt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-8_bash-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-9_write-file-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write File Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-10_edit-file-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Edit File Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-3/output-11_permission-ui-redesign.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission UI Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_1_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_1_4" id="__nav_9_1_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 4
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_1_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_1_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 4
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-1_deepseek.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deepseek
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-2_distribution-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distribution Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-3_system-prompt.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-4_system-prompt-all-ideas.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompt All Ideas
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-5_tool-prompts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-6_autosuggestion.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Autosuggestion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-6_context-status-ui.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Status UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-4/output-7_compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_1_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_1_5" id="__nav_9_1_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 5
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 5
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-5/output-1_roadmap.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-5/output-2_sessions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-5/output-3_tool-memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-5/output-4_tool-memory-redesign.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Memory Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-5/output-5_thinking-param.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Thinking Param
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-5/output-6_turn-memory-vs-kv-cache.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Turn Memory Vs Kv Cache
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../outputs/phase-5/output-7_context-status-redesign.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Status Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_2" id="__nav_9_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prompts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_9_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Prompts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_2_1" id="__nav_9_2_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 1
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 1
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prd.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PRD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prompt-1_write-rfc.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write RFC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prompt-2_rfc-review.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RFC Review
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prompt-3_phase-1-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 1 Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prompt-4_config-design.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prompt-5_phase-1-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 1 Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prompt-6_file-guard-prd.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Guard PRD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-1/prompt-7-cli-prd.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI PRD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_2_2" id="__nav_9_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 2
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 2
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-2/prompt-1_langchain-go.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Langchain Go
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-2/prompt-2_repl-commands.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-2/prompt-3_stream-chat.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stream Chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-2/prompt-4_llm-framework.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Framework
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-2/prompt-5_phase-2-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 2 Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-2/prompt-6_repl-refactor.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Refactor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_2_3" id="__nav_9_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 3
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 3
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-1_design-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-2_phase-3-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 3 Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-3_read-file-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read File Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-4_glob-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glob Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-5_grep-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grep Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-6_bash-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bash Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-7_write-file-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write File Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-8_edit-file-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Edit File Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-3/prompt-9_permission-ui-redesign.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permission UI Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_2_4" id="__nav_9_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 4
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 4
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-4/prompt-1_deepseek.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deepseek
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-4/prompt-2_phase-4-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 4 Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-4/prompt-3_tool-prompts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-4/prompt-4_system-prompt.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Prompt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-4/prompt-5_distribution.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-4/prompt-6_context-mgmt.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Mgmt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_2_5" id="__nav_9_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 5
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Phase 5
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-5/prompt-1_roadmap.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-5/prompt-2_sessions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-5/prompt-3_phase-5-tasks.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase 5 Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-5/prompt-4_tool-memory.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../prompts/phase-5/prompt-5_context-status-redesign.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Context Status Redesign
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9_3" id="__nav_9_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_9_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tasks
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_1" id="__nav_9_3_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 2
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 2
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-2/prompt-1_base-url.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base Url
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-2/output-1_base-url-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base Url Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_2" id="__nav_9_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 3
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 3
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-3/prompt-1_glm-model.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glm Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-3/output-1_glm-model-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glm Model Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_3" id="__nav_9_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 4
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 4
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-4/prompt-1_input-history-nav.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Input History Nav
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-4/output-1_input-history-nav-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Input History Nav Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_4" id="__nav_9_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 5
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 5
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-5/prompt-1_clear-new-cmd.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clear New Cmd
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_5" id="__nav_9_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 10
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 10
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-10/output-1_file-tagging-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Tagging Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-10/prompt-1_file-tagging.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File Tagging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_6" id="__nav_9_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 11
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 11
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-11/output-1_ask-what-to-do.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask What To Do
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-11/prompt-1_ask-what-to-do.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask What To Do
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_7" id="__nav_9_3_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 14
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 14
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-14/prompt-1_scrollback-ui.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scrollback UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_8" id="__nav_9_3_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 17
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 17
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-17/prompt-1_permissions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-17/output-1_permissions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_9" id="__nav_9_3_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 26
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 26
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-26/prompt-1_retry-mechanism.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Mechanism
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_10" id="__nav_9_3_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 28
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9_3_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 28
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="prompt-1_oauth-chatgpt.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OAuth Chatgpt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chatgpt OAuth RFC
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="output-1_chatgpt-oauth-rfc.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chatgpt OAuth RFC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current State
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed Design
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user-experience" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Experience
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="User Experience">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#first-time-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First-Time Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returning-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returning Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provider-selection-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Selection Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oauth-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OAuth Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#oauth-sequence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Sequence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#important-callback-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important Callback Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#token-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token Storage
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Token Storage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#token-claims" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token Claims
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refresh-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refresh Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Request Path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-client-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM Client Design
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provider-registry-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Registry Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repl-model-selection-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REPL Model Selection Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-opening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser Opening
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compatibility-and-migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility and Migration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rollout-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rollout Plan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fine-grained-todo-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fine-Grained TODO List
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fine-Grained TODO List">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#research-and-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research and Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provider-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oauth-browser-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Browser Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#config-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-selection-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Selection UI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#llm-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-factory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Factory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commands-and-re-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands and Re-Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_11" id="__nav_9_3_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 29
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 29
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-29/output-1_repl-refactor-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Refactor Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-29/prompt-1_repl-refactor.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    REPL Refactor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_12" id="__nav_9_3_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 30
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 30
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-30/prompt-1_single-turn-reliability.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single Turn Reliability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-30/output-1_single-turn-reliability-rfc.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single Turn Reliability RFC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_13" id="__nav_9_3_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 34
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 34
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-34/prompt-1_agent-skills.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-34/output-1_agent-skills-rfc.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Skills RFC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_14" id="__nav_9_3_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 35
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 35
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-35/output-1_bundled-skills.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bundled Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-35/prompt-1_bundled-skills.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bundled Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_15" id="__nav_9_3_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 37
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 37
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-37/output-1_opencode-go-provider.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Opencode Go Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-37/prompt-1_opencode-go-provider.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Opencode Go Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_16" id="__nav_9_3_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 39
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_16">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 39
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-39/prompt-1_btw.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BTW
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-39/output-1_btw.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BTW
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_17" id="__nav_9_3_17_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 40
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_17">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 40
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-40/output-1_keen-run-plan.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keen Run Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-40/prompt-1_keen-run.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keen Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_18" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_18" id="__nav_9_3_18_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 42
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_18_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_18">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 42
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-42/output-1_webfetch-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webfetch Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-42/prompt-1_webfetch-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webfetch Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_19" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_19" id="__nav_9_3_19_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 43
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_19_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_19">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 43
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-43/output-1_idea-mcp-with-skill.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Idea MCP With Skill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-43/prompt-1_mcp-with-skill.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP With Skill
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-43/prompt-2_mcp.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-43/output-2_mcp.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-43/output-3_mcp-phase-2.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Phase 2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-43/output-4_mcp-skills-integration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Skills Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_20" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_20" id="__nav_9_3_20_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 45
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_20_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_20">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 45
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-45/prompt-1_modes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_21" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_21" id="__nav_9_3_21_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 52
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_21_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_21">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 52
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-52/output-1_adversary.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-52/prompt-1_adversary.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adversary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_22" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_22" id="__nav_9_3_22_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 54
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_22_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_22">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 54
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-54/prompt-1_in-turn-ctx-reduction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In Turn Ctx Reduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-54/output-1_in-turn-ctx-reduction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In Turn Ctx Reduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_23" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_23" id="__nav_9_3_23_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 55
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_23_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_23">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 55
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-55/output-1_investigation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Investigation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-55/prompt-1_subagents.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Subagents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-55/prompt-2_subagents-impl.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Subagents Impl
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-55/output-2_subagents-rfc.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Subagents RFC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_24" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_24" id="__nav_9_3_24_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 57
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_24_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_24">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 57
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-57/output-1_safeguarding-bash.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safeguarding Bash
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-57/prompt-1_safeguarding-bash.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Safeguarding Bash
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_25" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_25" id="__nav_9_3_25_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 63
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_25_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_25">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 63
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-63/prompt-1_memory-design.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-63/output-1_memory-design.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Memory Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_26" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_26" id="__nav_9_3_26_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 73
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_26_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_26">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 73
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-73/handoff.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-73/output-1_ask-user-tool.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ask User Tool
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_27" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_27" id="__nav_9_3_27_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 78
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_27_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_27">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 78
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-78/output-1_auto-compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto Compaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-78/prompt-1_auto-compaction.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto Compaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9_3_28" >
+        
+          
+          <label class="md-nav__link" for="__nav_9_3_28" id="__nav_9_3_28_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issue 80
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_9_3_28_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9_3_28">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Issue 80
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-80/prompt-1_hashline_ralph_loop.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hashline Ralph Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-80/output-1_hashline.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hashline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../issue-80/prompt-2_hashline-followups.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hashline Followups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#non-goals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Non-Goals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current State
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed Design
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user-experience" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Experience
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="User Experience">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#first-time-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First-Time Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returning-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Returning Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provider-selection-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Selection Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oauth-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OAuth Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#oauth-sequence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Sequence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#important-callback-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important Callback Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#token-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token Storage
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Token Storage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#token-claims" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token Claims
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refresh-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Refresh Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Request Path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-client-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM Client Design
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provider-registry-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Registry Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repl-model-selection-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        REPL Model Selection Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#browser-opening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browser Opening
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compatibility-and-migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility and Migration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rollout-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rollout Plan
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Questions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fine-grained-todo-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fine-Grained TODO List
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fine-Grained TODO List">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#research-and-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research and Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provider-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provider Registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oauth-browser-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth Browser Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#config-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-selection-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Selection UI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#llm-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM Client
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-factory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Factory
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commands-and-re-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands and Re-Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="rfc-chatgpt-account-oauth-support-for-openai-codex-models">RFC: ChatGPT Account OAuth Support for OpenAI Codex Models<a class="headerlink" href="#rfc-chatgpt-account-oauth-support-for-openai-codex-models" title="Permanent link">&para;</a></h1>
+<h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
+<p>Draft.</p>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>Keen Code currently supports OpenAI through API-key authentication against the OpenAI Responses API. This RFC proposes adding a separate provider path for users who want to authenticate with a ChatGPT account through browser OAuth and use the ChatGPT/Codex model endpoint without entering an API key or base URL.</p>
+<p>The new provider should be presented as:</p>
+<ul>
+<li><code>OpenAI</code> for the existing OpenAI Platform API-key flow.</li>
+<li><code>Codex (ChatGPT OAuth)</code> for browser-based ChatGPT account OAuth.</li>
+</ul>
+<p>The ChatGPT/Codex flow is not a normal OpenAI API-key variant. It uses a different credential lifecycle, request endpoint, request headers, model list, and user-facing setup flow. The implementation should keep it separate from the current <code>openai</code> provider instead of forcing OAuth into the existing <code>ProviderConfig.APIKey</code> field.</p>
+<h2 id="goals">Goals<a class="headerlink" href="#goals" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Add browser-only OAuth login for ChatGPT accounts.</li>
+<li>Let users select <code>Codex (ChatGPT OAuth)</code> from <code>/model</code>.</li>
+<li>Open the default browser to authenticate with OpenAI.</li>
+<li>Show a local browser success page after authentication finishes.</li>
+<li>Return the user to the CLI and continue to model selection.</li>
+<li>Skip API key and base URL prompts for the ChatGPT/Codex provider.</li>
+<li>Store OAuth tokens locally with file permissions appropriate for secrets.</li>
+<li>Refresh access tokens automatically.</li>
+<li>Use the Codex responses endpoint for ChatGPT/Codex traffic.</li>
+<li>Keep existing OpenAI API-key behavior unchanged.</li>
+</ul>
+<h2 id="non-goals">Non-Goals<a class="headerlink" href="#non-goals" title="Permanent link">&para;</a></h2>
+<ul>
+<li>No headless/device-code login flow in the initial implementation.</li>
+<li>No ChatGPT web session scraping.</li>
+<li>No reuse of ChatGPT OAuth credentials against arbitrary OpenAI Platform endpoints.</li>
+<li>No changes to existing non-OpenAI providers.</li>
+<li>No automatic migration of existing <code>openai</code> API-key configuration to ChatGPT/Codex.</li>
+</ul>
+<h2 id="current-state">Current State<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
+<p>Keen Code currently has these relevant boundaries:</p>
+<ul>
+<li>Provider metadata is embedded from <code>providers/registry.yaml</code>.</li>
+<li><code>internal/config.ProviderConfig</code> stores <code>Models</code>, <code>APIKey</code>, and optional <code>BaseURL</code>.</li>
+<li><code>config.Resolve</code> requires an API key for all configured providers.</li>
+<li><code>llm.NewClient</code> rejects configs with an empty API key.</li>
+<li><code>/model</code> is implemented in <code>internal/cli/repl/widgets/model_selection.go</code>.</li>
+<li>The model selection widget currently prompts for model, thinking effort, optional base URL, and API key.</li>
+<li>The existing OpenAI client is <code>OpenAIResponsesClient</code>, backed by <code>github.com/openai/openai-go</code>.</li>
+</ul>
+<p>Those assumptions fit API-key providers. They do not fit ChatGPT/Codex OAuth cleanly.</p>
+<h2 id="proposed-design">Proposed Design<a class="headerlink" href="#proposed-design" title="Permanent link">&para;</a></h2>
+<p>Add a separate provider ID:</p>
+<div class="highlight"><pre><span></span><code>openai-codex
+</code></pre></div>
+<p>Display it as:</p>
+<div class="highlight"><pre><span></span><code>Codex (ChatGPT OAuth)
+</code></pre></div>
+<p>Keep the existing <code>openai</code> provider but rename its display name to:</p>
+<div class="highlight"><pre><span></span><code>OpenAI
+</code></pre></div>
+<p>The new provider has:</p>
+<ul>
+<li>no base URL prompt</li>
+<li>no API key prompt</li>
+<li>browser OAuth before model selection when credentials are missing or invalid</li>
+<li>its own token storage</li>
+<li>its own LLM client implementation</li>
+<li>its own static model list</li>
+</ul>
+<h2 id="user-experience">User Experience<a class="headerlink" href="#user-experience" title="Permanent link">&para;</a></h2>
+<h3 id="first-time-setup">First-Time Setup<a class="headerlink" href="#first-time-setup" title="Permanent link">&para;</a></h3>
+<ol>
+<li>User runs Keen Code or enters <code>/model</code>.</li>
+<li>User selects <code>Codex (ChatGPT OAuth)</code>.</li>
+<li>If no valid OAuth credentials exist, Keen Code starts a temporary localhost callback server.</li>
+<li>Keen Code opens the OAuth URL in the default browser.</li>
+<li>User authenticates with their OpenAI/ChatGPT account.</li>
+<li>Browser redirects to the local callback URL.</li>
+<li>Keen Code validates state, exchanges the code for tokens, stores credentials, then returns a success page.</li>
+<li>User returns to the CLI.</li>
+<li>Keen Code shows the static supported ChatGPT/Codex model list.</li>
+<li>User selects a model and thinking effort when that model supports configurable effort.</li>
+<li>Keen Code saves the selected provider/model and initializes the LLM client.</li>
+</ol>
+<h3 id="returning-setup">Returning Setup<a class="headerlink" href="#returning-setup" title="Permanent link">&para;</a></h3>
+<p>If valid OAuth credentials already exist:</p>
+<ol>
+<li>User selects <code>Codex (ChatGPT OAuth)</code>.</li>
+<li>Keen Code skips login.</li>
+<li>Keen Code shows the static ChatGPT/Codex model list.</li>
+<li>User selects a model and thinking effort when that model supports configurable effort.</li>
+</ol>
+<p>If credentials exist but the access token is expired, model selection can continue. The LLM client should refresh the access token before the next request.</p>
+<h2 id="provider-selection-flow">Provider Selection Flow<a class="headerlink" href="#provider-selection-flow" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>flowchart TD
+    A[User runs /model] --&gt; B[Select provider]
+    B --&gt; C{Provider}
+    C --&gt;|OpenAI API Key| D[Select model]
+    D --&gt; E[Select thinking effort if supported]
+    E --&gt; F[Prompt for base URL]
+    F --&gt; G[Prompt for API key]
+    G --&gt; H[Save config and initialize API-key client]
+
+    C --&gt;|OpenAI ChatGPT/Codex| I{OAuth credentials exist?}
+    I --&gt;|No| J[Start local callback server]
+    J --&gt; K[Open browser to OpenAI OAuth URL]
+    K --&gt; L[Exchange callback code for tokens]
+    L --&gt; M[Store OAuth credentials]
+    I --&gt;|Yes| N[Select Codex model]
+    M --&gt; N
+    N --&gt; O[Select thinking effort if supported]
+    O --&gt; P[Save provider/model only]
+    P --&gt; Q[Initialize Codex OAuth client]
+</code></pre></div>
+<h2 id="oauth-flow">OAuth Flow<a class="headerlink" href="#oauth-flow" title="Permanent link">&para;</a></h2>
+<p>The browser login should use Authorization Code with PKCE.</p>
+<p>Suggested constants, matching the Codex-style flow used by OpenCode:</p>
+<div class="highlight"><pre><span></span><code>issuer: https://auth.openai.com
+client_id: app_EMoamEEZ73f0CkXaXp7hrann
+scope: openid profile email offline_access
+redirect_uri: http://localhost:&lt;port&gt;/auth/callback
+authorization flags:
+  id_token_add_organizations=true
+  codex_cli_simplified_flow=true
+  originator=keen-code
+</code></pre></div>
+<p>The port can be fixed or dynamic. A dynamic port avoids collisions, but the redirect URI must be accepted by the OpenAI OAuth client. If only a known localhost port works for this client, use that port and handle conflicts explicitly.</p>
+<h3 id="oauth-sequence">OAuth Sequence<a class="headerlink" href="#oauth-sequence" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>sequenceDiagram
+    participant CLI as Keen CLI
+    participant Local as Local Callback Server
+    participant Browser
+    participant Auth as auth.openai.com
+
+    CLI-&gt;&gt;CLI: Generate PKCE verifier/challenge
+    CLI-&gt;&gt;CLI: Generate random state
+    CLI-&gt;&gt;Local: Listen on localhost callback URL
+    CLI-&gt;&gt;Browser: Open authorization URL
+    Browser-&gt;&gt;Auth: User authenticates
+    Auth-&gt;&gt;Browser: Redirect with code and state
+    Browser-&gt;&gt;Local: GET /auth/callback?code=...&amp;state=...
+    Local-&gt;&gt;Local: Validate state
+    Local-&gt;&gt;Auth: POST /oauth/token with code and verifier
+    Auth--&gt;&gt;Local: access_token, refresh_token, id_token, expires_in
+    Local-&gt;&gt;CLI: Resolve OAuth result
+    CLI-&gt;&gt;CLI: Store credentials
+    Local--&gt;&gt;Browser: Success page
+</code></pre></div>
+<h3 id="important-callback-rules">Important Callback Rules<a class="headerlink" href="#important-callback-rules" title="Permanent link">&para;</a></h3>
+<p>The callback handler should be stricter than the OpenCode implementation reviewed for this issue:</p>
+<ul>
+<li>Validate <code>state</code> before handling success or error outcomes.</li>
+<li>Do not reflect raw <code>error</code> or <code>error_description</code> into HTML.</li>
+<li>Exchange tokens before showing the browser success page.</li>
+<li>Show an error page if token exchange fails.</li>
+<li>Stop the local HTTP server in a <code>defer</code> or <code>finally</code> equivalent for success, cancel, timeout, and failure.</li>
+<li>Time out the pending login after a fixed duration, for example five minutes.</li>
+</ul>
+<h2 id="token-storage">Token Storage<a class="headerlink" href="#token-storage" title="Permanent link">&para;</a></h2>
+<p>Add a separate auth store instead of placing OAuth material inside provider config.</p>
+<p>Suggested file:</p>
+<div class="highlight"><pre><span></span><code>~/.keen/auth.json
+</code></pre></div>
+<p>Suggested shape:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"openai-codex"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"oauth"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"access_token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"refresh_token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"expires_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-04-27T12:00:00Z"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"account_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"optional ChatGPT account or organization id"</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The file should be written with <code>0600</code> permissions. The code should avoid logging tokens, authorization codes, full callback URLs, or OAuth response bodies.</p>
+<h3 id="token-claims">Token Claims<a class="headerlink" href="#token-claims" title="Permanent link">&para;</a></h3>
+<p>Extract <code>account_id</code> from the ID token first, then access token as a fallback. Known claim locations from OpenCode:</p>
+<div class="highlight"><pre><span></span><code>chatgpt_account_id
+https://api.openai.com/auth.chatgpt_account_id
+organizations[0].id
+</code></pre></div>
+<p>JWT parsing here is only for claim extraction, not for validating trust. The access token is trusted because it came directly from the token endpoint over TLS.</p>
+<h2 id="refresh-flow">Refresh Flow<a class="headerlink" href="#refresh-flow" title="Permanent link">&para;</a></h2>
+<p>Access tokens should be refreshed lazily before requests when expired or near expiry.</p>
+<div class="highlight"><pre><span></span><code>flowchart TD
+    A[Codex request starts] --&gt; B[Load stored OAuth credentials]
+    B --&gt; C{Access token valid?}
+    C --&gt;|Yes| D[Use current access token]
+    C --&gt;|No| E[Acquire provider refresh lock]
+    E --&gt; F[Reload credentials]
+    F --&gt; G{Another request refreshed?}
+    G --&gt;|Yes| D
+    G --&gt;|No| H[POST refresh_token to token endpoint]
+    H --&gt; I[Store new access token]
+    I --&gt; J[Preserve old refresh token if response omits replacement]
+    J --&gt; D
+    D --&gt; K[Send request to Codex endpoint]
+</code></pre></div>
+<p>Refresh should be guarded by a per-provider mutex to avoid concurrent refreshes racing against each other. This matters if refresh tokens rotate.</p>
+<h2 id="request-path">Request Path<a class="headerlink" href="#request-path" title="Permanent link">&para;</a></h2>
+<p>The ChatGPT/Codex client should send Responses-compatible requests to:</p>
+<div class="highlight"><pre><span></span><code>https://chatgpt.com/backend-api/codex/responses
+</code></pre></div>
+<p>Required headers:</p>
+<div class="highlight"><pre><span></span><code>Authorization: Bearer &lt;access_token&gt;
+ChatGPT-Account-Id: &lt;account_id&gt;   # only when known
+originator: keen-code
+User-Agent: keen-code/&lt;version&gt; (&lt;os&gt; &lt;arch&gt;)
+session_id: &lt;session id if available&gt;
+</code></pre></div>
+<p>Keen Code should not pass an OpenAI API key for this provider.</p>
+<h2 id="llm-client-design">LLM Client Design<a class="headerlink" href="#llm-client-design" title="Permanent link">&para;</a></h2>
+<p>Add a new client rather than overloading <code>OpenAIResponsesClient</code>:</p>
+<div class="highlight"><pre><span></span><code>internal/llm/openai_codex.go
+</code></pre></div>
+<p>The client can share request conversion logic with <code>OpenAIResponsesClient</code> where practical:</p>
+<ul>
+<li>message conversion</li>
+<li>tool conversion</li>
+<li>reasoning effort mapping</li>
+<li>streaming event handling</li>
+<li>tool loop behavior</li>
+</ul>
+<p>The main differences are:</p>
+<ul>
+<li>auth comes from OAuth token storage, not <code>ClientConfig.APIKey</code></li>
+<li>endpoint is the ChatGPT Codex endpoint</li>
+<li>refresh is required before requests</li>
+<li>custom headers are required</li>
+<li>base URL is not configurable</li>
+</ul>
+<p>The current Keen Code dependency, <code>github.com/openai/openai-go v1.8.2</code>, can target the Codex endpoint cleanly enough to use for the first implementation. <code>client.Responses.NewStreaming</code> posts to the relative path <code>responses</code>, and <code>option.WithBaseURL("https://chatgpt.com/backend-api/codex/")</code> resolves that request to <code>https://chatgpt.com/backend-api/codex/responses</code>.</p>
+<p>The Codex client should therefore keep using <code>openai-go</code> response parameter types, streaming decoding, and response event types. It should not use a dummy API key. Instead, refresh OAuth credentials before each request as needed and pass request-specific headers:</p>
+<div class="highlight"><pre><span></span><code><span class="nx">stream</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">c</span><span class="p">.</span><span class="nx">client</span><span class="p">.</span><span class="nx">Responses</span><span class="p">.</span><span class="nx">NewStreaming</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">params</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">option</span><span class="p">.</span><span class="nx">WithHeader</span><span class="p">(</span><span class="s">"authorization"</span><span class="p">,</span><span class="w"> </span><span class="s">"Bearer "</span><span class="o">+</span><span class="nx">accessToken</span><span class="p">),</span>
+<span class="w">    </span><span class="nx">option</span><span class="p">.</span><span class="nx">WithHeader</span><span class="p">(</span><span class="s">"originator"</span><span class="p">,</span><span class="w"> </span><span class="s">"keen-code"</span><span class="p">),</span>
+<span class="w">    </span><span class="nx">option</span><span class="p">.</span><span class="nx">WithHeader</span><span class="p">(</span><span class="s">"User-Agent"</span><span class="p">,</span><span class="w"> </span><span class="nx">userAgent</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>When <code>accountID</code> is known, add:</p>
+<div class="highlight"><pre><span></span><code><span class="nx">option</span><span class="p">.</span><span class="nx">WithHeader</span><span class="p">(</span><span class="s">"ChatGPT-Account-Id"</span><span class="p">,</span><span class="w"> </span><span class="nx">accountID</span><span class="p">)</span>
+</code></pre></div>
+<p>Because <code>openai.NewClient</code> reads <code>OPENAI_API_KEY</code>, <code>OPENAI_ORG_ID</code>, and <code>OPENAI_PROJECT_ID</code> from the environment by default, the Codex client should explicitly override the authorization header per request and avoid passing OpenAI Platform organization/project headers to the ChatGPT/Codex endpoint. If those environment-derived headers are present, remove them with request options such as <code>option.WithHeaderDel("OpenAI-Organization")</code> and <code>option.WithHeaderDel("OpenAI-Project")</code>, or construct the service in a way that avoids default environment options if the SDK exposes that in a future version.</p>
+<h2 id="config-changes">Config Changes<a class="headerlink" href="#config-changes" title="Permanent link">&para;</a></h2>
+<p>Current provider config:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">ProviderConfig</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Models</span><span class="w">  </span><span class="p">[]</span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">APIKey</span><span class="w">  </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">BaseURL</span><span class="w"> </span><span class="kt">string</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Proposed direction:</p>
+<ul>
+<li>Keep <code>ProviderConfig</code> for API-key providers.</li>
+<li>Add provider metadata or helper functions that identify auth requirements.</li>
+<li>Add a separate <code>AuthStore</code> for OAuth credentials.</li>
+<li>Allow <code>config.Resolve</code> and <code>llm.NewClient</code> to resolve <code>openai-codex</code> without an API key.</li>
+</ul>
+<p>Possible resolved config extension:</p>
+<div class="highlight"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">ResolvedConfig</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">Provider</span><span class="w">       </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">APIKey</span><span class="w">         </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">Model</span><span class="w">          </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">ThinkingEffort</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">BaseURL</span><span class="w">        </span><span class="kt">string</span>
+<span class="w">    </span><span class="nx">AuthMode</span><span class="w">       </span><span class="kt">string</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>For <code>openai-codex</code>, <code>AuthMode</code> would be <code>oauth</code>, <code>APIKey</code> would be empty, and the LLM client would load OAuth credentials from the auth store.</p>
+<h2 id="provider-registry-changes">Provider Registry Changes<a class="headerlink" href="#provider-registry-changes" title="Permanent link">&para;</a></h2>
+<p>Add a separate static provider entry to <code>providers/registry.yaml</code>. Keen Code should not discover these models dynamically from the ChatGPT/Codex endpoint in the initial implementation.</p>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai-codex</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Codex (ChatGPT OAuth)</span>
+<span class="w">  </span><span class="nt">models</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-5.5</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GPT-5.5</span>
+<span class="w">      </span><span class="nt">context_window</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1050000</span>
+<span class="w">      </span><span class="nt">thinking_efforts</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"low"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"medium"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"high"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"xhigh"</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-5.4</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GPT-5.4</span>
+<span class="w">      </span><span class="nt">context_window</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1050000</span>
+<span class="w">      </span><span class="nt">thinking_efforts</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"low"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"medium"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"high"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"xhigh"</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gpt-5.3-codex</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GPT-5.3 Codex</span>
+<span class="w">      </span><span class="nt">context_window</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">400000</span>
+<span class="w">      </span><span class="nt">thinking_efforts</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"low"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"medium"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"high"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"xhigh"</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>Initial supported models:</p>
+<ul>
+<li><code>gpt-5.5</code></li>
+<li><code>gpt-5.4</code></li>
+<li><code>gpt-5.3-codex</code></li>
+</ul>
+<p>Model metadata to use:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th style="text-align: right;">API context window</th>
+<th style="text-align: right;">ChatGPT-account conservative registry context window</th>
+<th>Known higher tier window</th>
+<th style="text-align: right;">Max output</th>
+<th>Thinking efforts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gpt-5.5</code></td>
+<td style="text-align: right;">1,050,000</td>
+<td style="text-align: right;">256,000</td>
+<td>Pro: 400,000</td>
+<td style="text-align: right;">128,000</td>
+<td><code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code></td>
+</tr>
+<tr>
+<td><code>gpt-5.4</code></td>
+<td style="text-align: right;">1,050,000</td>
+<td style="text-align: right;">256,000</td>
+<td>Pro: 400,000</td>
+<td style="text-align: right;">128,000</td>
+<td><code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code></td>
+</tr>
+<tr>
+<td><code>gpt-5.3-codex</code></td>
+<td style="text-align: right;">400,000</td>
+<td style="text-align: right;">400,000</td>
+<td>Unknown</td>
+<td style="text-align: right;">128,000</td>
+<td><code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code></td>
+</tr>
+</tbody>
+</table>
+<p>The <code>gpt-5.5</code> and <code>gpt-5.4</code> registry context windows intentionally differ from the public API context windows. This provider authenticates with ChatGPT accounts, not API organizations. OpenAI's ChatGPT help docs list Thinking context as <code>256K</code> for all paid tiers and <code>400k</code> for Pro. Because Keen Code's provider registry is currently static and does not detect the signed-in plan, the first implementation should use the conservative <code>256000</code> context window for GPT-5.5 and GPT-5.4. A later enhancement can raise the displayed window to <code>400000</code> after detecting a Pro account.</p>
+<p><code>gpt-5.3-codex</code> remains <code>400000</code> because the official GPT-5.3-Codex model page lists a 400,000-token context window, and OpenCode's model metadata for the OpenAI provider uses <code>400000</code> context, <code>272000</code> input, and <code>128000</code> output. If real ChatGPT/Codex OAuth testing shows a lower Plus limit for this specific Codex model, the static registry should be reduced to that lower value.</p>
+<p>The ChatGPT/Codex provider should not expose <code>off</code> or <code>none</code> in the initial implementation. Users should choose an active reasoning effort from <code>low</code> upward. This keeps the UX consistent across the supported ChatGPT/Codex models and avoids ambiguity between OpenAI's API-level <code>none</code> value and Keen Code's existing <code>off</code> convention, which means "omit the reasoning parameter."</p>
+<p>OpenCode handles supported OAuth models by starting from its normal OpenAI catalog and filtering it with a hardcoded allowlist plus Codex-name matching. Keen Code's registry is simpler, so a separate static <code>openai-codex</code> provider list is clearer and easier to test.</p>
+<p>Rename existing OpenAI display name:</p>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">OpenAI</span>
+</code></pre></div>
+<h2 id="repl-model-selection-changes">REPL Model Selection Changes<a class="headerlink" href="#repl-model-selection-changes" title="Permanent link">&para;</a></h2>
+<p>The model selection widget needs to branch on provider auth type.</p>
+<p>For API-key providers:</p>
+<div class="highlight"><pre><span></span><code>Provider -&gt; Model -&gt; Thinking -&gt; Base URL if supported -&gt; API Key -&gt; Complete
+</code></pre></div>
+<p>For ChatGPT/Codex:</p>
+<div class="highlight"><pre><span></span><code>Provider -&gt; OAuth if needed -&gt; Model -&gt; Thinking -&gt; Complete
+</code></pre></div>
+<p>This likely requires a new model-selection step:</p>
+<div class="highlight"><pre><span></span><code><span class="nx">StepOAuth</span>
+</code></pre></div>
+<p>However, OAuth includes asynchronous work and browser launch. It may be cleaner to trigger OAuth as a <code>tea.Cmd</code> after selecting the provider, then return to the model list on success.</p>
+<p>The widget should render clear CLI text while waiting:</p>
+<div class="highlight"><pre><span></span><code>Opening your browser to sign in with OpenAI...
+
+After authentication succeeds, return to Keen Code.
+</code></pre></div>
+<p>If opening the browser fails, print the URL and ask the user to open it manually.</p>
+<h2 id="browser-opening">Browser Opening<a class="headerlink" href="#browser-opening" title="Permanent link">&para;</a></h2>
+<p>Use OS-specific commands:</p>
+<ul>
+<li>macOS: <code>open &lt;url&gt;</code></li>
+<li>Linux: <code>xdg-open &lt;url&gt;</code></li>
+<li>Windows: <code>rundll32 url.dll,FileProtocolHandler &lt;url&gt;</code> or equivalent</li>
+</ul>
+<p>The browser command should not block the REPL. Failure to launch should not fail the flow if the URL can be displayed.</p>
+<h2 id="error-handling">Error Handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<p>Expected user-facing errors:</p>
+<ul>
+<li>OAuth port unavailable.</li>
+<li>Browser launch failed; URL shown for manual opening.</li>
+<li>Login timed out.</li>
+<li>User denied or canceled authorization.</li>
+<li>OAuth callback state mismatch.</li>
+<li>Token exchange failed.</li>
+<li>Token refresh failed.</li>
+<li>Account lacks access to the selected model.</li>
+<li>Codex endpoint returns unauthorized or forbidden.</li>
+</ul>
+<p>For refresh failures, Keen Code should surface a clear message suggesting re-authentication.</p>
+<h2 id="security-considerations">Security Considerations<a class="headerlink" href="#security-considerations" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Generate high-entropy PKCE verifier and state.</li>
+<li>Bind callback handling to the pending state.</li>
+<li>Prefer <code>localhost</code> loopback only.</li>
+<li>Store tokens with <code>0600</code> permissions.</li>
+<li>Do not print tokens, auth codes, or callback URLs with query strings in logs.</li>
+<li>HTML-escape browser error text.</li>
+<li>Stop the local callback server after each attempt.</li>
+<li>Guard token refresh with a mutex.</li>
+<li>Preserve old refresh token if refresh response does not include a new one.</li>
+<li>Treat OAuth credentials separately from API keys to avoid accidental exposure in config views.</li>
+</ul>
+<h2 id="compatibility-and-migration">Compatibility and Migration<a class="headerlink" href="#compatibility-and-migration" title="Permanent link">&para;</a></h2>
+<p>No migration is required for existing users.</p>
+<p>Existing users keep:</p>
+<div class="highlight"><pre><span></span><code>openai -&gt; OpenAI
+</code></pre></div>
+<p>New users can choose:</p>
+<div class="highlight"><pre><span></span><code>openai-codex -&gt; Codex (ChatGPT OAuth)
+</code></pre></div>
+<p>If a user switches between providers, Keen Code should preserve each provider's selected models and credentials independently.</p>
+<h2 id="testing-strategy">Testing Strategy<a class="headerlink" href="#testing-strategy" title="Permanent link">&para;</a></h2>
+<p>Unit tests:</p>
+<ul>
+<li>PKCE verifier/challenge format.</li>
+<li>State generation length and uniqueness properties.</li>
+<li>JWT account ID extraction.</li>
+<li>Callback handler rejects missing or mismatched state.</li>
+<li>Callback handler escapes error text.</li>
+<li>Token exchange success and failure.</li>
+<li>Token refresh success and failure.</li>
+<li>Refresh preserves old refresh token when omitted.</li>
+<li>Refresh mutex prevents duplicate refresh calls.</li>
+<li>Config resolution allows <code>openai-codex</code> without API key.</li>
+<li>Config resolution still rejects missing API keys for API-key providers.</li>
+<li>Model selection skips base URL and API key for <code>openai-codex</code>.</li>
+<li>Provider registry includes <code>openai-codex</code>.</li>
+</ul>
+<p>Integration-style tests with fake HTTP servers:</p>
+<ul>
+<li>Browser OAuth callback succeeds and stores credentials.</li>
+<li>Expired token refreshes before a Codex request.</li>
+<li>Codex request includes Authorization and optional ChatGPT-Account-Id headers.</li>
+<li>Codex request targets <code>/backend-api/codex/responses</code>.</li>
+<li>Unauthorized refresh produces a re-authentication error.</li>
+</ul>
+<p>Manual tests:</p>
+<ul>
+<li>First-time login on macOS.</li>
+<li>Existing credential reuse.</li>
+<li>Expired credential refresh.</li>
+<li>Browser launch failure fallback by forcing an invalid opener.</li>
+<li>OAuth timeout.</li>
+<li><code>/model</code> switching between API-key OpenAI and ChatGPT/Codex.</li>
+</ul>
+<h2 id="rollout-plan">Rollout Plan<a class="headerlink" href="#rollout-plan" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Add the provider and config/auth primitives behind normal tests.</li>
+<li>Add OAuth login and storage.</li>
+<li>Add the Codex LLM client.</li>
+<li>Wire <code>/model</code> to the new flow.</li>
+<li>Run end-to-end manual login.</li>
+<li>Update user-facing docs or README.</li>
+</ol>
+<h2 id="open-questions">Open Questions<a class="headerlink" href="#open-questions" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Does the Codex OAuth client accept a dynamic localhost port, or must Keen Code use a fixed callback port?</li>
+<li>Keen Code should bind localhost:1455, fail with a clear message if unavailable, and not silently pick another port. Since we are not supporting headless, the fallback can simply tell the user to close the app using port 1455 and retry.</li>
+<li>Are <code>gpt-5.5</code>, <code>gpt-5.4</code>, and <code>gpt-5.3-codex</code> all accepted by the ChatGPT/Codex endpoint for the target account plans?</li>
+<li>Yes.</li>
+<li>Should <code>openai-codex</code> selected model history be stored in <code>ProviderConfig.Models</code>, or should OAuth providers have a distinct config shape?</li>
+<li>Existing one is fine.</li>
+<li>Should token storage live in <code>~/.keen/auth.json</code> immediately, or should it integrate with OS keychains later?</li>
+<li>Yes <code>~/.keen/auth.json</code> is fine.</li>
+<li>Should Keen Code expose a <code>/logout</code> or <code>/auth</code> command in the same issue, or leave it for follow-up?</li>
+<li>We can have a <code>/logout</code> command to logout the current user. It should be simple and just remove the auth credentials from the auth file. Perhaps also show a message to the user that the logout is successful.</li>
+</ul>
+<h2 id="fine-grained-todo-list">Fine-Grained TODO List<a class="headerlink" href="#fine-grained-todo-list" title="Permanent link">&para;</a></h2>
+<h3 id="research-and-validation">Research and Validation<a class="headerlink" href="#research-and-validation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Verify the current Codex OAuth authorization URL parameters against a real browser login.</li>
+<li>[ ] Verify whether <code>redirect_uri</code> supports dynamic localhost ports.</li>
+<li>[ ] Verify the exact browser callback path accepted by the OpenAI OAuth client.</li>
+<li>[ ] Verify the current Codex responses endpoint.</li>
+<li>[ ] Verify that <code>gpt-5.5</code>, <code>gpt-5.4</code>, and <code>gpt-5.3-codex</code> work with ChatGPT/Codex auth.</li>
+<li>[ ] Verify whether Plus accounts receive a lower effective context window than Pro accounts.</li>
+<li>[ ] Capture representative unauthorized, forbidden, and rate-limit responses from the Codex endpoint.</li>
+</ul>
+<h3 id="provider-registry">Provider Registry<a class="headerlink" href="#provider-registry" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Rename the existing <code>openai</code> display name to <code>OpenAI</code>.</li>
+<li>[ ] Add <code>openai-codex</code> provider to <code>providers/registry.yaml</code>.</li>
+<li>[ ] Add static ChatGPT/Codex model entries for <code>gpt-5.5</code>, <code>gpt-5.4</code>, and <code>gpt-5.3-codex</code>.</li>
+<li>[ ] Add or update registry tests for the new provider.</li>
+<li>[ ] Set <code>gpt-5.5</code> context window to <code>256000</code>.</li>
+<li>[ ] Set <code>gpt-5.4</code> context window to <code>256000</code>.</li>
+<li>[ ] Set <code>gpt-5.3-codex</code> context window to <code>400000</code>.</li>
+<li>[ ] Set <code>gpt-5.5</code> thinking efforts to <code>["low", "medium", "high", "xhigh"]</code>.</li>
+<li>[ ] Set <code>gpt-5.4</code> thinking efforts to <code>["low", "medium", "high", "xhigh"]</code>.</li>
+<li>[ ] Set <code>gpt-5.3-codex</code> thinking efforts to <code>["low", "medium", "high", "xhigh"]</code>.</li>
+</ul>
+<h3 id="auth-storage">Auth Storage<a class="headerlink" href="#auth-storage" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Add <code>internal/auth</code> package or equivalent.</li>
+<li>[ ] Define OAuth credential structs.</li>
+<li>[ ] Add auth file path helper for <code>~/.keen/auth.json</code>.</li>
+<li>[ ] Implement auth file load.</li>
+<li>[ ] Implement auth file save with <code>0600</code> permissions.</li>
+<li>[ ] Implement auth get/set/remove for provider IDs.</li>
+<li>[ ] Add tests for missing auth file.</li>
+<li>[ ] Add tests for invalid auth file contents.</li>
+<li>[ ] Add tests for file permission behavior where supported.</li>
+</ul>
+<h3 id="oauth-browser-flow">OAuth Browser Flow<a class="headerlink" href="#oauth-browser-flow" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Add PKCE verifier generation.</li>
+<li>[ ] Add PKCE S256 challenge generation.</li>
+<li>[ ] Add state generation.</li>
+<li>[ ] Add authorization URL builder.</li>
+<li>[ ] Add token exchange request.</li>
+<li>[ ] Add token refresh request.</li>
+<li>[ ] Add ID/access token claim parser.</li>
+<li>[ ] Add account ID extraction helper.</li>
+<li>[ ] Add localhost callback server.</li>
+<li>[ ] Validate <code>state</code> before handling OAuth success or error.</li>
+<li>[ ] Exchange tokens before returning browser success HTML.</li>
+<li>[ ] HTML-escape error messages.</li>
+<li>[ ] Stop callback server after success.</li>
+<li>[ ] Stop callback server after token exchange failure.</li>
+<li>[ ] Stop callback server after timeout.</li>
+<li>[ ] Add browser opener abstraction.</li>
+<li>[ ] Implement macOS browser opener.</li>
+<li>[ ] Implement Linux browser opener.</li>
+<li>[ ] Implement Windows browser opener.</li>
+<li>[ ] Add fallback that prints URL if browser opening fails.</li>
+</ul>
+<h3 id="config-resolution">Config Resolution<a class="headerlink" href="#config-resolution" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Add <code>ProviderOpenAICodex</code> constant.</li>
+<li>[ ] Add provider auth-mode helper, for example <code>RequiresAPIKey(providerID string)</code>.</li>
+<li>[ ] Update <code>config.Resolve</code> to allow <code>openai-codex</code> without API key.</li>
+<li>[ ] Preserve API-key requirement for existing providers.</li>
+<li>[ ] Add <code>AuthMode</code> or equivalent to <code>ResolvedConfig</code> if needed.</li>
+<li>[ ] Update root command config hydration for OAuth provider.</li>
+<li>[ ] Add tests for resolving <code>openai-codex</code>.</li>
+<li>[ ] Add regression tests for resolving API-key providers.</li>
+</ul>
+<h3 id="model-selection-ui">Model Selection UI<a class="headerlink" href="#model-selection-ui" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Add provider helper for OAuth providers.</li>
+<li>[ ] Add model selection branch for <code>openai-codex</code>.</li>
+<li>[ ] Trigger OAuth after selecting <code>openai-codex</code> when credentials are missing.</li>
+<li>[ ] Skip OAuth when stored credentials exist.</li>
+<li>[ ] Skip base URL input for <code>openai-codex</code>.</li>
+<li>[ ] Skip API key input for <code>openai-codex</code>.</li>
+<li>[ ] Save selected provider/model/thinking effort after Codex model selection.</li>
+<li>[ ] Render in-progress OAuth status.</li>
+<li>[ ] Render browser-open fallback URL.</li>
+<li>[ ] Render OAuth failure messages.</li>
+<li>[ ] Add tests for provider selection branching.</li>
+<li>[ ] Add tests for paste handling not appending secrets in OAuth mode.</li>
+<li>[ ] Add tests for completion without API key for <code>openai-codex</code>.</li>
+</ul>
+<h3 id="llm-client">LLM Client<a class="headerlink" href="#llm-client" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Add <code>OpenAICodexClient</code>.</li>
+<li>[ ] Reuse or extract shared OpenAI Responses message conversion.</li>
+<li>[ ] Reuse or extract shared tool conversion.</li>
+<li>[ ] Reuse or extract reasoning effort mapping.</li>
+<li>[ ] Ensure <code>openai-codex</code> never exposes <code>off</code> or <code>none</code> reasoning options.</li>
+<li>[ ] Ensure <code>openai-codex</code> always sends the selected <code>low</code>, <code>medium</code>, <code>high</code>, or <code>xhigh</code> reasoning effort.</li>
+<li>[ ] Add OAuth token provider dependency to the Codex client.</li>
+<li>[ ] Add refresh-before-request behavior.</li>
+<li>[ ] Add per-provider refresh mutex.</li>
+<li>[ ] Preserve old refresh token if refresh response omits a new token.</li>
+<li>[ ] Add <code>Authorization</code> header.</li>
+<li>[ ] Add optional <code>ChatGPT-Account-Id</code> header.</li>
+<li>[ ] Add <code>originator</code> header.</li>
+<li>[ ] Add <code>User-Agent</code> header.</li>
+<li>[ ] Add session ID header if available in the LLM layer.</li>
+<li>[ ] Send requests to <code>https://chatgpt.com/backend-api/codex/responses</code>.</li>
+<li>[ ] Use <code>openai-go</code> with <code>option.WithBaseURL("https://chatgpt.com/backend-api/codex/")</code> and per-request OAuth headers.</li>
+<li>[ ] Add a test proving <code>openai-go</code> sends Codex requests to <code>https://chatgpt.com/backend-api/codex/responses</code>.</li>
+<li>[ ] Add a test proving request-specific OAuth authorization overrides any environment-derived OpenAI API-key authorization.</li>
+<li>[ ] Add streaming response parsing tests.</li>
+<li>[ ] Add tool-call loop tests for the Codex client.</li>
+<li>[ ] Add refresh retry/error tests.</li>
+</ul>
+<h3 id="client-factory">Client Factory<a class="headerlink" href="#client-factory" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Update <code>llm.NewClient</code> to accept <code>openai-codex</code> without API key.</li>
+<li>[ ] Route <code>openai-codex</code> to <code>NewOpenAICodexClient</code>.</li>
+<li>[ ] Keep <code>openai</code> routed to <code>NewOpenAIResponsesClient</code>.</li>
+<li>[ ] Add client factory tests for <code>openai-codex</code>.</li>
+<li>[ ] Add regression tests for missing API key on <code>openai</code>.</li>
+</ul>
+<h3 id="commands-and-re-authentication">Commands and Re-Authentication<a class="headerlink" href="#commands-and-re-authentication" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Decide whether this issue includes logout.</li>
+<li>[ ] If included, add <code>/logout</code> or <code>/auth logout</code> command.</li>
+<li>[ ] Add re-authentication path after refresh failure.</li>
+<li>[ ] Add user-facing message for expired or revoked credentials.</li>
+<li>[ ] Add tests for credential removal if logout is included.</li>
+</ul>
+<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Update README or user docs with <code>Codex (ChatGPT OAuth)</code> setup.</li>
+<li>[ ] Document that headless login is not supported.</li>
+<li>[ ] Document that API-key OpenAI remains available.</li>
+<li>[ ] Document where credentials are stored.</li>
+<li>[ ] Document how to reset credentials manually.</li>
+</ul>
+<h3 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Run <code>go mod tidy</code>.</li>
+<li>[ ] Run <code>go test ./...</code>.</li>
+<li>[ ] Manually test first-time OAuth login.</li>
+<li>[ ] Manually test returning user flow.</li>
+<li>[ ] Manually test token refresh.</li>
+<li>[ ] Manually test <code>/model</code> switching between <code>openai</code> and <code>openai-codex</code>.</li>
+<li>[ ] Manually verify no tokens are printed in logs or UI.</li>
+<li>[ ] Manually verify auth file permissions.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "search.highlight", "search.suggest", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
