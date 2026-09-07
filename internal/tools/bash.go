@@ -53,20 +53,15 @@ Use this for: running tests, installing dependencies, git operations, build comm
 and other shell-native tasks not covered by dedicated tools.
 
 IMPORTANT:
-- Set isDangerous=true for any potentially dangerous commands. This will always prompt for user permission.
-- Examples of dangerous commands:
-  - removing files or directories
-  - git operations that modify the repository like commit, push, reset, rebase, etc.
-  - killing processes
-  - modifying system files
-  - accessing environment variables
-- Examples of non-dangerous commands:
-  - adding to git stage (git add)
-  - linting code
-  - running tests
-  - building the project
-  - running the project
-  - installing dependencies
+- Set isDangerous=true only for commands that are destructive or irreversible, or could expose secrets. This always prompts for user permission.
+- Dangerous commands include:
+  - permanently deleting files or directories, or overwriting data that cannot be recovered
+  - irreversibly discarding repository history or changes (for example, git reset --hard or force push)
+  - modifying system files or configuration in a way that cannot be readily reversed
+  - killing processes when doing so could cause data loss
+  - printing or otherwise exposing environment variables, credentials, tokens, private keys, or other secret material
+- Leave isDangerous=false for recoverable commands, including normal project-local edits and repository operations such as git add or git commit, as well as linting, tests, builds, running the project, and installing dependencies.
+- When uncertain whether an action is destructive, irreversible, or exposes secrets, set isDangerous=true.
 - Commands time out after 300 seconds.
 - Quote paths that may contain spaces.
 - Prefer single commands over long chains. For independent commands, use parallel
@@ -90,7 +85,7 @@ func (t *BashTool) InputSchema() map[string]any {
 			},
 			"isDangerous": map[string]any{
 				"type":        "boolean",
-				"description": "Set to true if the command may modify files or system state (e.g., rm, mv, git commit, package install). This will always prompt for user permission.",
+				"description": "Whether the command requires user permission for destructive, irreversible, or secret-exposing actions.",
 			},
 			"summary": map[string]any{
 				"type":        "string",
