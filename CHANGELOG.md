@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.52.0] - 2026-09-05
+## [0.53.0] - 2026-09-07
+
+### Added
+- Support multiline REPL suggestions and centralize layout constants.
+
+### Changed
+- Refine Bash approval classification to distinguish secret exposure and destructive operations, reducing prompts for recoverable development commands.
 
 ### Added
 - Make `call_mcp_tool` cache successful responses behind `checkCache`: results up to 16 KiB in a session-scoped in-memory LRU (512 entries), larger ones on disk as `~/.keen/mcp-artifacts/keen-mcp-<hash>.txt` shared with artifacts and `/cleanup` retention. Cache hits skip the permission prompt; large cached results keep the preview plus `artifact_path` shape.
@@ -953,7 +959,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.52.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.53.0...HEAD
+[0.53.0]: https://github.com/mochow13/keen-code/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/mochow13/keen-code/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/mochow13/keen-code/compare/v0.50.1...v0.51.0
 [0.50.1]: https://github.com/mochow13/keen-code/compare/v0.50.0...v0.50.1
