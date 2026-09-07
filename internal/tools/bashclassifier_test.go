@@ -14,9 +14,12 @@ func TestIsDangerousCommand_AlwaysDangerous(t *testing.T) {
 		{"mkfs", "mkfs.ext4 /dev/sda1"},
 		{"unlink", "unlink file.txt"},
 		{"chown", "chown user:group file"},
-		{"kill", "kill 1234"},
 		{"shutdown", "shutdown now"},
 		{"eval", "eval rm -rf /"},
+		{"kill", "kill 1234"},
+		{"killall", "killall myserver"},
+		{"pkill", "pkill -f my-dev-server"},
+		{"xkill", "xkill"},
 	}
 
 	for _, tt := range tests {
@@ -35,6 +38,12 @@ func TestIsDangerousCommand_PrivilegeEscalation(t *testing.T) {
 		"doas command",
 		"pkexec program",
 		"chroot /path command",
+		"ls ~/.ssh",
+		"cat $HOME/.aws/credentials",
+		"cat /home/alice/.ssh/id_rsa",
+		"cat server.pem",
+		"cat .env",
+		"cat .env.local",
 	}
 
 	for _, command := range tests {
@@ -53,16 +62,10 @@ func TestIsDangerousCommand_GitDangerous(t *testing.T) {
 	}{
 		{"push", "git push"},
 		{"push force", "git push --force"},
-		{"reset", "git reset HEAD~1"},
-		{"rebase", "git rebase main"},
-		{"merge", "git merge feature"},
-		{"rm", "git rm file.txt"},
 		{"clean", "git clean -fd"},
-		{"checkout force", "git checkout -f file.txt"},
-		{"checkout hard", "git checkout --hard"},
-		{"branch force delete", "git branch -D feature"},
-		{"tag delete", "git tag -d v1.0"},
-		{"cherry-pick", "git cherry-pick abc123"},
+		{"checkout pathspec", "git checkout -- file.txt"},
+		{"reset hard", "git reset --hard HEAD~1"},
+		{"restore", "git restore file.txt"},
 	}
 
 	for _, tt := range tests {
@@ -86,9 +89,15 @@ func TestIsDangerousCommand_GitSafe(t *testing.T) {
 		{"checkout new branch", "git checkout -b feature"},
 		{"branch list", "git branch"},
 		{"branch safe delete", "git branch -d feature"},
+		{"branch force delete", "git branch -D feature"},
+		{"tag delete", "git tag -d v1"},
 		{"add", "git add file.txt"},
 		{"commit", "git commit -m msg"},
 		{"revert", "git revert abc123"},
+		{"reset", "git reset HEAD~1"},
+		{"rm", "git rm file.txt"},
+		{"fixtures", "ls test/fixtures"},
+		{"pem boundary", "cat notes.pembroke"},
 	}
 
 	for _, tt := range tests {
@@ -107,8 +116,8 @@ func TestIsDangerousCommand_ConditionalFlags(t *testing.T) {
 		danger  bool
 	}{
 		{"cp safe", "cp a b", false},
-		{"cp force", "cp -f a b", true},
-		{"cp force long", "cp --force a b", true},
+		{"cp force", "cp -f a b", false},
+		{"cp force long", "cp --force a b", false},
 		{"rsync safe", "rsync -av a b", false},
 		{"rsync delete", "rsync --delete a b", true},
 		{"rsync force", "rsync --force a b", true},
@@ -117,11 +126,10 @@ func TestIsDangerousCommand_ConditionalFlags(t *testing.T) {
 		{"docker exec", "docker exec mycontainer ls", false},
 		{"docker rm", "docker rm mycontainer", true},
 		{"docker rmi", "docker rmi myimage", true},
-		{"docker kill", "docker kill mycontainer", true},
 		{"chmod safe", "chmod +x script.sh", false},
 		{"chmod 755", "chmod 755 file", false},
-		{"chmod recursive", "chmod -R 755 dir", true},
-		{"chmod 777", "chmod 777 file", true},
+		{"chmod recursive", "chmod -R 755 dir", false},
+		{"chmod 777", "chmod 777 file", false},
 	}
 
 	for _, tt := range tests {
@@ -166,8 +174,11 @@ func TestIsDangerousCommand_SafeCommands(t *testing.T) {
 		"echo hello",
 		"go test ./...",
 		"go build",
+		"go clean -cache",
 		"npm test",
 		"make",
+		"make clean",
+		"make install",
 		"mkdir dir",
 		"touch file",
 		"pwd",
@@ -176,6 +187,16 @@ func TestIsDangerousCommand_SafeCommands(t *testing.T) {
 		"python3 -m pytest",
 		"mv a b",
 		"chmod +x script.sh",
+		"git merge feature",
+		"git rebase main",
+		"git cherry-pick abc123",
+		"docker kill mycontainer",
+		"install a b",
+		"npm uninstall left-pad",
+		"pip uninstall requests",
+		"pip3 uninstall requests",
+		"cargo remove serde",
+		"yarn remove left-pad",
 	}
 
 	for _, command := range tests {
@@ -254,7 +275,7 @@ func TestIsDangerousCommand_Subshells(t *testing.T) {
 		{"nested safe", "echo $(echo hello)", false},
 		{"backtick safe", "echo `date`", false},
 		{"safe no subshell", "echo hello", false},
-		{"chained with subshell", "ls && echo $(chmod 777 f)", true},
+		{"chained with subshell", "ls && echo $(chmod 777 f)", false},
 		{"subshell with eval", "cat $(eval echo hi)", true},
 	}
 
@@ -278,6 +299,8 @@ func TestIsDangerousCommand_EnvSecrets(t *testing.T) {
 		{"env with command", "env GOOS=linux go build", false},
 		{"bare printenv", "printenv", true},
 		{"printenv common", "printenv HOME", false},
+		{"printenv ssh key", "printenv SSH_KEY", true},
+		{"export my key", "export MY_KEY=abc", true},
 		{"printenv secret", "printenv GITHUB_TOKEN", true},
 		{"export safe", "export PATH=$PATH:/foo", false},
 		{"export sensitive", "export AWS_SECRET_KEY=abc", true},
@@ -291,6 +314,41 @@ func TestIsDangerousCommand_EnvSecrets(t *testing.T) {
 			got := IsDangerousCommand(tt.command)
 			if got != tt.danger {
 				t.Errorf("IsDangerousCommand(%q) = %v, want %v", tt.command, got, tt.danger)
+			}
+		})
+	}
+}
+
+func TestContainsBashSecretExposure(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+		expose  bool
+	}{
+		{"sensitive var", "echo $AWS_SECRET_ACCESS_KEY", true},
+		{"braced var", "echo ${GITHUB_TOKEN}", true},
+		{"api key in header", "curl -H \"Authorization: Bearer $API_KEY\" https://example.com", true},
+		{"bare env", "env", true},
+		{"printenv secret", "printenv GITHUB_TOKEN", true},
+		{"printenv common", "printenv HOME", false},
+		{"printenv ssh key", "printenv SSH_KEY", true},
+		{"export my key", "export MY_KEY=abc", true},
+		{"export sensitive", "export AWS_SECRET_KEY=abc", true},
+		{"export safe", "export PATH=$PATH:/foo", false},
+		{"subshell dump", "echo $(printenv GITHUB_TOKEN)", true},
+		{"chained", "go test ./... && printenv AWS_SESSION_TOKEN", true},
+		{"plain command", "echo hello", false},
+		{"common var", "echo $HOME", false},
+		{"destructive only", "rm file.txt", false},
+		{"git push only", "git push", false},
+		{"empty", "   ", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ContainsBashSecretExposure(tt.command)
+			if got != tt.expose {
+				t.Errorf("ContainsBashSecretExposure(%q) = %v, want %v", tt.command, got, tt.expose)
 			}
 		})
 	}

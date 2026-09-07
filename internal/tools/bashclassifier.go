@@ -1,16 +1,46 @@
 package tools
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-// alwaysDangerousBaseCommands are commands that are always gated, regardless of flags.
+var sensitiveHomeRelativePaths = []string{
+	".ssh",
+	".aws",
+	".azure",
+	".kube",
+	".docker",
+	".gnupg",
+	".config/gcloud",
+	".config/gh",
+	"Library/Keychains",
+	".netrc",
+	".git-credentials",
+	".npmrc",
+	".pypirc",
+	".keen",
+	".claude",
+	".agents",
+}
+
+var sensitiveSystemPaths = []string{
+	"/etc/shadow",
+	"/etc/sudoers",
+	"/proc",
+}
+
+var sensitiveFileNameRegexps = []*regexp.Regexp{
+	regexp.MustCompile(`^(.*/)?\.env(\..*)?$`),
+	regexp.MustCompile(`^(.*/)?id_(rsa|dsa|ecdsa|ed25519)$`),
+	regexp.MustCompile(`^.*\.(key|pem|p12|pfx)$`),
+}
+
 var alwaysDangerousBaseCommands = map[string]struct{}{
 	"rm": {}, "rmdir": {}, "shred": {}, "dd": {}, "unlink": {},
-
-	"install": {},
-	"chown":   {},
+	"chown": {},
 
 	"sudo": {}, "su": {}, "doas": {}, "pkexec": {}, "chroot": {},
 
@@ -20,74 +50,73 @@ var alwaysDangerousBaseCommands = map[string]struct{}{
 	"eval": {},
 }
 
-// dangerousGitSubcommands are git subcommands that are always gated.
 var dangerousGitSubcommands = map[string]struct{}{
-	"rm": {}, "clean": {}, "push": {}, "reset": {},
-	"rebase": {}, "merge": {}, "cherry-pick": {},
+	"clean": {}, "push": {},
 }
 
-// dangerousDockerSubcommands are docker subcommands that are always gated.
 var dangerousDockerSubcommands = map[string]struct{}{
-	"rm": {}, "rmi": {}, "kill": {},
+	"rm": {}, "rmi": {},
 }
 
-// dangerousKubectlSubcommands are kubectl subcommands that are always gated.
 var dangerousKubectlSubcommands = map[string]struct{}{
 	"apply": {}, "delete": {}, "patch": {}, "edit": {},
 }
 
-// dangerousSystemctlSubcommands are systemctl subcommands that are always gated.
 var dangerousSystemctlSubcommands = map[string]struct{}{
 	"stop": {}, "restart": {}, "disable": {},
 }
 
-// dangerousPackageManagerRemovalFlags maps package-manager base commands to removal flags.
 var dangerousPackageManagerRemovalFlags = map[string]map[string]struct{}{
 	"apt-get": {"remove": {}, "purge": {}, "autoremove": {}},
 	"apt":     {"remove": {}, "purge": {}, "autoremove": {}},
 	"yum":     {"remove": {}},
 	"dnf":     {"remove": {}},
 	"pacman":  {"-R": {}, "-Rs": {}, "-Rns": {}},
-	"brew":    {"uninstall": {}},
-	"pip":     {"uninstall": {}},
-	"pip3":    {"uninstall": {}},
-	"npm":     {"uninstall": {}},
 }
 
-// conditionalDangerousFlags maps base commands to flags that make them dangerous.
 var conditionalDangerousFlags = map[string]map[string]struct{}{
-	"cp":    {"-f": {}, "--force": {}},
 	"rsync": {"--delete": {}, "--force": {}},
-	"chmod": {"-R": {}, "777": {}},
 }
 
-// sensitiveFilePathPrefixes are path prefixes that indicate sensitive files.
-// Any command argument matching these prefixes is gated.
-var sensitiveFilePathPrefixes = []string{
-	"~/.ssh/",
-	"~/.aws/",
-	"~/.netrc",
-	"~/.git-credentials",
-	"/etc/shadow",
-	"/etc/sudoers",
-	"/proc/",
-}
+var sensitiveEnvVarKeywords = []string{"AWS", "SECRET", "TOKEN", "PASSWORD", "PRIVATE", "KEY"}
+var sensitiveEnvVarPattern = regexp.MustCompile(`\$(?:[A-Z_]*(?:` + strings.Join(sensitiveEnvVarKeywords, "|") + `)[A-Z_0-9]*|\{[A-Z_]*(?:` + strings.Join(sensitiveEnvVarKeywords, "|") + `)[A-Z_0-9]*\})`)
 
-// sensitiveEnvVarPattern matches references to likely-secret environment variables.
-var sensitiveEnvVarPattern = regexp.MustCompile(`\$(?:[A-Z_]*(?:AWS|SECRET|TOKEN|PASSWORD|PRIVATE|GITHUB_TOKEN)[A-Z_0-9]*|\{[A-Z_]*(?:AWS|SECRET|TOKEN|PASSWORD|PRIVATE|GITHUB_TOKEN)[A-Z_0-9]*\})`)
-
-// IsDangerousCommand returns true if the command should require explicit user approval.
 func IsDangerousCommand(command string) bool {
+	return ContainsBashSecretExposure(command) || containsDestructiveBashCommand(command)
+}
+
+func ContainsBashSecretExposure(command string) bool {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return false
+	}
+
+	if sensitiveEnvVarPattern.MatchString(command) {
+		return true
+	}
+
+	for _, segment := range splitCommandSegments(command) {
+		if isDangerousEnvCommand(tokenize(segment)) {
+			return true
+		}
+	}
+
+	for _, sub := range extractSubshells(command) {
+		if ContainsBashSecretExposure(sub) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsDestructiveBashCommand(command string) bool {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return false
 	}
 
 	if containsPrivilegeEscalation(command) {
-		return true
-	}
-
-	if sensitiveEnvVarPattern.MatchString(command) {
 		return true
 	}
 
@@ -98,7 +127,7 @@ func IsDangerousCommand(command string) bool {
 	}
 
 	for _, sub := range extractSubshells(command) {
-		if IsDangerousCommand(sub) {
+		if containsDestructiveBashCommand(sub) {
 			return true
 		}
 	}
@@ -115,7 +144,6 @@ func containsPrivilegeEscalation(command string) bool {
 	return false
 }
 
-// isCommandWord reports whether name appears as a distinct command word in command.
 func isCommandWord(command, name string) bool {
 	for _, seg := range splitCommandSegments(command) {
 		tokens := tokenize(seg)
@@ -161,7 +189,6 @@ func isDangerousSegment(segment string) bool {
 		return true
 	}
 
-	// mkfs and variants (mkfs.ext4, mkfs.xfs, etc.).
 	if base == "mkfs" || strings.HasPrefix(base, "mkfs.") {
 		return true
 	}
@@ -192,23 +219,7 @@ func isDangerousSegment(segment string) bool {
 		return true
 	}
 
-	if base == "go" && len(tokens) > 1 && tokens[1] == "clean" {
-		if hasFlag(tokens[2:], "-cache", "-modcache") {
-			return true
-		}
-	}
-
-	if base == "make" {
-		if hasFlag(tokens[1:], "install", "clean", "distclean") {
-			return true
-		}
-	}
-
 	if isDangerousInterpreter(tokens) {
-		return true
-	}
-
-	if isDangerousEnvCommand(tokens) {
 		return true
 	}
 
@@ -237,15 +248,15 @@ func isDangerousGit(tokens []string) bool {
 		return true
 	}
 
-	if sub == "checkout" && hasFlag(tokens[2:], "-f", "--force", "--hard") {
+	if sub == "checkout" && hasFlag(tokens[2:], "-f", "--force", "--") {
 		return true
 	}
 
-	if sub == "branch" && hasFlag(tokens[2:], "-D") {
+	if sub == "reset" && hasFlag(tokens[2:], "--hard") {
 		return true
 	}
 
-	if sub == "tag" && hasFlag(tokens[2:], "-d") {
+	if sub == "restore" {
 		return true
 	}
 
@@ -285,7 +296,7 @@ func isDangerousEnvCommand(tokens []string) bool {
 	base := tokens[0]
 
 	if base == "env" {
-		// bare env, or env with only assignments and no command
+		// env with no command dumps the whole environment
 		if len(tokens) == 1 {
 			return true
 		}
@@ -324,8 +335,8 @@ func isDangerousEnvCommand(tokens []string) bool {
 
 func isSensitiveEnvVarName(name string) bool {
 	upper := strings.ToUpper(name)
-	for _, prefix := range []string{"AWS", "SECRET", "TOKEN", "PASSWORD", "PRIVATE", "GITHUB_TOKEN", "API_KEY", "KEY"} {
-		if strings.Contains(upper, prefix) {
+	for _, keyword := range sensitiveEnvVarKeywords {
+		if strings.Contains(upper, keyword) {
 			return true
 		}
 	}
@@ -333,17 +344,64 @@ func isSensitiveEnvVarName(name string) bool {
 }
 
 func hasSensitiveFilePath(args []string) bool {
+	home, _ := os.UserHomeDir()
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") {
-			continue
-		}
-		for _, prefix := range sensitiveFilePathPrefixes {
-			if strings.HasPrefix(arg, prefix) || arg == prefix {
+		for _, candidate := range sensitivePathCandidates(arg, home) {
+			if isSensitivePath(candidate, home) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func sensitivePathCandidates(arg, home string) []string {
+	arg = strings.ReplaceAll(arg, "$HOME", home)
+	if value, ok := flagValue(arg); ok {
+		arg = value
+	} else if strings.HasPrefix(arg, "-") {
+		return nil
+	}
+	candidates := []string{arg}
+	if strings.HasPrefix(arg, "~") {
+		candidates = append(candidates, filepath.Join(home, arg[1:]))
+	}
+	return candidates
+}
+
+func flagValue(arg string) (string, bool) {
+	if !strings.HasPrefix(arg, "-") {
+		return "", false
+	}
+	_, value, found := strings.Cut(arg, "=")
+	return value, found && value != ""
+}
+
+func isSensitivePath(path, home string) bool {
+	for _, pattern := range sensitiveFileNameRegexps {
+		if pattern.MatchString(path) {
+			return true
+		}
+	}
+	for _, relative := range sensitiveHomeRelativePaths {
+		lexical := "~/" + relative
+		if path == lexical || strings.HasPrefix(path, lexical+"/") {
+			return true
+		}
+		if matchesSensitiveSubtree(path, filepath.Join(home, relative)) {
+			return true
+		}
+	}
+	for _, system := range sensitiveSystemPaths {
+		if matchesSensitiveSubtree(path, system) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesSensitiveSubtree(path, root string) bool {
+	return path == root || strings.HasPrefix(path, root+"/")
 }
 
 func hasFlag(flags []string, targets ...string) bool {
@@ -359,7 +417,6 @@ func hasFlag(flags []string, targets ...string) bool {
 	return false
 }
 
-// extractSubshells extracts the contents of $(...) and `...` subshell expressions.
 func extractSubshells(command string) []string {
 	var results []string
 
@@ -383,7 +440,7 @@ func extractSubshells(command string) []string {
 	return results
 }
 
-// extractBalancedParens extracts content from a position after "$(" up to the matching ")".
+// s starts right after "$("; returns content up to the matching ")".
 func extractBalancedParens(s string) string {
 	depth := 1
 	for i := 0; i < len(s); i++ {

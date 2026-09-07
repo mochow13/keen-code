@@ -517,6 +517,7 @@ func TestCallMCPTool_NotFound(t *testing.T) {
 }
 
 func TestCallMCPTool_LargeResultSpillsToArtifact(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	largeContent := strings.Repeat("x", maxInlineMCPResultSize+1)
 	runtime := &mockMCPRuntime{
 		callToolFn: func(_ context.Context, _, _ string, _ map[string]any) (*keenmcp.ToolResult, error) {
