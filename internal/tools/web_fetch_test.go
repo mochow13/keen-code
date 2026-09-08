@@ -2,11 +2,14 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestWebFetchTool_Name(t *testing.T) {
@@ -38,6 +41,9 @@ func TestWebFetchTool_InputSchema(t *testing.T) {
 
 	if _, ok := properties["url"]; !ok {
 		t.Error("url property should exist")
+	}
+	if _, ok := properties["checkCache"]; !ok {
+		t.Error("checkCache property should exist")
 	}
 
 	required, ok := schema["required"].([]string)
@@ -196,5 +202,254 @@ func TestWebFetchTool_Execute_LargeResponseSpillsToArtifact(t *testing.T) {
 	}
 	if string(data) != large {
 		t.Errorf("artifact content length = %d, want %d", len(data), len(large))
+	}
+}
+
+func TestWebFetchTool_CheckCacheMissFallsThroughToLiveFetch(t *testing.T) {
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("fresh"))
+	}))
+	defer server.Close()
+
+	tool := NewWebFetchTool()
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"url":        server.URL,
+		"checkCache": true,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("server hits = %d, want 1", hits.Load())
+	}
+	m, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", result)
+	}
+	if m["content"] != "fresh" {
+		t.Errorf("content = %v, want %q", m["content"], "fresh")
+	}
+	if _, exists := m["cached_at"]; exists {
+		t.Errorf("fresh response must not include cached_at")
+	}
+}
+
+func TestWebFetchTool_MemoryCacheHitSkipsLiveFetch(t *testing.T) {
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("cached payload"))
+	}))
+	defer server.Close()
+
+	tool := NewWebFetchTool()
+	if _, err := tool.Execute(context.Background(), map[string]any{"url": server.URL}); err != nil {
+		t.Fatalf("first Execute() error = %v", err)
+	}
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"url":        server.URL,
+		"checkCache": true,
+	})
+	if err != nil {
+		t.Fatalf("cached Execute() error = %v", err)
+	}
+	if hits.Load() != 1 {
+		t.Errorf("server hits = %d, want 1 (cache hit must not fetch)", hits.Load())
+	}
+	m, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", result)
+	}
+	if m["content"] != "cached payload" {
+		t.Errorf("content = %v, want %q", m["content"], "cached payload")
+	}
+	if m["status_code"] != http.StatusOK {
+		t.Errorf("status_code = %v, want 200", m["status_code"])
+	}
+	cachedAt, ok := m["cached_at"].(string)
+	if !ok {
+		t.Fatalf("cached_at missing on cached response")
+	}
+	if _, err := time.Parse(time.RFC3339, cachedAt); err != nil {
+		t.Errorf("cached_at = %q is not RFC3339: %v", cachedAt, err)
+	}
+}
+
+func TestWebFetchTool_DiskCacheHitReturnsPreviewAndPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	large := strings.Repeat("x", maxInlineWebFetchSize+1)
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(large))
+	}))
+	defer server.Close()
+
+	first := NewWebFetchTool()
+	if _, err := first.Execute(context.Background(), map[string]any{"url": server.URL}); err != nil {
+		t.Fatalf("first Execute() error = %v", err)
+	}
+
+	second := NewWebFetchTool()
+	result, err := second.Execute(context.Background(), map[string]any{
+		"url":        server.URL,
+		"checkCache": true,
+	})
+	if err != nil {
+		t.Fatalf("cached Execute() error = %v", err)
+	}
+	if hits.Load() != 1 {
+		t.Errorf("server hits = %d, want 1 (disk cache hit must not fetch)", hits.Load())
+	}
+	m, ok := result.(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", result)
+	}
+	if m["truncated"] != true {
+		t.Errorf("truncated = %v, want true", m["truncated"])
+	}
+	preview, ok := m["content"].(string)
+	if !ok || !strings.Contains(preview, "bytes omitted") {
+		t.Errorf("cached large result must return a preview")
+	}
+	path, ok := m["artifact_path"].(string)
+	if !ok || path == "" {
+		t.Fatalf("artifact_path missing on cached large result")
+	}
+	wantSuffix := webFetchCacheFilePrefix + webFetchCacheKey(server.URL) + ".txt"
+	if !strings.HasSuffix(path, wantSuffix) {
+		t.Errorf("artifact_path = %q, want deterministic cache file ending in %q", path, wantSuffix)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read cache file %q: %v", path, err)
+	}
+	if string(data) != large {
+		t.Errorf("cache file content mismatch")
+	}
+	if _, ok := m["cached_at"].(string); !ok {
+		t.Errorf("cached_at missing on cached response")
+	}
+}
+
+func TestWebFetchTool_FreshCallRefreshesCache(t *testing.T) {
+	responses := []string{"first", "second"}
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(responses[hits.Add(1)-1]))
+	}))
+	defer server.Close()
+
+	tool := NewWebFetchTool()
+	for range responses {
+		if _, err := tool.Execute(context.Background(), map[string]any{"url": server.URL}); err != nil {
+			t.Fatalf("fresh Execute() error = %v", err)
+		}
+	}
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"url":        server.URL,
+		"checkCache": true,
+	})
+	if err != nil {
+		t.Fatalf("cached Execute() error = %v", err)
+	}
+	if hits.Load() != 2 {
+		t.Fatalf("server hits = %d, want 2", hits.Load())
+	}
+	m := result.(map[string]any)
+	if m["content"] != "second" {
+		t.Errorf("cache was not refreshed, content = %v, want %q", m["content"], "second")
+	}
+}
+
+func TestWebFetchTool_NonOKStatusNotCached(t *testing.T) {
+	var hits atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("not found"))
+	}))
+	defer server.Close()
+
+	tool := NewWebFetchTool()
+	for range 2 {
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"url":        server.URL,
+			"checkCache": true,
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		m := result.(map[string]any)
+		if m["status_code"] != http.StatusNotFound {
+			t.Errorf("status_code = %v, want 404", m["status_code"])
+		}
+		if m["content"] != "not found" {
+			t.Errorf("content = %v, want %q", m["content"], "not found")
+		}
+		if _, exists := m["cached_at"]; exists {
+			t.Errorf("non-200 response must not include cached_at")
+		}
+	}
+	if hits.Load() != 2 {
+		t.Errorf("server hits = %d, want 2 (non-200 responses must not be cached)", hits.Load())
+	}
+}
+
+func TestWebFetchTool_MemoryCacheLRUEviction(t *testing.T) {
+	tool := NewWebFetchTool()
+
+	keys := make([]string, 0, webFetchCacheLRUCapacity+1)
+	for i := 0; i <= webFetchCacheLRUCapacity; i++ {
+		key := webFetchCacheKey(fmt.Sprintf("https://example.com/%d", i))
+		if _, err := tool.storeCache(key, "payload"); err != nil {
+			t.Fatalf("storeCache() error = %v", err)
+		}
+		keys = append(keys, key)
+	}
+
+	if _, ok := tool.cache.Get(keys[0]); ok {
+		t.Errorf("oldest entry should have been evicted")
+	}
+	if _, ok := tool.cache.Get(keys[len(keys)-1]); !ok {
+		t.Errorf("newest entry should remain cached")
+	}
+}
+
+func TestWebFetchCacheKeyIsDeterministic(t *testing.T) {
+	key := webFetchCacheKey("https://example.com/docs")
+
+	if key != webFetchCacheKey("https://example.com/docs") {
+		t.Errorf("key must be stable for identical URLs")
+	}
+	if len(key) != 32 {
+		t.Errorf("key length = %d, want 32 hex characters", len(key))
+	}
+	if key == webFetchCacheKey("https://example.com/other") {
+		t.Errorf("URL path must affect the key")
+	}
+	if key == webFetchCacheKey("https://example.com/docs#section") {
+		t.Errorf("URL fragment must affect the key")
+	}
+}
+
+func TestWebFetchTool_ValidateInputCheckCacheMustBeBool(t *testing.T) {
+	tool := NewWebFetchTool()
+
+	err := tool.ValidateInput(context.Background(), map[string]any{
+		"url":        "https://example.com",
+		"checkCache": "yes",
+	})
+	if err == nil {
+		t.Error("expected error for non-bool checkCache")
 	}
 }
