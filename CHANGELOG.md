@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-09-09
+
+### Added
+- Cache `web_fetch` results behind a `checkCache` flag: successful fetches up to 16 KiB are kept in a session-scoped in-memory LRU (512 entries) and larger ones on disk (`~/.keen/web-fetch-artifacts/keen-web-fetch-<hash>.txt`); cache hits skip re-fetching.
+- Compress built-in tool outputs sent to LLM providers: `read_file` drops display-only `bytes_read`/`lines_read` metadata, and `grep`/`glob` factor shared directory prefixes (`common_prefix` with relative paths and grouped grep matches). Raw outputs still reach the UI and tool events, while compact results are replayed from historical tool memory.
+- Add `claude-fable-5-1` to the Anthropic provider plus `grok-4.6`, `muse-spark-1.2-contributor`, `muse-spark-1.3-contributor`, `qwen3.8-flash`, `hy4-preview`, and `omen-alpha` to OpenCode Go, with Responses-API routing for Grok 4.6 and Muse Spark models and reasoning-effort support for Hy4 preview and Omen Alpha.
+
+### Changed
+- Pin govulncheck to x/vuln v1.7.0 in CI so the vulnerability scan works on Go 1.25 runners.
+
 ## [0.53.0] - 2026-09-07
 
 ### Added
@@ -959,7 +969,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.53.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.54.0...HEAD
+[0.54.0]: https://github.com/mochow13/keen-code/compare/v0.53.0...v0.54.0
 [0.53.0]: https://github.com/mochow13/keen-code/compare/v0.52.0...v0.53.0
 [0.52.0]: https://github.com/mochow13/keen-code/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/mochow13/keen-code/compare/v0.50.1...v0.51.0
