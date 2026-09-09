@@ -6,16 +6,16 @@ Keen Code supports multiple AI providers through a plugin-like architecture. The
 
 | Provider | ID | Authentication | Models |
 |----------|-----|----------------|--------|
-| Anthropic | `anthropic` | API Key | Claude Opus 5, Fable 5, Sonnet 5, Opus 4.8, Haiku 4.5 |
+| Anthropic | `anthropic` | API Key | Claude Fable 5.1, Opus 5, Fable 5, Sonnet 5, Opus 4.8, Sonnet 4.6, Haiku 4.5 |
 | OpenAI | `openai` | API Key | GPT-5.6 Sol, GPT-5.6 Luna, GPT-5.6 Terra, GPT-5.5, GPT-5.4 |
 | Codex | `openai-codex` | OAuth | GPT-5.6 Sol, GPT-5.6 Terra, GPT-5.6 Luna, GPT-5.5, GPT-5.4 |
 | Google AI | `googleai` | API Key | Gemini 3.1 Pro, 3.6 Flash, 3.5 Flash, 3.5 Flash-Lite |
 | Moonshot AI | `moonshotai` | API Key | Kimi K3, K2.7 Code, K2.7 Code High-Speed, K2.6, K2.5 |
-| Z.ai | `zai` | API Key | GLM-5.2, GLM-5.1 |
+| Z.ai | `zai` | API Key | GLM-5.3 Flash, GLM-5.3, GLM-5.2, GLM-5.1 |
 | DeepSeek | `deepseek` | API Key | DeepSeek V4 Flash, V4 Pro |
 | MiniMax | `minimax` | API Key | MiniMax M3, M2.7, M2.7 High-Speed |
 | Amazon Bedrock | `amazon-bedrock` | AWS credentials | Claude Fable 5, Sonnet 5, Opus 4.8, Opus 4.6, Sonnet 4.6, Haiku 4.5 |
-| OpenCode Go | `opencode-go` | API Key | Grok 4.5, GPT-5.6 Luna, GLM-5.2, GLM-5.1, Kimi K3, Kimi K2.7 Code, Kimi K2.6, MiMo V2.5 Pro, MiMo V2.5, Qwen3.8 Max, Qwen3.7 Max, Qwen3.7 Plus, Qwen3.6 Plus, MiniMax M3, MiniMax M2.7, DeepSeek V4 Pro, DeepSeek V4 Flash, Hy3 |
+| OpenCode Go | `opencode-go` | API Key | Grok 4.6, Grok 4.5, GPT-5.6 Luna, GLM-5.3 Flash, GLM-5.3, GLM-5.2, GLM-5.1, Kimi K3, Kimi K2.7 Code, Kimi K2.6, LongCat-2.0, MiMo V2.5 Pro, MiMo V2.5, Muse Spark 1.3 Contributor, Muse Spark 1.2 Contributor, Qwen3.8 Flash, Qwen3.8 Max, Qwen3.7 Max, Qwen3.7 Plus, Qwen3.6 Plus, MiniMax M3, MiniMax M2.7, DeepSeek V4 Pro, DeepSeek V4 Flash, Hy4 preview, Hy3, Omen Alpha |
 | OpenAI Compatible | `openai-compatible` | API Key | Any OpenAI-compatible model |
 
 ## OpenAI-Compatible Providers
@@ -165,7 +165,7 @@ Instead of storing a key, a provider can define `api_key_helper`. Keen executes 
 
 MiniMax uses its Anthropic-compatible API. Users normally leave `base_url` unset. Keen uses `https://api.minimax.io/anthropic`, which the Anthropic SDK extends to `/v1/messages`.
 
-OpenCode Go also uses API key authentication. Users normally leave `base_url` unset. Keen follows OpenCode's model-specific endpoints: GPT-5.6 Luna uses `/v1/responses`, MiniMax and Qwen use `/v1/messages`, and the other curated models use `/v1/chat/completions`.
+OpenCode Go also uses API key authentication. Users normally leave `base_url` unset. Keen follows OpenCode's model-specific endpoints: GPT-5.6 Luna, Grok 4.6, and Muse Spark contributor models use `/v1/responses`, MiniMax and Qwen use `/v1/messages`, and the other curated models use `/v1/chat/completions`.
 
 ### OAuth Authentication (OpenAI Codex)
 
@@ -238,7 +238,7 @@ AWS SDK integration for Amazon Bedrock:
 
 OpenAI Responses API for:
 - OpenAI (GPT models)
-- OpenCode Go GPT-5.6 Luna
+- OpenCode Go GPT-5.6 Luna, Grok 4.6, and Muse Spark contributor models
 
 ### OpenAICompatibleClient (`internal/llm/openai.go`)
 
@@ -246,7 +246,7 @@ OpenAI-compatible API for:
 - DeepSeek
 - Moonshot AI (Kimi)
 - Z.ai (GLM)
-- OpenCode Go Grok, GLM, Kimi, DeepSeek, MiMo, and Hy3 models
+- OpenCode Go Grok 4.5, GLM, Kimi, DeepSeek, MiMo, Hy3, Hy4 preview, and Omen Alpha models
 
 OpenCode Go Qwen and MiniMax models use the Anthropic-compatible client.
 
@@ -294,14 +294,14 @@ Models expose their provider-specific thinking values without normalizing them t
 | Moonshot AI | K3: low, high, max; K2.6: enabled, disabled |
 | DeepSeek | disabled, high, max |
 | Amazon Bedrock | low, medium, high, xhigh, max |
-| Z.ai | GLM-5.2: disabled, high, max; GLM-5.1: enabled, disabled |
+| Z.ai | GLM-5.3 Flash and GLM-5.3: low, high, max; GLM-5.2: disabled, high, max; GLM-5.1: enabled, disabled |
 | MiniMax | M3: enabled, adaptive, disabled |
 | OpenCode Go | Model-specific; see `internal/providers/registry.yaml` |
 
 The selected effort is stored in `thinking_effort` and passed to the provider without changing its meaning.
 
 OpenCode Go thinking controls are model-family specific:
-- GPT-5.6 Luna uses the Responses API. Kimi K3 and Hy3 send their documented `reasoning_effort` values.
+- GPT-5.6 Luna, Grok 4.6, and Muse Spark contributor models use the Responses API and send `reasoning.effort`. Hy4 preview and Omen Alpha send their documented `reasoning_effort` values on chat completions.
 - DeepSeek sends `thinking.type` plus `reasoning_effort`.
 - Qwen uses the Anthropic-compatible endpoint with an enabled/disabled thinking toggle.
 - MiniMax M3 sends `thinking.type` as enabled, adaptive, or disabled.

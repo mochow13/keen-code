@@ -156,7 +156,7 @@ Common supported efforts include:
 | Google AI Gemini Flash / Flash-Lite | `minimal`, `low`, `medium`, `high` |
 | DeepSeek V4 | `disabled`, `high`, `max` |
 | Amazon Bedrock Claude | varies by model; includes `low`, `medium`, `high`, `xhigh`, and `max` |
-| OpenCode Go models | varies by model; examples include `enabled`/`disabled`, `none` through `max`, and `low`/`high`/`max` |
+| OpenCode Go models | varies by model; examples include `enabled`/`disabled`, `adaptive`, `minimal`, `medium`, `none` through `max`, `no_think`, and `low`/`xhigh`/`max` |
 
 ```text
 /thinking high

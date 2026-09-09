@@ -71,7 +71,7 @@ Implementations:
 - `GenkitClient` - Firebase Genkit for Google AI
 
 MiniMax uses `AnthropicClient` with `https://api.minimax.io/anthropic`.
-OpenCode Go is routed by model format: `minimax-m2.*` and `qwen3.7-max` use `AnthropicClient`, while GLM, Kimi, DeepSeek, MiMo, and other Qwen models use `OpenAICompatibleClient`.
+OpenCode Go is routed by model format: `minimax-m2.*`, `qwen3.7-max`, and `qwen3.8-flash` use `AnthropicClient`, while GLM, Kimi, DeepSeek, MiMo, Hy3/Hy4 preview, Omen Alpha, and other Qwen models use `OpenAICompatibleClient`. GPT-5.6 Luna, Grok 4.6, and Muse Spark contributor models use `OpenAIResponsesClient`.
 
 ### Tools (`internal/tools/`)
 

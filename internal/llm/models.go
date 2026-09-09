@@ -121,7 +121,7 @@ func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
 			Headers:             cfg.Headers,
 		})
 	case config.ProviderOpenCodeGo:
-		if cfg.Model == "gpt-5.6-luna" {
+		if isOpenCodeGoResponsesModel(cfg.Model) {
 			baseURL := cfg.BaseURL
 			if baseURL == "" {
 				baseURL = openCodeGoBaseURL + "/v1/"
@@ -205,5 +205,13 @@ func isOpenCodeGoReasoningEffortModel(model string) bool {
 	return model == "grok-4.5" ||
 		model == "glm-5.2" || model == "glm-5.3" ||
 		model == "kimi-k3" ||
-		model == "hy3"
+		model == "hy3" || model == "hy4-preview" ||
+		model == "omen-alpha"
+}
+
+func isOpenCodeGoResponsesModel(model string) bool {
+	return model == "gpt-5.6-luna" ||
+		model == "grok-4.6" ||
+		model == "muse-spark-1.2-contributor" ||
+		model == "muse-spark-1.3-contributor"
 }

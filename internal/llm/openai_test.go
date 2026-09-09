@@ -691,7 +691,7 @@ func TestOpenAICompatibleClient_OpenCodeGoLongCatThinkingDisabled(t *testing.T) 
 }
 
 func TestOpenAICompatibleClient_OpenCodeGoReasoningEffortModels(t *testing.T) {
-	for _, model := range []string{"grok-4.5", "glm-5.2", "glm-5.3", "kimi-k3", "hy3"} {
+	for _, model := range []string{"grok-4.5", "glm-5.2", "glm-5.3", "kimi-k3", "hy3", "hy4-preview", "omen-alpha"} {
 		t.Run(model, func(t *testing.T) {
 			params := (&OpenAICompatibleClient{
 				provider:       Provider(config.ProviderOpenCodeGo),

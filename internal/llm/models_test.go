@@ -193,6 +193,7 @@ func TestNewClient_OpenCodeGoAnthropicModel(t *testing.T) {
 		{name: "minimax", model: "minimax-m2.7"},
 		{name: "minimax m3", model: "minimax-m3", thinkingEffort: "adaptive"},
 		{name: "qwen max", model: "qwen3.7-max", thinkingEffort: "enabled"},
+		{name: "qwen3.8 flash", model: "qwen3.8-flash", thinkingEffort: "enabled"},
 	}
 
 	for _, tt := range tests {
@@ -239,21 +240,40 @@ func TestNewClient_RejectsUnsupportedThinkingEffort(t *testing.T) {
 }
 
 func TestNewClient_OpenCodeGoResponsesModel(t *testing.T) {
-	client, err := NewClient(&config.ResolvedConfig{
-		Provider:       config.ProviderOpenCodeGo,
-		Model:          "gpt-5.6-luna",
-		APIKey:         "test-api-key",
-		ThinkingEffort: "max",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		name           string
+		model          string
+		thinkingEffort string
+	}{
+		{name: "gpt-5.6-luna", model: "gpt-5.6-luna", thinkingEffort: "max"},
+		{name: "grok-4.6", model: "grok-4.6", thinkingEffort: "high"},
+		{name: "muse spark 1.2", model: "muse-spark-1.2-contributor", thinkingEffort: "high"},
+		{name: "muse spark 1.3", model: "muse-spark-1.3-contributor", thinkingEffort: "high"},
 	}
-	responsesClient, ok := client.(*OpenAIResponsesClient)
-	if !ok {
-		t.Fatalf("expected *OpenAIResponsesClient, got %T", client)
-	}
-	if responsesClient.provider != Provider(config.ProviderOpenCodeGo) {
-		t.Fatalf("expected provider opencode-go, got %s", responsesClient.provider)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewClient(&config.ResolvedConfig{
+				Provider:       config.ProviderOpenCodeGo,
+				Model:          tt.model,
+				APIKey:         "test-api-key",
+				ThinkingEffort: tt.thinkingEffort,
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			responsesClient, ok := client.(*OpenAIResponsesClient)
+			if !ok {
+				t.Fatalf("expected *OpenAIResponsesClient, got %T", client)
+			}
+			if responsesClient.provider != Provider(config.ProviderOpenCodeGo) {
+				t.Fatalf("expected provider opencode-go, got %s", responsesClient.provider)
+			}
+			if responsesClient.thinkingEffort != tt.thinkingEffort {
+				t.Fatalf("expected thinking effort %q, got %q", tt.thinkingEffort, responsesClient.thinkingEffort)
+			}
+		})
 	}
 }
 

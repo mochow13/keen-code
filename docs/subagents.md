@@ -75,7 +75,7 @@ At the time of writing, registry values use these provider and model-family conv
 | OpenAI | Model-dependent subsets of `none`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra` |
 | OpenAI Codex | Model-dependent subsets of `low`, `medium`, `high`, `xhigh`, `max`, and `ultra` |
 | Google AI | `low`, `medium`, and `high`; selected Flash models also list `minimal` |
-| Z.ai | GLM-5.2 uses `disabled`, `high`, and `max`; GLM-5.1 uses `enabled` and `disabled` |
+| Z.ai | GLM-5.3 Flash and GLM-5.3 use `low`, `high`, and `max`; GLM-5.2 uses `disabled`, `high`, and `max`; GLM-5.1 uses `enabled` and `disabled` |
 | DeepSeek | `disabled`, `high`, and `max` |
 | MiniMax M3 | `enabled`, `adaptive`, and `disabled` |
 | OpenCode Go | Model-specific values listed in the registry |
