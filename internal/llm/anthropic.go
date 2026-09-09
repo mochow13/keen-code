@@ -902,13 +902,13 @@ func (c *AnthropicClient) executeTools(
 
 		slog.Debug("Tool request", "tool", tu.name, "input", tu.input)
 
-		output, execErr, toolStarted := executeValidatedTool(ctx, registry, tu.name, tu.input, eventCh)
+		rawOutput, output, execErr, toolStarted := executeValidatedTool(ctx, registry, tu.name, tu.input, eventCh)
 
 		duration := time.Since(start)
 		toolCall := &ToolCall{
 			Name:     tu.name,
 			Input:    tu.input,
-			Output:   output,
+			Output:   rawOutput,
 			Duration: duration,
 		}
 
@@ -933,7 +933,7 @@ func (c *AnthropicClient) executeTools(
 		}
 
 		resultBlocks = append(resultBlocks, anthropic.NewToolResultBlock(tu.id, resultContent, execErr != nil))
-		activities = append(activities, historicalToolActivity(tu.name, tu.input, output, execErr))
+		activities = append(activities, historicalToolActivity(tu.name, tu.input, rawOutput, output, execErr))
 	}
 
 	return resultBlocks, activities

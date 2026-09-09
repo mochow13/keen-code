@@ -1,25 +1,21 @@
-## Keen Code
-CLI-based coding agent powered by AI using Firebase Genkit for LLM interactions.
+# Keen Code
 
-## Important Guidelines
-- Minimal comments only when strictly necessary
-- Test critical paths, not aiming for 100% coverage
-- Always run `go test -race ./...` after finalising a change
-- Always run `go mod tidy` after each change
-- Always run `gofmt` on modified Go files before committing
-- Commit messages should be concise and focus on the key changes with bullet points
-- Commit messages should follow the `feat(category): description` format
-- Always check both tracked and untracked files for creating the commit message
-- Never add co-authors or made-with AI tags to the commit message
+Terminal-based AI coding agent written in Go. It supports multiple LLM providers, built-in and MCP tools, skills, subagents, persistent sessions, and a Bubble Tea REPL.
+
+## Working on this repository
+
+- Keep changes focused; avoid speculative refactors and unnecessary comments.
+- Preserve existing public tool contracts and permission checks. File operations must go through `internal/filesystem` guards.
+- Do not expose, log, or commit API keys, OAuth credentials, session transcripts, or other secrets.
+- Project instructions are loaded from `AGENTS.md`; skills, agents, and memory are separate user/project configuration.
 
 ## Architecture
-- **internal/tools** - LLM tools (read_file, write_file, edit_file, glob, grep, bash)
-- **internal/filesystem** - Guard for safe file access
-- **internal/cli/repl** - Interactive REPL UI
-- **internal/llm** - Genkit-based LLM client
 
-## Permission System
-Guard checks paths before filesystem operations:
-- `PermissionGranted` - Allowed (working directory)
-- `PermissionPending` - User approval required (outside working dir)
-- `PermissionDenied` - Blocked (system paths, .gitignore files)
+- `cmd/` — CLI entry point.
+- `internal/cli/` — Cobra commands and Bubble Tea REPL.
+- `internal/llm/` — provider clients, tool execution, context management, and prompt formatting.
+- `internal/tools/` — built-in LLM tools and input validation.
+- `internal/filesystem/` — working-directory, sensitive-path, and `.gitignore` access guard.
+- `internal/config/` and `internal/providers/` — provider configuration and model metadata.
+- `internal/session/` — JSONL-backed session persistence.
+- `internal/mcp/`, `internal/mcpskills/`, `internal/skills/`, `internal/subagents/`, `internal/memory/` — extensibility and agent features.

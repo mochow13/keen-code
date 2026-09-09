@@ -75,11 +75,11 @@ func historicalToolArguments(activity HistoricalToolActivity) string {
 }
 
 func historicalToolResult(activity HistoricalToolActivity) string {
-	if activity.HasRawOutput {
-		return serializeJSON(activity.RawOutput)
-	}
 	if activity.RetainedOutput != nil {
 		return serializeJSON(activity.RetainedOutput)
+	}
+	if activity.HasRawOutput {
+		return serializeJSON(activity.RawOutput)
 	}
 
 	status := activity.Status

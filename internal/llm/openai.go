@@ -800,13 +800,13 @@ func (c *OpenAICompatibleClient) executeTools(
 		}
 		slog.Debug("Tool request", "tool", tc.Function.Name, "input", input)
 
-		output, execErr, toolStarted := executeValidatedTool(ctx, registry, tc.Function.Name, input, eventCh)
+		rawOutput, output, execErr, toolStarted := executeValidatedTool(ctx, registry, tc.Function.Name, input, eventCh)
 
 		duration := time.Since(start)
 		toolCall := &ToolCall{
 			Name:     tc.Function.Name,
 			Input:    input,
-			Output:   output,
+			Output:   rawOutput,
 			Duration: duration,
 		}
 
@@ -831,7 +831,7 @@ func (c *OpenAICompatibleClient) executeTools(
 		}
 
 		toolMessages = append(toolMessages, openai.ToolMessage(toolOutput, tc.ID))
-		activities = append(activities, historicalToolActivity(tc.Function.Name, input, output, execErr))
+		activities = append(activities, historicalToolActivity(tc.Function.Name, input, rawOutput, output, execErr))
 	}
 
 	return toolMessages, activities

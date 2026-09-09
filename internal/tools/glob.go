@@ -42,7 +42,9 @@ Tips:
 - Prefer specific roots and patterns over broad repository-wide scans.
 - After globbing, read only the files most likely to answer the user's question.
 
-Examples: '*.go', '**/*.md', 'src/**/*_test.go', 'cmd/*/main.go'.`
+Examples: '*.go', '**/*.md', 'src/**/*_test.go', 'cmd/*/main.go'.
+
+LLM responses may include common_prefix; prepend it to every entry in files to reconstruct each full path.`
 }
 
 func (t *GlobTool) InputSchema() map[string]any {

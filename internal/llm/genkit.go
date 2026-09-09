@@ -514,14 +514,14 @@ func (c *GenkitClient) executeTools(
 		}
 		slog.Debug("Tool request", "tool", req.Name, "input", input)
 
-		output, execErr, toolStarted := executeValidatedTool(ctx, registry, req.Name, input, eventCh)
+		rawOutput, output, execErr, toolStarted := executeValidatedTool(ctx, registry, req.Name, input, eventCh)
 
 		duration := time.Since(start)
 
 		toolCall := &ToolCall{
 			Name:     req.Name,
 			Input:    input,
-			Output:   output,
+			Output:   rawOutput,
 			Duration: duration,
 		}
 
@@ -554,7 +554,7 @@ func (c *GenkitClient) executeTools(
 				Output: output,
 			}))
 		}
-		activities = append(activities, historicalToolActivity(req.Name, input, output, execErr))
+		activities = append(activities, historicalToolActivity(req.Name, input, rawOutput, output, execErr))
 	}
 
 	return toolResponseParts, activities

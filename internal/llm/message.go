@@ -84,6 +84,26 @@ func cloneInputValue(value any) any {
 			cloned[i] = cloneInputValue(item)
 		}
 		return cloned
+	case []string:
+		cloned := make([]string, len(value))
+		copy(cloned, value)
+		return cloned
+	case []map[string]any:
+		cloned := make([]map[string]any, len(value))
+		for i, item := range value {
+			cloned[i] = cloneInputMap(item)
+		}
+		return cloned
+	case map[string][]map[string]any:
+		cloned := make(map[string][]map[string]any, len(value))
+		for key, matches := range value {
+			clonedMatches := make([]map[string]any, len(matches))
+			for i, match := range matches {
+				clonedMatches[i] = cloneInputMap(match)
+			}
+			cloned[key] = clonedMatches
+		}
+		return cloned
 	default:
 		return value
 	}

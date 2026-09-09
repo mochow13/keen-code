@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/llm/compress"
 	"github.com/mochow13/keen-code/internal/tools"
 )
 
@@ -78,9 +79,10 @@ func historicalToolActivity(toolCall *llm.ToolCall, textOffset int, workingDir, 
 		activity.RawOutput = toolCall.Output
 		if toolCall.Error != "" {
 			activity.RawOutput = map[string]any{"error": toolCall.Error}
+		} else {
+			activity.RetainedOutput = compress.ForLLM(toolCall.Name, toolCall.Output)
 		}
-	}
-	if toolCall.Name == tools.AskUserToolName {
+	} else if toolCall.Name == tools.AskUserToolName {
 		activity.RetainedOutput = toolCall.Output
 	}
 

@@ -62,7 +62,8 @@ Tips:
 - If there are many matches, narrow by path/include before reading files
 - Use output_mode=file first when you only need candidate files
 - Results are capped at 1000 matches. Use include and path to stay within this limit
-- Structured content matches include line_number and line_hash; the pair forms a LINE:HASH edit_file anchor. Read nearby context when you need it.`
+- Structured content matches include line_number and line_hash; the pair forms a LINE:HASH edit_file anchor. Read nearby context when you need it.
+- LLM responses may include common_prefix. Prepend it to every file path. Content-mode matches may be grouped by relative file path, with each match retaining line_number, line, and line_hash.`
 }
 
 func (t *GrepTool) InputSchema() map[string]any {

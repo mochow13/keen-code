@@ -73,6 +73,37 @@ func TestCollectHistoricalToolActivity_RetainsRawOutputsWhenEnabled(t *testing.T
 	}
 }
 
+func TestCollectHistoricalToolActivity_RetainsLLMCompressedOutputsWhenEnabled(t *testing.T) {
+	output := map[string]any{
+		"content":     "1:abc|package main",
+		"bytes_read":  18,
+		"lines_read":  1,
+		"total_lines": 1,
+		"truncated":   false,
+	}
+	activities := collectHistoricalToolActivity([]streamSegment{{
+		kind:     segmentToolEnd,
+		toolCall: &llm.ToolCall{Name: "read_file", Output: output},
+	}}, "", true)
+
+	if len(activities) != 1 || activities[0].RetainedOutput == nil {
+		t.Fatalf("expected retained LLM output, got %#v", activities)
+	}
+	retained := activities[0].RetainedOutput.(map[string]any)
+	if _, ok := retained["bytes_read"]; ok {
+		t.Fatalf("retained output includes bytes_read: %#v", retained)
+	}
+	if _, ok := retained["lines_read"]; ok {
+		t.Fatalf("retained output includes lines_read: %#v", retained)
+	}
+	if retained["total_lines"] != 1 || retained["truncated"] != false {
+		t.Fatalf("retained output lost read-file pagination metadata: %#v", retained)
+	}
+	if activities[0].RawOutput.(map[string]any)["bytes_read"] != 18 {
+		t.Fatalf("raw output was modified: %#v", activities[0].RawOutput)
+	}
+}
+
 func TestCollectHistoricalToolActivity_OmitsRawOutputsByDefault(t *testing.T) {
 	activities := collectHistoricalToolActivity([]streamSegment{{
 		kind:     segmentToolEnd,

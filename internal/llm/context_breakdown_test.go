@@ -73,3 +73,22 @@ func TestEstimateContextBreakdown_NonStringRawOutput(t *testing.T) {
 		t.Error("expected non-string raw output to be estimated via JSON")
 	}
 }
+
+func TestEstimateContextBreakdown_PrefersRetainedOutput(t *testing.T) {
+	retainedOutput := map[string]any{"content": "compact"}
+	messages := []ContextMessage{
+		{Role: RoleAssistant, ToolActivity: []HistoricalToolActivity{
+			{
+				Tool:           "read_file",
+				RawOutput:      map[string]any{"content": "a substantially longer raw output"},
+				RetainedOutput: retainedOutput,
+			},
+		}},
+	}
+
+	b := EstimateContextBreakdown("", nil, messages)
+	want := estimateJSONTokenCount(retainedOutput)
+	if b.ToolResultTokens != want {
+		t.Errorf("ToolResultTokens = %d, want %d", b.ToolResultTokens, want)
+	}
+}

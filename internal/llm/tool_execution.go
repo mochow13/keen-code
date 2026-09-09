@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mochow13/keen-code/internal/llm/compress"
 	"github.com/mochow13/keen-code/internal/tools"
 )
 
-func historicalToolActivity(name string, input map[string]any, output any, execErr error) HistoricalToolActivity {
+func historicalToolActivity(name string, input map[string]any, output, llmOutput any, execErr error) HistoricalToolActivity {
 	activity := HistoricalToolActivity{
 		Tool:         name,
 		Input:        input,
@@ -21,6 +22,7 @@ func historicalToolActivity(name string, input map[string]any, output any, execE
 
 	activity.Status = "success"
 	activity.RawOutput = output
+	activity.RetainedOutput = llmOutput
 	return activity
 }
 
@@ -30,16 +32,16 @@ func executeValidatedTool(
 	name string,
 	input map[string]any,
 	eventCh chan<- StreamEvent,
-) (any, error, bool) {
+) (rawOutput, llmOutput any, err error, started bool) {
 	if registry == nil {
-		return nil, fmt.Errorf("tool registry not available"), false
+		return nil, nil, fmt.Errorf("tool registry not available"), false
 	}
 	tool, exists := registry.Get(name)
 	if !exists {
-		return nil, fmt.Errorf("tool %q not found", name), false
+		return nil, nil, fmt.Errorf("tool %q not found", name), false
 	}
 	if err := tools.ValidateInput(ctx, tool, input); err != nil {
-		return nil, err, false
+		return nil, nil, err, false
 	}
 	eventCh <- StreamEvent{
 		Type: StreamEventTypeToolStart,
@@ -48,6 +50,9 @@ func executeValidatedTool(
 			Input: input,
 		},
 	}
-	output, err := tool.Execute(ctx, input)
-	return output, err, true
+	rawOutput, err = tool.Execute(ctx, input)
+	if err != nil {
+		return rawOutput, rawOutput, err, true
+	}
+	return rawOutput, compress.ForLLM(name, rawOutput), nil, true
 }

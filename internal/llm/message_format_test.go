@@ -76,6 +76,32 @@ func TestHistoricalToolArguments_RetainsInput(t *testing.T) {
 	}
 }
 
+func TestCloneTurnMemory_ClonesCompressedRetainedOutput(t *testing.T) {
+	original := &TurnMemory{ToolActivity: []HistoricalToolActivity{{
+		Tool: "grep",
+		RetainedOutput: map[string]any{
+			"common_prefix": "internal/llm/",
+			"matches": map[string][]map[string]any{
+				"message.go": []map[string]any{{"line": "original"}},
+			},
+		},
+	}}}
+
+	cloned := CloneTurnMemory(original)
+	retained := cloned.ToolActivity[0].RetainedOutput.(map[string]any)
+	matches := retained["matches"].(map[string][]map[string]any)
+	matches["message.go"][0]["line"] = "changed"
+	matches["other.go"] = []map[string]any{{"line": "new"}}
+
+	originalMatches := original.ToolActivity[0].RetainedOutput.(map[string]any)["matches"].(map[string][]map[string]any)
+	if got := originalMatches["message.go"][0]["line"]; got != "original" {
+		t.Fatalf("original nested match mutated: %v", got)
+	}
+	if _, exists := originalMatches["other.go"]; exists {
+		t.Fatal("original matches map mutated")
+	}
+}
+
 func TestHistoricalToolResult_RetainsOnlyCompactOutcome(t *testing.T) {
 	exitCode := 1
 	tests := []struct {

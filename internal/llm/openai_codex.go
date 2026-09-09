@@ -596,13 +596,13 @@ func (c *OpenAICodexClient) executeTools(
 		}
 		slog.Debug("Tool request", "tool", tc.Name, "input", input)
 
-		output, execErr, toolStarted := executeValidatedTool(ctx, registry, tc.Name, input, eventCh)
+		rawOutput, output, execErr, toolStarted := executeValidatedTool(ctx, registry, tc.Name, input, eventCh)
 
 		duration := time.Since(start)
 		toolCall := &ToolCall{
 			Name:     tc.Name,
 			Input:    input,
-			Output:   output,
+			Output:   rawOutput,
 			Duration: duration,
 		}
 
@@ -627,7 +627,7 @@ func (c *OpenAICodexClient) executeTools(
 		}
 
 		toolMessages = append(toolMessages, responses.ResponseInputItemParamOfFunctionCallOutput(tc.CallID, toolOutput))
-		activities = append(activities, historicalToolActivity(tc.Name, input, output, execErr))
+		activities = append(activities, historicalToolActivity(tc.Name, input, rawOutput, output, execErr))
 	}
 
 	return toolMessages, activities

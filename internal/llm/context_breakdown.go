@@ -40,13 +40,14 @@ func EstimateContextBreakdown(systemPrompt string, toolDefs []ContextToolDef, me
 				if activity.Input != nil {
 					b.ToolResultTokens += estimateJSONTokenCount(activity.Input)
 				}
-				if output, ok := activity.RawOutput.(string); ok {
-					b.ToolResultTokens += estimateContextTokenCount(output)
-				} else if activity.RawOutput != nil {
-					b.ToolResultTokens += estimateJSONTokenCount(activity.RawOutput)
-				}
+				output := activity.RawOutput
 				if activity.RetainedOutput != nil {
-					b.ToolResultTokens += estimateJSONTokenCount(activity.RetainedOutput)
+					output = activity.RetainedOutput
+				}
+				if stringOutput, ok := output.(string); ok {
+					b.ToolResultTokens += estimateContextTokenCount(stringOutput)
+				} else if output != nil {
+					b.ToolResultTokens += estimateJSONTokenCount(output)
 				}
 			}
 		}
