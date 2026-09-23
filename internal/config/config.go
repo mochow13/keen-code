@@ -24,6 +24,7 @@ const (
 	ProviderZAI              = "zai"
 	ProviderMiniMax          = "minimax"
 	ProviderOpenCodeGo       = "opencode-go"
+	ProviderYoloAuto         = "yolo-auto"
 	ProviderBedrock          = "amazon-bedrock"
 	ProviderOpenAICompatible = "openai-compatible"
 )

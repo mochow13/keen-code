@@ -215,6 +215,26 @@ func TestModel_ThinkingEffortsLoadFromYAML(t *testing.T) {
 	if !slices.Equal(minimax.ThinkingEfforts, expectedMiniMax) {
 		t.Fatalf("expected minimax-m3 efforts %v, got %v", expectedMiniMax, minimax.ThinkingEfforts)
 	}
+
+	yoloAuto, ok := reg.GetProvider("yolo-auto")
+	if !ok {
+		t.Fatal("expected to find yolo-auto provider")
+	}
+	if len(yoloAuto.Models) != 2 {
+		t.Fatalf("expected 2 yolo-auto models, got %d", len(yoloAuto.Models))
+	}
+	for _, modelID := range []string{"yolo", "yolo-small"} {
+		alias, ok := reg.GetModel("yolo-auto", modelID)
+		if !ok {
+			t.Fatalf("expected to find yolo-auto/%s", modelID)
+		}
+		if alias.ContextWindow != 131072 {
+			t.Fatalf("expected yolo-auto/%s context 131072, got %d", modelID, alias.ContextWindow)
+		}
+		if alias.SupportsThinkingEffort() {
+			t.Fatalf("expected yolo-auto/%s to omit thinking efforts, got %v", modelID, alias.ThinkingEfforts)
+		}
+	}
 }
 
 func TestRegistry_GetModel(t *testing.T) {

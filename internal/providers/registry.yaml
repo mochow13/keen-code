@@ -314,3 +314,13 @@ providers:
         name: Omen Alpha
         context_window: 500000
         thinking_efforts: ["low", "high"]
+
+  - id: yolo-auto
+    name: Yolo-Auto
+    models:
+      - id: yolo
+        name: Yolo
+        context_window: 131072
+      - id: yolo-small
+        name: Yolo Small
+        context_window: 131072

@@ -16,6 +16,7 @@ Keen Code supports multiple AI providers through a plugin-like architecture. The
 | MiniMax | `minimax` | API Key | MiniMax M3, M2.7, M2.7 High-Speed |
 | Amazon Bedrock | `amazon-bedrock` | AWS credentials | Claude Fable 5, Sonnet 5, Opus 4.8, Opus 4.6, Sonnet 4.6, Haiku 4.5 |
 | OpenCode Go | `opencode-go` | API Key | Grok 4.6, Grok 4.5, GPT-5.6 Luna, GLM-5.3 Flash, GLM-5.3, GLM-5.2, GLM-5.1, Kimi K3, Kimi K2.7 Code, Kimi K2.6, LongCat-2.0, MiMo V2.5 Pro, MiMo V2.5, Muse Spark 1.3 Contributor, Muse Spark 1.2 Contributor, Qwen3.8 Flash, Qwen3.8 Max, Qwen3.7 Max, Qwen3.7 Plus, Qwen3.6 Plus, MiniMax M3, MiniMax M2.7, DeepSeek V4 Pro, DeepSeek V4 Flash, Hy4 preview, Hy3, Omen Alpha |
+| Yolo-Auto | `yolo-auto` | API Key | `yolo`, `yolo-small` (catalog discoverable at `/v1/models`) |
 | OpenAI Compatible | `openai-compatible` | API Key | Any OpenAI-compatible model |
 
 ## OpenAI-Compatible Providers
@@ -126,7 +127,7 @@ Notes:
 - Header names and values are plain strings.
 - They are set per-provider; different providers can have different headers.
 - Custom headers must be added by editing the config file directly. The `/model` UI does not provide a field for them.
-- Applied to all clients: Anthropic, OpenAI, Codex, DeepSeek, Moonshot AI, Z.ai, MiniMax, OpenCode Go, Google AI (Genkit), and Amazon Bedrock.
+- Applied to all clients: Anthropic, OpenAI, Codex, DeepSeek, Moonshot AI, Z.ai, MiniMax, OpenCode Go, Yolo-Auto, Google AI (Genkit), and Amazon Bedrock.
 
 ### Config Resolution
 
@@ -166,6 +167,8 @@ Instead of storing a key, a provider can define `api_key_helper`. Keen executes 
 MiniMax uses its Anthropic-compatible API. Users normally leave `base_url` unset. Keen uses `https://api.minimax.io/anthropic`, which the Anthropic SDK extends to `/v1/messages`.
 
 OpenCode Go also uses API key authentication. Users normally leave `base_url` unset. Keen follows OpenCode's model-specific endpoints: GPT-5.6 Luna, Grok 4.6, and Muse Spark contributor models use `/v1/responses`, MiniMax and Qwen use `/v1/messages`, and the other curated models use `/v1/chat/completions`.
+
+Yolo-Auto uses an OpenAI-compatible API at `https://yolo-auto.com/v1` with API key authentication (`YOLO_AUTO_API_KEY` by convention). Users normally leave `base_url` unset. Keen ships the stable public aliases `yolo` and `yolo-small`; the current catalog for a key is discoverable at `GET /v1/models`, which also reports the per-model context window and thinking levels.
 
 ### OAuth Authentication (OpenAI Codex)
 
@@ -247,6 +250,7 @@ OpenAI-compatible API for:
 - Moonshot AI (Kimi)
 - Z.ai (GLM)
 - OpenCode Go Grok 4.5, GLM, Kimi, DeepSeek, MiMo, Hy3, Hy4 preview, and Omen Alpha models
+- Yolo-Auto (`yolo`, `yolo-small`)
 
 OpenCode Go Qwen and MiniMax models use the Anthropic-compatible client.
 
