@@ -9,26 +9,23 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
-	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	replfilesearch "github.com/mochow13/keen-code/internal/cli/repl/filesearch"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
-	"github.com/mochow13/keen-code/internal/llm"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/subagents"
 	"github.com/mochow13/keen-code/internal/tools"
 )
 
 func TestHandleLLMChunk(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	sh.Start(make(<-chan core.StreamEvent), "Loading...")
+	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")
 
 	m := replModel{
 		stream:  streamState{handler: sh},
@@ -68,13 +65,13 @@ func TestContextStatus_UpdatesOnUsageEvent(t *testing.T) {
 			},
 		},
 	}
-	m.appState = replappstate.New(nil, t.TempDir())
+	m.agentCore = newAgentCore(nil, t.TempDir())
 	m.refreshContextStatus()
 	if m.contextStatus.Percent != 0 {
 		t.Fatalf("expected 0%% initially, got %.2f", m.contextStatus.Percent)
 	}
 
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.loading.showSpinner = true
 
@@ -83,7 +80,7 @@ func TestContextStatus_UpdatesOnUsageEvent(t *testing.T) {
 		t.Fatalf("expected context percent to remain 0 during chunk, got %.2f", updatedAfterChunk.contextStatus.Percent)
 	}
 
-	updatedAfterUsage, _ := updatedAfterChunk.handleLLMUsage(&core.TokenUsage{InputTokens: 1000})
+	updatedAfterUsage, _ := updatedAfterChunk.handleLLMUsage(&agentcore.TokenUsage{InputTokens: 1000})
 	if updatedAfterUsage.contextStatus.Percent != 50.0 {
 		t.Fatalf("expected 50%% after usage event, got %.2f", updatedAfterUsage.contextStatus.Percent)
 	}
@@ -91,21 +88,21 @@ func TestContextStatus_UpdatesOnUsageEvent(t *testing.T) {
 
 func TestHandleLLMDoneDrainsSubagentActivity(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	sh.Start(make(chan core.StreamEvent), "Loading...")
-	activity := make(chan subagents.ToolActivity, 2)
-	activity <- subagents.ToolActivity{RunID: "run-1", CallID: "tool-1", Agent: "worker", Event: core.StreamEvent{
-		Type:     core.StreamEventTypeToolStart,
-		ToolCall: &core.ToolCall{Name: "bash", Input: map[string]any{"command": "go test ./..."}},
+	sh.Start(make(chan agentcore.StreamEvent), "Loading...")
+	activity := make(chan agentcore.ToolActivity, 2)
+	activity <- agentcore.ToolActivity{RunID: "run-1", CallID: "tool-1", Agent: "worker", Event: agentcore.StreamEvent{
+		Type:     agentcore.StreamEventTypeToolStart,
+		ToolCall: &agentcore.ToolCall{Name: "bash", Input: map[string]any{"command": "go test ./..."}},
 	}}
-	activity <- subagents.ToolActivity{RunID: "run-1", CallID: "tool-1", Agent: "worker", Event: core.StreamEvent{
-		Type:     core.StreamEventTypeToolEnd,
-		ToolCall: &core.ToolCall{Name: "bash"},
+	activity <- agentcore.ToolActivity{RunID: "run-1", CallID: "tool-1", Agent: "worker", Event: agentcore.StreamEvent{
+		Type:     agentcore.StreamEventTypeToolEnd,
+		ToolCall: &agentcore.ToolCall{Name: "bash"},
 	}}
 	m := replModel{
 		stream:           streamState{handler: sh},
 		loading:          loadingState{showSpinner: true},
 		width:            80,
-		appState:         replappstate.New(nil, t.TempDir()),
+		agentCore:        newAgentCore(nil, t.TempDir()),
 		output:           reploutput.NewOutputBuilder(80, ""),
 		subagentActivity: activity,
 	}
@@ -122,16 +119,16 @@ func TestHandleLLMDoneDrainsSubagentActivity(t *testing.T) {
 
 func TestHandleLLMDone(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("response line 1\nresponse line 2")
 
 	m := replModel{
-		stream:   streamState{handler: sh},
-		loading:  loadingState{showSpinner: true},
-		width:    80,
-		appState: replappstate.New(nil, t.TempDir()),
-		output:   reploutput.NewOutputBuilder(80, ""),
+		stream:    streamState{handler: sh},
+		loading:   loadingState{showSpinner: true},
+		width:     80,
+		agentCore: newAgentCore(nil, t.TempDir()),
+		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 
 	newM, cmd := m.handleLLMDone()
@@ -140,14 +137,14 @@ func TestHandleLLMDone(t *testing.T) {
 		t.Error("expected showSpinner to be false after done")
 	}
 
-	if len(m.appState.GetMessages()) != 1 {
-		t.Errorf("expected 1 message in history, got %d", len(m.appState.GetMessages()))
+	if len(m.agentCore.GetMessages()) != 1 {
+		t.Errorf("expected 1 message in history, got %d", len(m.agentCore.GetMessages()))
 	}
-	if m.appState.GetMessages()[0].Role != core.RoleAssistant {
-		t.Errorf("expected assistant role, got %s", m.appState.GetMessages()[0].Role)
+	if m.agentCore.GetMessages()[0].Role != agentcore.RoleAssistant {
+		t.Errorf("expected assistant role, got %s", m.agentCore.GetMessages()[0].Role)
 	}
-	if m.appState.GetMessages()[0].Content != "response line 1\nresponse line 2" {
-		t.Errorf("unexpected message content: %s", m.appState.GetMessages()[0].Content)
+	if m.agentCore.GetMessages()[0].Content != "response line 1\nresponse line 2" {
+		t.Errorf("unexpected message content: %s", m.agentCore.GetMessages()[0].Content)
 	}
 
 	if len(newM.output.GetLines()) != 3 {
@@ -161,15 +158,15 @@ func TestHandleLLMDone(t *testing.T) {
 
 func TestHandleLLMError(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	m := replModel{
-		stream:   streamState{handler: sh},
-		loading:  loadingState{showSpinner: true},
-		width:    80,
-		appState: replappstate.New(nil, t.TempDir()),
-		output:   reploutput.NewOutputBuilder(80, ""),
+		stream:    streamState{handler: sh},
+		loading:   loadingState{showSpinner: true},
+		width:     80,
+		agentCore: newAgentCore(nil, t.TempDir()),
+		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 
 	testErr := errors.New("stream failed")
@@ -260,7 +257,7 @@ func TestHandleKeyMsg_CtrlC_WithInputClearsAndDoesNotQuit(t *testing.T) {
 
 func TestHandleKeyMsg_CtrlC_WithActiveStreamInterrupts(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.stream.handler.HandleChunk("partial response")
 	m.loading.showSpinner = true
@@ -297,7 +294,7 @@ func TestHandleKeyMsg_CtrlC_WithActiveStreamInterrupts(t *testing.T) {
 
 func TestHandleKeyMsg_CtrlC_WithAskUserCancelsQuestionnaireFirst(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Loading...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.askUser = testAskUserState()
 	m.stream.handler.SetAskUser(&m.askUser)
 	streamCanceled := false
@@ -320,8 +317,8 @@ func TestHandleKeyMsg_CtrlC_WithActiveStreamDrainsNextQueuedInput(t *testing.T) 
 	m := newTestModel()
 	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
 	client := &mockLLMClient{}
-	m.appState = replappstate.New(client, "")
-	m.stream.handler.Start(make(chan core.StreamEvent), "Loading...")
+	m.agentCore = newAgentCore(client, "", m.ctx.cfg)
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.loading.showSpinner = true
 	m.stream.cancel = func() {}
 	m.queuedInputs = []string{"next prompt", "later prompt"}
@@ -334,7 +331,7 @@ func TestHandleKeyMsg_CtrlC_WithActiveStreamDrainsNextQueuedInput(t *testing.T) 
 	if len(newM.queuedInputs) != 1 || newM.queuedInputs[0] != "later prompt" {
 		t.Fatalf("expected only later prompt to remain queued, got %v", newM.queuedInputs)
 	}
-	if messages := newM.appState.GetMessages(); len(messages) != 1 || messages[0].Content != "next prompt" {
+	if messages := newM.agentCore.GetMessages(); len(messages) != 1 || messages[0].Content != "next prompt" {
 		t.Fatalf("expected next prompt to be submitted, got %#v", messages)
 	}
 	if cmd == nil {
@@ -344,7 +341,7 @@ func TestHandleKeyMsg_CtrlC_WithActiveStreamDrainsNextQueuedInput(t *testing.T) 
 
 func TestHandleKeyMsg_CtrlC_SecondCtrlCQuitsAfterInterrupt(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.loading.showSpinner = true
 	m.stream.cancel = func() {}
@@ -368,7 +365,7 @@ func TestHandleKeyMsg_CtrlC_SecondCtrlCQuitsAfterInterrupt(t *testing.T) {
 
 func TestHandleKeyMsg_Esc_WithActiveStreamInterrupts(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.stream.handler.HandleChunk("partial response")
 	m.loading.showSpinner = true
@@ -407,8 +404,8 @@ func TestHandleKeyMsg_Esc_WithActiveStreamDrainsNextQueuedInput(t *testing.T) {
 	m := newTestModel()
 	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
 	client := &mockLLMClient{}
-	m.appState = replappstate.New(client, "")
-	m.stream.handler.Start(make(chan core.StreamEvent), "Loading...")
+	m.agentCore = newAgentCore(client, "", m.ctx.cfg)
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.loading.showSpinner = true
 	m.stream.cancel = func() {}
 	m.queuedInputs = []string{"next prompt", "later prompt"}
@@ -421,7 +418,7 @@ func TestHandleKeyMsg_Esc_WithActiveStreamDrainsNextQueuedInput(t *testing.T) {
 	if len(newM.queuedInputs) != 1 || newM.queuedInputs[0] != "later prompt" {
 		t.Fatalf("expected only later prompt to remain queued, got %v", newM.queuedInputs)
 	}
-	if messages := newM.appState.GetMessages(); len(messages) != 1 || messages[0].Content != "next prompt" {
+	if messages := newM.agentCore.GetMessages(); len(messages) != 1 || messages[0].Content != "next prompt" {
 		t.Fatalf("expected next prompt to be submitted, got %#v", messages)
 	}
 	if cmd == nil {
@@ -431,15 +428,15 @@ func TestHandleKeyMsg_Esc_WithActiveStreamDrainsNextQueuedInput(t *testing.T) {
 
 func TestHandleLLMStreamMsg_IgnoresPreviousStreamAfterQueuedInputStarts(t *testing.T) {
 	m := newTestModel()
-	oldEventCh := make(chan core.StreamEvent)
-	newEventCh := make(chan core.StreamEvent)
+	oldEventCh := make(chan agentcore.StreamEvent)
+	newEventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(newEventCh, "Loading...")
 	m.stream.handler.HandleChunk("new response")
 	m.loading.showSpinner = true
 
 	newM, cmd, handled := m.handleLLMStreamMsg(mainStreamMsg{
 		eventCh: oldEventCh,
-		event:   core.StreamEvent{Type: core.StreamEventTypeError, Error: context.Canceled},
+		event:   agentcore.StreamEvent{Type: agentcore.StreamEventTypeError, Error: context.Canceled},
 	})
 
 	if !handled {
@@ -582,27 +579,27 @@ func TestHandleKeyMsg_ShiftTabTogglesMode(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("expected nil cmd")
 	}
-	if newM.currentMode() != llm.ModePlan {
+	if newM.currentMode() != agentcore.ModePlan {
 		t.Fatalf("expected plan mode, got %q", newM.currentMode())
 	}
-	if newM.appState.Mode() != llm.ModePlan {
-		t.Fatalf("expected app state plan mode, got %q", newM.appState.Mode())
+	if newM.agentCore.Mode() != agentcore.ModePlan {
+		t.Fatalf("expected app state plan mode, got %q", newM.agentCore.Mode())
 	}
 
 	newM, _ = newM.handleKeyMsg(tea.KeyPressMsg{Text: "shift+tab"})
-	if newM.currentMode() != llm.ModeYolo {
+	if newM.currentMode() != agentcore.ModeYolo {
 		t.Fatalf("expected yolo mode, got %q", newM.currentMode())
 	}
-	if newM.appState.Mode() != llm.ModeYolo {
-		t.Fatalf("expected app state yolo mode, got %q", newM.appState.Mode())
+	if newM.agentCore.Mode() != agentcore.ModeYolo {
+		t.Fatalf("expected app state yolo mode, got %q", newM.agentCore.Mode())
 	}
 
 	newM, _ = newM.handleKeyMsg(tea.KeyPressMsg{Text: "shift+tab"})
-	if newM.currentMode() != llm.ModeBuild {
+	if newM.currentMode() != agentcore.ModeBuild {
 		t.Fatalf("expected build mode, got %q", newM.currentMode())
 	}
-	if newM.appState.Mode() != llm.ModeBuild {
-		t.Fatalf("expected app state build mode, got %q", newM.appState.Mode())
+	if newM.agentCore.Mode() != agentcore.ModeBuild {
+		t.Fatalf("expected app state build mode, got %q", newM.agentCore.Mode())
 	}
 }
 
@@ -727,7 +724,7 @@ func TestUpdateNormalMode_ModelSelectionPasteGoesToAPIKeyInput(t *testing.T) {
 
 func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	sh.Start(make(<-chan core.StreamEvent), "Loading...")
+	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")
 
 	m := replModel{
 		stream:  streamState{handler: sh},
@@ -750,21 +747,21 @@ func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
 
 func TestHandleLLMDone_EmptyResponse(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	m := replModel{
-		stream:   streamState{handler: sh},
-		loading:  loadingState{showSpinner: true},
-		width:    80,
-		appState: replappstate.New(nil, t.TempDir()),
-		output:   reploutput.NewOutputBuilder(80, ""),
+		stream:    streamState{handler: sh},
+		loading:   loadingState{showSpinner: true},
+		width:     80,
+		agentCore: newAgentCore(nil, t.TempDir()),
+		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 
 	newM, _ := m.handleLLMDone()
 
-	if len(m.appState.GetMessages()) != 1 {
-		t.Errorf("expected 1 message, got %d", len(m.appState.GetMessages()))
+	if len(m.agentCore.GetMessages()) != 1 {
+		t.Errorf("expected 1 message, got %d", len(m.agentCore.GetMessages()))
 	}
 
 	if len(newM.output.GetLines()) != 1 {
@@ -774,16 +771,16 @@ func TestHandleLLMDone_EmptyResponse(t *testing.T) {
 
 func TestHandleLLMError_ResetsHandler(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("partial content")
 
 	m := replModel{
-		stream:   streamState{handler: sh},
-		loading:  loadingState{showSpinner: true},
-		width:    80,
-		appState: replappstate.New(nil, t.TempDir()),
-		output:   reploutput.NewOutputBuilder(80, ""),
+		stream:    streamState{handler: sh},
+		loading:   loadingState{showSpinner: true},
+		width:     80,
+		agentCore: newAgentCore(nil, t.TempDir()),
+		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 
 	newM, _ := m.handleLLMError(errors.New("fail"))
@@ -801,31 +798,31 @@ func TestHandleLLMError_ResetsHandler(t *testing.T) {
 func TestHandleLLMError_MaterializesMessageAndTurnMemory(t *testing.T) {
 	workingDir := t.TempDir()
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("partial response")
 
 	m := replModel{
-		stream:   streamState{handler: sh},
-		loading:  loadingState{showSpinner: true},
-		width:    80,
-		appState: replappstate.New(nil, workingDir),
-		output:   reploutput.NewOutputBuilder(80, ""),
+		stream:    streamState{handler: sh},
+		loading:   loadingState{showSpinner: true},
+		width:     80,
+		agentCore: newAgentCore(nil, workingDir),
+		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 	m.startAssistantTurnMemory()
-	sh.HandleToolEnd(&core.ToolCall{
+	sh.HandleToolEnd(&agentcore.ToolCall{
 		Name:  "write_file",
 		Input: map[string]any{"path": workingDir + "/foo.go", "content": "package foo"},
 	})
 
 	updated, _ := m.handleLLMError(errors.New("rate limit"))
 
-	messages := updated.appState.GetMessages()
+	messages := updated.agentCore.GetMessages()
 	if len(messages) != 1 {
 		t.Fatalf("expected 1 materialized assistant message, got %d", len(messages))
 	}
 	msg := messages[0]
-	if msg.Role != core.RoleAssistant {
+	if msg.Role != agentcore.RoleAssistant {
 		t.Errorf("expected assistant role, got %s", msg.Role)
 	}
 	if msg.Content != "partial response" {
@@ -841,16 +838,16 @@ func TestHandleLLMError_MaterializesMessageAndTurnMemory(t *testing.T) {
 
 func TestHandleLLMError_ContextCanceled_DoesNotAddErrorLine(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("partial content")
 
 	m := replModel{
-		stream:   streamState{handler: sh, cancel: func() {}},
-		loading:  loadingState{showSpinner: true},
-		width:    80,
-		appState: replappstate.New(nil, t.TempDir()),
-		output:   reploutput.NewOutputBuilder(80, ""),
+		stream:    streamState{handler: sh, cancel: func() {}},
+		loading:   loadingState{showSpinner: true},
+		width:     80,
+		agentCore: newAgentCore(nil, t.TempDir()),
+		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 
 	newM, cmd := m.handleLLMError(context.Canceled)
@@ -871,7 +868,7 @@ func TestHandleLLMError_ContextCanceled_DoesNotAddErrorLine(t *testing.T) {
 
 func TestHandleToolStart(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	m := replModel{
@@ -881,7 +878,7 @@ func TestHandleToolStart(t *testing.T) {
 		output:  reploutput.NewOutputBuilder(80, ""),
 	}
 
-	toolCall := &core.ToolCall{
+	toolCall := &agentcore.ToolCall{
 		Name:  "test_tool",
 		Input: map[string]any{"arg1": "value1"},
 	}
@@ -911,12 +908,12 @@ func TestHandleToolStart(t *testing.T) {
 
 func TestHandleAskUserToolActivityIsRecordedWithoutGenericStatus(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	sh.Start(make(chan core.StreamEvent), "Loading...")
+	sh.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m := replModel{stream: streamState{handler: sh}, width: 80, output: reploutput.NewOutputBuilder(80, "")}
-	call := &core.ToolCall{Name: tools.AskUserToolName, Input: map[string]any{"questions": []any{map[string]any{"question": "Pick", "options": []any{"one", "two"}}}}}
+	call := &agentcore.ToolCall{Name: tools.AskUserToolName, Input: map[string]any{"questions": []any{map[string]any{"question": "Pick", "options": []any{"one", "two"}}}}}
 
 	m.handleToolStart(call)
-	m.handleToolEnd(&core.ToolCall{Name: tools.AskUserToolName, Input: call.Input, Output: map[string]any{"tool": tools.AskUserToolName, "answers": []string{"one"}}})
+	m.handleToolEnd(&agentcore.ToolCall{Name: tools.AskUserToolName, Input: call.Input, Output: map[string]any{"tool": tools.AskUserToolName, "answers": []string{"one"}}})
 	if len(sh.segments) != 2 {
 		t.Fatalf("expected ask_user start and end segments, got %#v", sh.segments)
 	}
@@ -927,7 +924,7 @@ func TestHandleAskUserToolActivityIsRecordedWithoutGenericStatus(t *testing.T) {
 
 func TestHandleToolStart_BashKeepsSpinnerActive(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	m := replModel{
@@ -937,7 +934,7 @@ func TestHandleToolStart_BashKeepsSpinnerActive(t *testing.T) {
 		output:  reploutput.NewOutputBuilder(80, ""),
 	}
 
-	toolCall := &core.ToolCall{
+	toolCall := &agentcore.ToolCall{
 		Name:  "bash",
 		Input: map[string]any{"command": "npm test", "summary": "running tests"},
 	}
@@ -957,7 +954,7 @@ func TestHandleToolStart_BashKeepsSpinnerActive(t *testing.T) {
 
 func TestHandleToolEnd(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	m := replModel{
@@ -966,7 +963,7 @@ func TestHandleToolEnd(t *testing.T) {
 		output: reploutput.NewOutputBuilder(80, ""),
 	}
 
-	toolCall := &core.ToolCall{
+	toolCall := &agentcore.ToolCall{
 		Name:     "test_tool",
 		Input:    map[string]any{"arg1": "value1"},
 		Output:   "tool result",
@@ -994,7 +991,7 @@ func TestHandleToolEnd(t *testing.T) {
 
 func TestHandleToolEnd_WithError(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	m := replModel{
@@ -1003,7 +1000,7 @@ func TestHandleToolEnd_WithError(t *testing.T) {
 		output: reploutput.NewOutputBuilder(80, ""),
 	}
 
-	toolCall := &core.ToolCall{
+	toolCall := &agentcore.ToolCall{
 		Name:  "test_tool",
 		Input: map[string]any{"arg1": "value1"},
 		Error: "connection failed",
@@ -1034,14 +1031,14 @@ func TestHandleToolEnd_WithError(t *testing.T) {
 
 func TestHandleLLMStreamMsg_ToolEnd_ReturnsSpinnerTick(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	m := newTestModel()
 	m.stream.handler = sh
 	m.loading.showSpinner = true
 
-	toolCall := &core.ToolCall{
+	toolCall := &agentcore.ToolCall{
 		Name:   "test_tool",
 		Input:  map[string]any{"arg1": "value1"},
 		Output: "tool result",
@@ -1064,7 +1061,7 @@ func TestHandleLLMStreamMsg_ToolEnd_ReturnsSpinnerTick(t *testing.T) {
 
 func TestHandleBtwStreamMsg_Chunk(t *testing.T) {
 	btwSh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	btwSh.Start(eventCh, "Loading...")
 
 	m := newTestModel()
@@ -1086,7 +1083,7 @@ func TestHandleBtwStreamMsg_Chunk(t *testing.T) {
 
 func TestHandleBtwStreamMsg_Done(t *testing.T) {
 	btwSh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	btwSh.Start(eventCh, "Loading...")
 	btwSh.HandleChunk("answer text")
 
@@ -1113,7 +1110,7 @@ func TestHandleBtwStreamMsg_Done(t *testing.T) {
 
 func TestHandleBtwStreamMsg_Error(t *testing.T) {
 	btwSh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	btwSh.Start(eventCh, "Loading...")
 
 	m := newTestModel()
@@ -1246,33 +1243,33 @@ func TestAutoCompactionEscCancelsOnlyChild(t *testing.T) {
 
 func TestAutoCompactionAppliedStripsSystemMessagesFromAppState(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.compaction.active = true
 	m.compaction.mode = compactionAutomatic
 
-	updated, _ := m.handleAutoCompactionApplied(&core.AutoCompactionEvent{Replacement: []core.Message{
-		{Role: core.RoleSystem, Content: "provider system prompt"},
-		{Role: core.RoleUser, Content: "checkpoint"},
+	updated, _ := m.handleAutoCompactionApplied(&agentcore.AutoCompactionEvent{Replacement: []agentcore.Message{
+		{Role: agentcore.RoleSystem, Content: "provider system prompt"},
+		{Role: agentcore.RoleUser, Content: "checkpoint"},
 	}})
 
-	messages := updated.appState.GetMessages()
-	if len(messages) != 1 || messages[0].Role != core.RoleUser || messages[0].Content != "checkpoint" {
+	messages := updated.agentCore.GetMessages()
+	if len(messages) != 1 || messages[0].Role != agentcore.RoleUser || messages[0].Content != "checkpoint" {
 		t.Fatalf("AppState messages = %#v, want system-free replacement", messages)
 	}
 }
 
 func TestAutoCompactionAppliedReplacesHistoryWithoutAppendingCheckpoint(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.stream.handler.HandleChunk("visible work")
-	m.appState.AddMessage(core.RoleUser, "original task")
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "original task"})
 	m.compaction.active = true
 	m.compaction.mode = compactionAutomatic
-	replacement := []core.Message{{Role: core.RoleUser, Content: "checkpoint"}}
+	replacement := []agentcore.Message{{Role: agentcore.RoleUser, Content: "checkpoint"}}
 
-	updated, _ := m.handleAutoCompactionApplied(&core.AutoCompactionEvent{Replacement: replacement})
+	updated, _ := m.handleAutoCompactionApplied(&agentcore.AutoCompactionEvent{Replacement: replacement})
 
-	messages := updated.appState.GetMessages()
+	messages := updated.agentCore.GetMessages()
 	if len(messages) != 1 || messages[0].Content != "checkpoint" {
 		t.Fatalf("history = %#v, want replacement only", messages)
 	}
@@ -1292,7 +1289,7 @@ func TestAutoCompactionAppliedReplacesHistoryWithoutAppendingCheckpoint(t *testi
 
 func TestHandleLLMReasoningChunk(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 
 	updated, cmd := m.handleLLMReasoningChunk("considering options")
 
@@ -1306,7 +1303,7 @@ func TestHandleLLMReasoningChunk(t *testing.T) {
 
 func TestHandleLLMIncompletePreservesPartialResponse(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.stream.handler.HandleChunk("partial answer")
 	m.loading.showSpinner = true
 
@@ -1318,7 +1315,7 @@ func TestHandleLLMIncompletePreservesPartialResponse(t *testing.T) {
 	if got := updated.output.Join(); !strings.Contains(got, "partial answer") || !strings.Contains(got, "response truncated") {
 		t.Fatalf("incomplete output = %q", got)
 	}
-	if messages := updated.appState.GetMessages(); len(messages) != 0 {
+	if messages := updated.agentCore.GetMessages(); len(messages) != 0 {
 		t.Fatalf("incomplete response unexpectedly changed conversation: %#v", messages)
 	}
 	if cmd != nil {
@@ -1328,7 +1325,7 @@ func TestHandleLLMIncompletePreservesPartialResponse(t *testing.T) {
 
 func TestHandleLLMIncompleteCancellationOmitsError(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.stream.handler.HandleChunk("partial answer")
 
 	updated, _ := m.handleLLMIncomplete(context.Canceled)
@@ -1340,7 +1337,7 @@ func TestHandleLLMIncompleteCancellationOmitsError(t *testing.T) {
 
 func TestHandleLLMIncompleteClearsAskUser(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.askUser = testAskUserState()
 	m.stream.handler.SetAskUser(&m.askUser)
 
@@ -1352,7 +1349,7 @@ func TestHandleLLMIncompleteClearsAskUser(t *testing.T) {
 
 func TestHandleLLMErrorClearsAskUser(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.askUser = testAskUserState()
 	m.stream.handler.SetAskUser(&m.askUser)
 
@@ -1364,7 +1361,7 @@ func TestHandleLLMErrorClearsAskUser(t *testing.T) {
 
 func TestHandleLLMRetryRewindsCurrentAttempt(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.stream.handler.HandleChunk("discarded attempt")
 
 	updated, cmd := m.handleLLMRetry(errors.New("temporary failure"), 3)
@@ -1382,10 +1379,10 @@ func TestHandleLLMRetryRewindsCurrentAttempt(t *testing.T) {
 
 func TestAutomaticCompactionLifecycle(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	cancelled := false
 
-	started, cmd := m.handleAutoCompactionStarted(&core.AutoCompactionEvent{Cancel: func() { cancelled = true }})
+	started, cmd := m.handleAutoCompactionStarted(&agentcore.AutoCompactionEvent{Cancel: func() { cancelled = true }})
 	if !started.compaction.active || started.compaction.mode != compactionAutomatic || started.loading.text != "Compacting..." {
 		t.Fatalf("unexpected started state: %#v", started.compaction)
 	}
@@ -1411,7 +1408,7 @@ func TestAutomaticCompactionLifecycle(t *testing.T) {
 
 func TestAutoCompactionAppliedWithoutReplacementStops(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Working...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.compaction = compactionState{active: true, mode: compactionAutomatic}
 
 	updated, cmd := m.handleAutoCompactionApplied(nil)
@@ -1428,7 +1425,7 @@ func TestHandleCompactionErrorReportsFailureAndFlushesStream(t *testing.T) {
 	m := newTestModel()
 	m.compaction = compactionState{active: true, mode: compactionManual, cancel: func() {}}
 	m.loading.showSpinner = true
-	m.stream.handler.Start(make(chan core.StreamEvent), "Compacting...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Compacting...")
 	m.stream.handler.HandleChunk("unfinished summary")
 
 	updated, _ := m.handleCompactionError(errors.New("service unavailable"))
@@ -1604,30 +1601,30 @@ func TestHandleSessionPickerIgnoresNonKeyAndEmptySelection(t *testing.T) {
 func TestHandleLLMStreamMsgRoutesMainEvents(t *testing.T) {
 	tests := []struct {
 		name  string
-		event core.StreamEvent
+		event agentcore.StreamEvent
 		check func(*testing.T, replModel)
 	}{
-		{name: "chunk", event: core.StreamEvent{Type: core.StreamEventTypeChunk, Content: "answer"}, check: func(t *testing.T, m replModel) {
+		{name: "chunk", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeChunk, Content: "answer"}, check: func(t *testing.T, m replModel) {
 			if m.stream.handler.GetResponse() != "answer" {
 				t.Fatal("chunk was not routed")
 			}
 		}},
-		{name: "reasoning", event: core.StreamEvent{Type: core.StreamEventTypeReasoningChunk, Content: "thought"}, check: func(t *testing.T, m replModel) {
+		{name: "reasoning", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeReasoningChunk, Content: "thought"}, check: func(t *testing.T, m replModel) {
 			if !m.stream.handler.HasContent() {
 				t.Fatal("reasoning was not routed")
 			}
 		}},
-		{name: "usage", event: core.StreamEvent{Type: core.StreamEventTypeUsage, Usage: &core.TokenUsage{InputTokens: 7}}, check: func(t *testing.T, m replModel) {
-			if m.appState.GetLastUsage() == nil || m.appState.GetLastUsage().InputTokens != 7 {
+		{name: "usage", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeUsage, Usage: &agentcore.TokenUsage{InputTokens: 7}}, check: func(t *testing.T, m replModel) {
+			if m.agentCore.GetLastUsage() == nil || m.agentCore.GetLastUsage().InputTokens != 7 {
 				t.Fatal("usage was not routed")
 			}
 		}},
-		{name: "retry", event: core.StreamEvent{Type: core.StreamEventTypeRetry, Attempt: 2}, check: func(t *testing.T, m replModel) {
+		{name: "retry", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeRetry, Attempt: 2}, check: func(t *testing.T, m replModel) {
 			if m.loading.text != "Retrying (attempt 2)..." {
 				t.Fatalf("loading text = %q", m.loading.text)
 			}
 		}},
-		{name: "tool start", event: core.StreamEvent{Type: core.StreamEventTypeToolStart, ToolCall: &core.ToolCall{Name: "read_file"}}, check: func(t *testing.T, m replModel) {
+		{name: "tool start", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file"}}, check: func(t *testing.T, m replModel) {
 			if len(m.stream.handler.segments) != 1 {
 				t.Fatal("tool start was not routed")
 			}
@@ -1636,7 +1633,7 @@ func TestHandleLLMStreamMsgRoutesMainEvents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestModel()
-			events := make(chan core.StreamEvent)
+			events := make(chan agentcore.StreamEvent)
 			m.stream.handler.Start(events, "Working...")
 			updated, _, handled := m.handleLLMStreamMsg(mainStreamMsg{eventCh: events, event: tt.event})
 			if !handled {
@@ -1666,7 +1663,7 @@ func TestHandleLLMStreamMsgInactiveStreamSwallowsLateEvents(t *testing.T) {
 
 func TestHandleAdversaryStreamLifecycle(t *testing.T) {
 	m := newTestModel()
-	events := make(chan core.StreamEvent)
+	events := make(chan agentcore.StreamEvent)
 	m.adversary.streamHandler = NewStreamHandler(nil)
 	m.adversary.streamHandler.Start(events, "Reviewing...")
 	m.adversary.showSpinner = true
@@ -1675,11 +1672,11 @@ func TestHandleAdversaryStreamLifecycle(t *testing.T) {
 	if !handled || cmd == nil || updated.adversary.streamHandler.GetResponse() != "review text" {
 		t.Fatal("adversary chunk was not handled")
 	}
-	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolStartMsg{toolCall: &core.ToolCall{Name: "read_file"}})
+	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolStartMsg{toolCall: &agentcore.ToolCall{Name: "read_file"}})
 	if !handled || cmd == nil || len(updated.adversary.streamHandler.segments) < 2 {
 		t.Fatal("adversary tool start was not handled")
 	}
-	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolEndMsg{toolCall: &core.ToolCall{Name: "read_file", Output: "ok"}})
+	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolEndMsg{toolCall: &agentcore.ToolCall{Name: "read_file", Output: "ok"}})
 	if !handled || cmd == nil {
 		t.Fatal("adversary tool end was not handled")
 	}
@@ -1692,7 +1689,7 @@ func TestHandleAdversaryStreamLifecycle(t *testing.T) {
 func TestHandleAdversaryStreamErrorAndStaleMessages(t *testing.T) {
 	m := newTestModel()
 	m.adversary.streamHandler = NewStreamHandler(nil)
-	m.adversary.streamHandler.Start(make(chan core.StreamEvent), "Reviewing...")
+	m.adversary.streamHandler.Start(make(chan agentcore.StreamEvent), "Reviewing...")
 	m.adversary.showSpinner = true
 
 	updated, cmd, handled := m.handleAdversaryStreamMsg(adversaryErrorMsg{err: errors.New("review failed")})
