@@ -23,7 +23,7 @@ func collectResult(ctx context.Context, events <-chan core.StreamEvent, agent, r
 		select {
 		case event, ok := <-events:
 			if !ok {
-				return strings.TrimSpace(sb.String()), nil
+				return strings.TrimSpace(sb.String()), ctx.Err()
 			}
 			switch event.Type {
 			case core.StreamEventTypeChunk:

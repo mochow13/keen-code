@@ -41,6 +41,11 @@ type Result struct {
 	Error  string `json:"error,omitempty"`
 }
 
+type parentSessionIDKey struct{}
+
+func WithParentSessionID(ctx context.Context, sessionID string) context.Context {
+	return context.WithValue(ctx, parentSessionIDKey{}, sessionID)
+}
 func (r *Runner) RunDelegate(ctx context.Context, agent string, instanceIndex, instanceCount int, task string) (any, error) {
 	return r.run(ctx, agent, activityAgentName(agent, instanceIndex, instanceCount), task)
 }
@@ -84,11 +89,18 @@ func (r *Runner) run(ctx context.Context, agent, activityAgent, task string) (Re
 	childCtx, cancel := context.WithTimeout(ctx, profileTimeout(profile))
 	defer cancel()
 
-	events, err := client.StreamChat(childCtx, r.childMessages(profile, task), registry, core.StreamOptions{OneShot: true})
+	runID := fmt.Sprintf("subagent-%d", r.runCounter.Add(1))
+	sessionID := runID
+	if parentID, _ := ctx.Value(parentSessionIDKey{}).(string); parentID != "" {
+		sessionID = parentID + "-" + runID
+	}
+	events, err := client.StreamChat(childCtx, r.childMessages(profile, task), registry, core.StreamOptions{
+		OneShot:   true,
+		SessionID: sessionID,
+	})
 	if err != nil {
 		return failedResult(profile.Name, "", err.Error(), err)
 	}
-	runID := fmt.Sprintf("subagent-%d", r.runCounter.Add(1))
 	text, err := collectResult(childCtx, events, activityAgent, runID, r.Activity)
 	if err != nil {
 		return failedResult(profile.Name, text, err.Error(), err)
