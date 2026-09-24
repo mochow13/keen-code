@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textarea"
@@ -16,7 +16,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	replfilesearch "github.com/mochow13/keen-code/internal/cli/repl/filesearch"
@@ -33,8 +32,6 @@ import (
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/skills"
-	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 const (
@@ -67,8 +64,7 @@ type replModel struct {
 	textarea            textarea.Model
 	viewport            viewport.Model
 	ctx                 *replContext
-	mode                llm.AgentMode
-	appState            *replappstate.AppState
+	agentCore           agentcore.AgentCore
 	output              *reploutput.OutputBuilder
 	modelSelection      *replwidgets.Model
 	permissionRequester *replpermissions.Requester
@@ -103,7 +99,7 @@ type replModel struct {
 	notification        notificationState
 	queuedInputs        []string
 	gitBranch           string
-	subagentActivity    <-chan subagents.ToolActivity
+	subagentActivity    <-chan agentcore.ToolActivity
 }
 
 type toolHistoryMode uint8
@@ -175,7 +171,10 @@ type notificationState struct {
 	expiresAt time.Time
 }
 
-func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) replModel {
+func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agentcore.AgentCore, needsSetup bool) replModel {
+	agentCore.SetConfig(ctx.cfg)
+	agentCore.SetGlobalConfig(ctx.globalCfg)
+	agentCore.SetMode(agentcore.ModeBuild)
 	ta := textarea.New()
 	ta.Placeholder = "What are we building?"
 	ta.Focus()
@@ -218,8 +217,6 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	as.Spinner = spinner.MiniDot
 	as.Style = lipgloss.NewStyle().Foreground(repltheme.SecondaryColor)
 
-	appState := replappstate.New(llmClient, ctx.workingDir)
-
 	projectPerms, projectPermsErr := config.LoadProjectPermissions(ctx.workingDir)
 	if projectPermsErr != nil {
 		projectPerms = config.NewProjectPermissions()
@@ -235,17 +232,13 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 	fileGuard := filesystem.NewGuard(ctx.workingDir, fileGitAwareness)
 	fileSearcher := replfilesearch.NewFileSearcher(ctx.workingDir, fileGuard)
 
-	subagentActivity := make(chan subagents.ToolActivity, 64)
-	repltooling.SetupToolRegistry(
-		ctx.workingDir,
-		appState,
+	subagentActivity := agentCore.SetupTools(
+		lifecycleCtx,
 		permissionRequester,
 		diffEmitter,
 		askUserRequester,
 		ctx.mcp,
-		ctx.cfg,
-		ctx.globalCfg,
-		subagentActivity,
+		true,
 	)
 
 	mdRenderer, err := replmarkdown.New(defaultWidth)
@@ -266,8 +259,7 @@ func initialModel(ctx *replContext, llmClient llm.LLMClient, needsSetup bool) re
 		textarea:            ta,
 		viewport:            vp,
 		ctx:                 ctx,
-		mode:                llm.ModeBuild,
-		appState:            appState,
+		agentCore:           agentCore,
 		output:              output,
 		loading:             loadingState{spinner: s},
 		stream:              streamState{handler: NewStreamHandler(mdRenderer), renderInterval: streamRenderInterval},
@@ -417,7 +409,7 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 		input = activated
 	}
 
-	if !m.appState.IsClientReady(m.ctx.cfg) {
+	if !m.agentCore.IsReady() {
 		m.output.AddError("LLM client not initialized. Use /model to configure.", repltheme.ErrorStyle)
 		if !fromQueue {
 			m.textarea.Reset()
@@ -427,7 +419,7 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 		return *m, nil
 	}
 
-	if err := m.sessions.appendUserMessage(m.appState.FormatUserMessage(input)); err != nil {
+	if err := m.sessions.appendUserMessage(m.agentCore.FormatUserMessage(input)); err != nil {
 		m.output.AddError("Session persistence failed: "+err.Error(), repltheme.ErrorStyle)
 		if !fromQueue {
 			m.textarea.Reset()
@@ -437,10 +429,8 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 		return *m, nil
 	}
 
-	m.appState.AddUserMessage(input)
-
 	ctx := m.startStreamContext()
-	eventCh, err := m.appState.StreamChat(ctx, m.ctx.cfg, core.StreamOptions{SessionID: m.sessions.currentID()})
+	eventCh, err := m.agentCore.Submit(ctx, m.sessions.currentID(), input)
 	if err != nil {
 		m.clearStreamCancel()
 		m.output.AddError(err.Error(), repltheme.ErrorStyle)
@@ -489,7 +479,7 @@ func (m *replModel) activateSkillInput(input string) (string, bool) {
 		return "", false
 	}
 
-	skill, ok := m.appState.FindEnabledSkill(fields[0])
+	skill, ok := m.agentCore.FindEnabledSkill(fields[0])
 	if !ok {
 		return "", false
 	}
@@ -497,7 +487,7 @@ func (m *replModel) activateSkillInput(input string) (string, bool) {
 	if rest != "" {
 		args = append(args, rest)
 	}
-	msg, err := skills.ActivationMessage(skill, args)
+	msg, err := agentcore.ActivationMessage(skill, args)
 	if err != nil {
 		return "", false
 	}
@@ -946,15 +936,15 @@ func (m replModel) inputMetaModel() string {
 	return model
 }
 
-func renderMode(mode llm.AgentMode) string {
+func renderMode(mode agentcore.Mode) string {
 	if mode == "" {
-		mode = llm.ModeBuild
+		mode = agentcore.ModeBuild
 	}
 	chipStyle := repltheme.ModeBuildChipStyle
 	switch mode {
-	case llm.ModePlan:
+	case agentcore.ModePlan:
 		chipStyle = repltheme.ModePlanChipStyle
-	case llm.ModeYolo:
+	case agentcore.ModeYolo:
 		chipStyle = repltheme.ModeYoloChipStyle
 	}
 	return chipStyle.Render(string(mode))
@@ -988,7 +978,7 @@ func (m replModel) inputMetaStatusLine() string {
 		parts = append(parts, timerText)
 	}
 	left := "  " + strings.Join(parts, repltheme.MetaLabelStyle.Render(" • "))
-	chip := renderMode(m.mode)
+	chip := renderMode(m.currentMode())
 	return left + repltheme.MetaLabelStyle.Render(" • ") + chip
 }
 
@@ -1007,7 +997,7 @@ func (m *replModel) replayLoadedSession(loaded *session.LoadedSession) {
 	replay.flushDone()
 
 	m.output = replay.output
-	m.appState.ReplaceMessages(session.BuildConversation(loaded.Events))
+	m.agentCore.ReplaceMessages(agentcore.FromCoreMessages(session.BuildConversation(loaded.Events)))
 	m.history.Reset()
 	m.sessionPicker = nil
 	m.contextStatus.ResetTotals()
@@ -1047,7 +1037,11 @@ func RunREPL(
 		llmClient = client
 	}
 
-	m := initialModel(ctx, llmClient, needsSetup)
+	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
+	defer cancelLifecycle()
+
+	agentCore := agentcore.New(llmClient, workingDir, cfg, globalCfg)
+	m := initialModel(ctx, lifecycleCtx, agentCore, needsSetup)
 	p := tea.NewProgram(&m)
 	if _, err := p.Run(); err != nil {
 		return "", err
