@@ -6,16 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const (
@@ -34,9 +32,9 @@ const (
 	keyShiftDown = "shift+down"
 )
 
-func (m *replModel) handleLLMUsage(usage *core.TokenUsage) (replModel, tea.Cmd) {
-	if m.appState != nil && usage != nil {
-		m.appState.SetLastUsage(usage)
+func (m *replModel) handleLLMUsage(usage *agentcore.TokenUsage) (replModel, tea.Cmd) {
+	if m.agentCore != nil && usage != nil {
+		m.agentCore.SetLastUsage(usage)
 		m.contextStatus.AddUsage(usage)
 		m.refreshContextStatus()
 	}
@@ -77,12 +75,12 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.adjustTextareaHeight()
 	m.appendResolvedAskUserSegment()
 	responseLines, response := m.stream.handler.HandleDone()
-	assistantMessage := core.Message{
-		Role:       core.RoleAssistant,
+	assistantMessage := agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    response,
 		TurnMemory: m.consumeTurnMemory(),
 	}
-	m.appState.AppendMessage(assistantMessage)
+	m.agentCore.AppendMessage(assistantMessage)
 	if err := m.sessions.appendAssistantTurn(segments, assistantMessage, false, ""); err != nil {
 		m.handleSessionPersistenceError(err)
 	}
@@ -110,8 +108,8 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 	turnMemory := m.consumeTurnMemory()
 	m.adjustTextareaHeight()
 	pendingLines, errMsg := m.stream.handler.HandleError(err)
-	assistantMessage := core.Message{
-		Role:       core.RoleAssistant,
+	assistantMessage := agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    partialResponse,
 		TurnMemory: turnMemory,
 	}
@@ -143,13 +141,13 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	turnMemory := m.consumeTurnMemory()
 	m.adjustTextareaHeight()
 	pendingLines, errMsg := m.stream.handler.HandleError(err)
-	assistantMessage := core.Message{
-		Role:       core.RoleAssistant,
+	assistantMessage := agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    partialResponse,
 		TurnMemory: turnMemory,
 	}
 	if partialResponse != "" || (turnMemory != nil && !turnMemory.IsEmpty()) {
-		m.appState.AppendMessage(assistantMessage)
+		m.agentCore.AppendMessage(assistantMessage)
 		if persistErr := m.sessions.appendAssistantTurn(segments, assistantMessage, false, errMsg); persistErr != nil {
 			m.handleSessionPersistenceError(persistErr)
 		}
@@ -186,7 +184,7 @@ func (m *replModel) restoreAutomaticCompactionLoader() {
 	m.stream.handler.SetLoadingText(m.loading.text)
 }
 
-func (m *replModel) handleAutoCompactionStarted(event *core.AutoCompactionEvent) (replModel, tea.Cmd) {
+func (m *replModel) handleAutoCompactionStarted(event *agentcore.AutoCompactionEvent) (replModel, tea.Cmd) {
 	m.compaction.active = true
 	m.compaction.mode = compactionAutomatic
 	if event != nil {
@@ -199,7 +197,7 @@ func (m *replModel) handleAutoCompactionStarted(event *core.AutoCompactionEvent)
 	return *m, m.waitForAsyncEvent()
 }
 
-func (m *replModel) handleAutoCompactionApplied(event *core.AutoCompactionEvent) (replModel, tea.Cmd) {
+func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionEvent) (replModel, tea.Cmd) {
 	if event == nil || len(event.Replacement) == 0 {
 		return m.handleAutoCompactionStopped()
 	}
@@ -208,17 +206,17 @@ func (m *replModel) handleAutoCompactionApplied(event *core.AutoCompactionEvent)
 	segments := cloneStreamSegments(m.stream.handler.segments)
 	m.recordHistoricalToolActivity(segments)
 
-	var turnMemory *core.TurnMemory
+	var turnMemory *agentcore.TurnMemory
 	if m.turnMemory != nil {
 		turnMemory = m.turnMemory.Build()
 	}
-	checkpoint := core.Message{
-		Role:       core.RoleAssistant,
+	checkpoint := agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    m.stream.handler.GetResponse(),
 		TurnMemory: turnMemory,
 	}
 
-	persistedReplacement := appstate.WithoutSystemMessages(event.Replacement)
+	persistedReplacement := m.agentCore.WithoutSystemMessages(event.Replacement)
 	if err := m.sessions.appendAutoCompaction(segments, checkpoint, persistedReplacement); err != nil {
 		m.handleSessionPersistenceError(err)
 		return m.handleAutoCompactionStopped()
@@ -226,9 +224,9 @@ func (m *replModel) handleAutoCompactionApplied(event *core.AutoCompactionEvent)
 
 	m.clearTurnMemory()
 	lines, _, _ := m.stream.handler.Checkpoint()
-	m.appState.ReplaceMessages(persistedReplacement)
+	m.agentCore.ReplaceMessages(persistedReplacement)
 	m.startAssistantTurnMemory()
-	m.appState.ClearContextMetrics()
+	m.agentCore.ClearContextMetrics()
 	m.refreshContextStatus()
 	m.restoreAutomaticCompactionLoader()
 	for _, line := range lines {
@@ -281,7 +279,7 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	m.stopLoading()
 	m.compaction.cancel = nil
 	m.clearStreamCancel()
-	if err := m.appState.ApplyCompaction(summary); err != nil {
+	if err := m.agentCore.ApplyCompaction(summary); err != nil {
 		return m.handleCompactionError(err)
 	}
 	m.refreshContextStatus()
@@ -291,7 +289,7 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	if len(responseLines) > 0 {
 		m.output.AddEmptyLine()
 	}
-	if err := m.sessions.appendCompaction(segments, m.appState.GetMessages(), "Context compacted."); err != nil {
+	if err := m.sessions.appendCompaction(segments, m.agentCore.GetMessages(), "Context compacted."); err != nil {
 		m.handleSessionPersistenceError(err)
 	}
 	m.adjustTextareaHeight()
@@ -331,13 +329,13 @@ func (m *replModel) handleCompactionError(err error) (replModel, tea.Cmd) {
 	return m.drainQueuedInput()
 }
 
-func (m *replModel) handleToolStart(toolCall *core.ToolCall) (replModel, tea.Cmd) {
+func (m *replModel) handleToolStart(toolCall *agentcore.ToolCall) (replModel, tea.Cmd) {
 	m.flushStreamRender()
-	if toolCall != nil && toolCall.Name == tools.AskUserToolName {
+	if toolCall != nil && toolCall.Name == agentcore.ToolNameAskUser {
 		m.stream.handler.HandleToolStart(toolCall)
 		return *m, m.waitForAsyncEvent()
 	}
-	if toolCall.Name == tools.BashToolName {
+	if toolCall.Name == agentcore.ToolNameBash {
 		command, _ := toolCall.Input["command"].(string)
 		summary, _ := toolCall.Input["summary"].(string)
 		m.stream.handler.HandleBashStart(command, summary)
@@ -349,13 +347,13 @@ func (m *replModel) handleToolStart(toolCall *core.ToolCall) (replModel, tea.Cmd
 	return *m, m.waitForAsyncEvent()
 }
 
-func (m *replModel) handleToolEnd(toolCall *core.ToolCall) (replModel, tea.Cmd) {
+func (m *replModel) handleToolEnd(toolCall *agentcore.ToolCall) (replModel, tea.Cmd) {
 	m.flushStreamRender()
-	if toolCall != nil && toolCall.Name == tools.AskUserToolName {
+	if toolCall != nil && toolCall.Name == agentcore.ToolNameAskUser {
 		m.stream.handler.HandleToolEnd(toolCall)
 		return *m, m.waitForAsyncEvent()
 	}
-	if toolCall.Name == tools.BashToolName {
+	if toolCall.Name == agentcore.ToolNameBash {
 		m.stream.handler.HandleBashEnd(toolCall)
 	} else {
 		m.stream.handler.HandleToolEnd(toolCall)
@@ -764,7 +762,7 @@ func (m *replModel) modelPairs() []string {
 }
 
 func (m *replModel) skillSuggestions() []replwidgets.SuggestionItem {
-	skillList := m.appState.SkillSuggestions()
+	skillList := m.agentCore.SkillSuggestions()
 	items := make([]replwidgets.SuggestionItem, 0, len(skillList))
 	for _, skill := range skillList {
 		items = append(items, replwidgets.SuggestionItem{Name: "/" + skill.Name, Description: skill.Description})
@@ -816,8 +814,8 @@ func (m *replModel) interruptStream(message string) {
 	m.output.AddStyledLine("\n  "+message, repltheme.InterruptedStyle)
 	m.output.AddEmptyLine()
 
-	assistantMessage := core.Message{
-		Role:       core.RoleAssistant,
+	assistantMessage := agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    partialResponse,
 		TurnMemory: turnMemory,
 	}
@@ -923,31 +921,31 @@ func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 			msg = llmDoneMsg{}
 		} else {
 			switch streamMsg.event.Type {
-			case core.StreamEventTypeChunk:
+			case agentcore.StreamEventTypeChunk:
 				msg = llmChunkMsg(streamMsg.event.Content)
-			case core.StreamEventTypeReasoningChunk:
+			case agentcore.StreamEventTypeReasoningChunk:
 				msg = llmReasoningChunkMsg(streamMsg.event.Content)
-			case core.StreamEventTypeDone:
+			case agentcore.StreamEventTypeDone:
 				msg = llmDoneMsg{}
-			case core.StreamEventTypeError:
+			case agentcore.StreamEventTypeError:
 				msg = llmErrorMsg{err: streamMsg.event.Error}
-			case core.StreamEventTypeIncomplete:
+			case agentcore.StreamEventTypeIncomplete:
 				msg = llmIncompleteMsg{err: streamMsg.event.Error}
-			case core.StreamEventTypeToolStart:
+			case agentcore.StreamEventTypeToolStart:
 				msg = llmToolStartMsg{toolCall: streamMsg.event.ToolCall}
-			case core.StreamEventTypeToolEnd:
+			case agentcore.StreamEventTypeToolEnd:
 				msg = llmToolEndMsg{toolCall: streamMsg.event.ToolCall}
-			case core.StreamEventTypeUsage:
+			case agentcore.StreamEventTypeUsage:
 				msg = llmUsageMsg{usage: streamMsg.event.Usage}
-			case core.StreamEventTypeRetry:
+			case agentcore.StreamEventTypeRetry:
 				msg = llmRetryMsg{err: streamMsg.event.Error, attempt: streamMsg.event.Attempt}
-			case core.StreamEventTypeAutoCompactionStarted:
+			case agentcore.StreamEventTypeAutoCompactionStarted:
 				msg = llmAutoCompactionStartedMsg{event: streamMsg.event.AutoCompaction}
-			case core.StreamEventTypeAutoCompactionApplied:
+			case agentcore.StreamEventTypeAutoCompactionApplied:
 				msg = llmAutoCompactionAppliedMsg{event: streamMsg.event.AutoCompaction}
-			case core.StreamEventTypeAutoCompactionCancelled:
+			case agentcore.StreamEventTypeAutoCompactionCancelled:
 				msg = llmAutoCompactionCancelledMsg{event: streamMsg.event.AutoCompaction}
-			case core.StreamEventTypeAutoCompactionFailed:
+			case agentcore.StreamEventTypeAutoCompactionFailed:
 				msg = llmAutoCompactionFailedMsg{event: streamMsg.event.AutoCompaction}
 			default:
 				msg = llmDoneMsg{}

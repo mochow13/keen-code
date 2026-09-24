@@ -1,7 +1,7 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	"strconv"
 	"strings"
 
@@ -24,7 +24,7 @@ type contextStatus struct {
 	TotalOutputTokens int
 }
 
-func (s *contextStatus) AddUsage(usage *core.TokenUsage) {
+func (s *contextStatus) AddUsage(usage *agentcore.TokenUsage) {
 	if usage == nil {
 		return
 	}
@@ -70,8 +70,8 @@ func (m replModel) computeContextStatus() contextStatus {
 
 	var currentTokens int
 	var knownTokens bool
-	if m.appState != nil {
-		if usage := m.appState.GetLastUsage(); usage != nil {
+	if m.agentCore != nil {
+		if usage := m.agentCore.GetLastUsage(); usage != nil {
 			currentTokens = usage.InputTokens
 			knownTokens = true
 		}
@@ -156,7 +156,7 @@ func renderContextStatus(status contextStatus) string {
 }
 
 func (m *replModel) handleContextCommand() {
-	breakdown := m.appState.GetContextBreakdown()
+	breakdown := m.agentCore.GetContextBreakdown()
 	status := m.computeContextStatus()
 
 	m.output.AddStyledLine("  "+repltheme.TitleStyle.Render("Context Usage"), lipgloss.NewStyle())

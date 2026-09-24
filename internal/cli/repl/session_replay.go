@@ -5,14 +5,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	"github.com/mochow13/keen-code/internal/llm"
-	"github.com/mochow13/keen-code/internal/llm/core"
 
 	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type sessionReplay struct {
@@ -133,11 +132,11 @@ func replayTranscript(handler *StreamHandler, transcript []session.TranscriptIte
 		case session.TranscriptItemReasoning:
 			handler.HandleReasoningChunk(item.Content)
 		case session.TranscriptItemToolStart:
-			if item.ToolStart == nil || item.ToolStart.Name != tools.AskUserToolName {
+			if item.ToolStart == nil || item.ToolStart.Name != agentcore.ToolNameAskUser {
 				handler.HandleToolStart(toolCallFromPayload(item.ToolStart))
 			}
 		case session.TranscriptItemToolEnd:
-			if item.ToolEnd != nil && item.ToolEnd.Name == tools.AskUserToolName {
+			if item.ToolEnd != nil && item.ToolEnd.Name == agentcore.ToolNameAskUser {
 				if state := askUserStateFromPayload(item.ToolEnd); state != nil {
 					handler.SetAskUser(state)
 				}
@@ -148,7 +147,7 @@ func replayTranscript(handler *StreamHandler, transcript []session.TranscriptIte
 			replayBashPayload(handler, item.Bash)
 		case session.TranscriptItemDiff:
 			if item.Diff != nil {
-				handler.HandleDiff(item.Diff.Lines)
+				handler.HandleDiff(agentcore.FromToolDiffLines(item.Diff.Lines))
 			}
 		}
 	}
@@ -159,8 +158,8 @@ func askUserStateFromPayload(payload *session.ToolEndPayload) *askUserState {
 		return nil
 	}
 
-	var request tools.AskUserRequest
-	var result tools.AskUserResult
+	var request agentcore.AskUserRequest
+	var result agentcore.AskUserResult
 	if !decodeSessionPayload(payload.Input, &request) || !decodeSessionPayload(payload.Output, &result) {
 		return nil
 	}
@@ -189,8 +188,8 @@ func replayBashPayload(handler *StreamHandler, payload *session.BashPayload) {
 	}
 
 	handler.HandleBashStart(payload.Command, payload.Summary)
-	handler.HandleBashEnd(&core.ToolCall{
-		Name:     tools.BashToolName,
+	handler.HandleBashEnd(&agentcore.ToolCall{
+		Name:     agentcore.ToolNameBash,
 		Output:   map[string]any{"stdout": payload.Output},
 		Error:    payload.Error,
 		Duration: time.Duration(payload.DurationNS),

@@ -1,11 +1,10 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
 	"time"
 
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const interruptedPromptText = "Interrupted...what should the agent do instead?"
@@ -51,7 +50,7 @@ func (s *replSessionState) appendUserMessage(content string) error {
 
 func (s *replSessionState) appendAssistantTurn(
 	segments []streamSegment,
-	message core.Message,
+	message agentcore.Message,
 	interrupted bool,
 	errText string,
 ) error {
@@ -61,14 +60,14 @@ func (s *replSessionState) appendAssistantTurn(
 	return s.store.Append(s.current, buildAssistantTurnEvent(segments, message, interrupted, errText))
 }
 
-func (s *replSessionState) appendCompaction(segments []streamSegment, messages []core.Message, status string) error {
+func (s *replSessionState) appendCompaction(segments []streamSegment, messages []agentcore.Message, status string) error {
 	if s == nil || s.current == nil {
 		return nil
 	}
 	return s.store.Append(s.current, buildCompactionEvent(segments, messages, status))
 }
 
-func (s *replSessionState) appendAutoCompaction(checkpointSegments []streamSegment, checkpoint core.Message, messages []core.Message) error {
+func (s *replSessionState) appendAutoCompaction(checkpointSegments []streamSegment, checkpoint agentcore.Message, messages []agentcore.Message) error {
 	if s == nil || s.current == nil {
 		return nil
 	}
@@ -78,13 +77,13 @@ func (s *replSessionState) appendAutoCompaction(checkpointSegments []streamSegme
 	})
 }
 
-func buildCompactionEvent(segments []streamSegment, messages []core.Message, status string) session.Event {
+func buildCompactionEvent(segments []streamSegment, messages []agentcore.Message, status string) session.Event {
 	return session.Event{
 		Kind: session.KindCompactionApplied,
 		CompactionApplied: &session.CompactionAppliedPayload{
 			Status:     status,
 			Transcript: buildAssistantTurnTranscript(segments),
-			Messages:   cloneLLMMessages(messages),
+			Messages:   agentcore.ToCoreMessages(messages),
 		},
 	}
 }
@@ -133,7 +132,7 @@ func (s *replSessionState) setSession(session *session.Session) {
 
 func buildAssistantTurnEvent(
 	segments []streamSegment,
-	message core.Message,
+	message agentcore.Message,
 	interrupted bool,
 	errText string,
 ) session.Event {
@@ -142,7 +141,7 @@ func buildAssistantTurnEvent(
 		AssistantTurn: &session.AssistantTurnPayload{
 			Transcript:  buildAssistantTurnTranscript(segments),
 			Message:     message.Content,
-			TurnMemory:  core.CloneTurnMemory(message.TurnMemory),
+			TurnMemory:  agentcore.ToCoreTurnMemory(message.TurnMemory),
 			Interrupted: interrupted,
 			Error:       errText,
 		},
@@ -210,11 +209,11 @@ func buildAssistantTurnTranscript(segments []streamSegment) []session.Transcript
 			})
 		case segmentDiff:
 			if len(seg.diffLines) > 0 {
-				lines := make([]tools.EditDiffLine, len(seg.diffLines))
+				lines := make([]agentcore.EditDiffLine, len(seg.diffLines))
 				copy(lines, seg.diffLines)
 				items = append(items, session.TranscriptItem{
 					Kind: session.TranscriptItemDiff,
-					Diff: &session.DiffPayload{Lines: lines},
+					Diff: &session.DiffPayload{Lines: agentcore.ToToolDiffLines(lines)},
 				})
 			}
 		}
@@ -235,10 +234,6 @@ func cloneInput(input map[string]any) map[string]any {
 	return result
 }
 
-func cloneLLMMessages(messages []core.Message) []core.Message {
-	return core.CloneMessages(messages)
-}
-
 func cloneStreamSegments(segments []streamSegment) []streamSegment {
 	result := make([]streamSegment, len(segments))
 	for i, seg := range segments {
@@ -249,7 +244,7 @@ func cloneStreamSegments(segments []streamSegment) []streamSegment {
 			result[i].toolCall = &toolCall
 		}
 		if len(seg.diffLines) > 0 {
-			diffLines := make([]tools.EditDiffLine, len(seg.diffLines))
+			diffLines := make([]agentcore.EditDiffLine, len(seg.diffLines))
 			copy(diffLines, seg.diffLines)
 			result[i].diffLines = diffLines
 		}
@@ -260,21 +255,21 @@ func cloneStreamSegments(segments []streamSegment) []streamSegment {
 	return result
 }
 
-func toolCallFromPayload(payload *session.ToolStartPayload) *core.ToolCall {
+func toolCallFromPayload(payload *session.ToolStartPayload) *agentcore.ToolCall {
 	if payload == nil {
 		return nil
 	}
-	return &core.ToolCall{
+	return &agentcore.ToolCall{
 		Name:  payload.Name,
 		Input: cloneInput(payload.Input),
 	}
 }
 
-func toolCallResultFromPayload(payload *session.ToolEndPayload) *core.ToolCall {
+func toolCallResultFromPayload(payload *session.ToolEndPayload) *agentcore.ToolCall {
 	if payload == nil {
 		return nil
 	}
-	return &core.ToolCall{
+	return &agentcore.ToolCall{
 		Name:     payload.Name,
 		Input:    cloneInput(payload.Input),
 		Output:   payload.Output,
