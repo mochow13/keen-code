@@ -10,7 +10,6 @@ import (
 
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm/compaction"
-	"github.com/mochow13/keen-code/internal/llm/contextreduce"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/llm/history"
 	"github.com/mochow13/keen-code/internal/llm/providerconfig"
@@ -513,7 +512,6 @@ func (c *OpenAICompatibleClient) StreamChat(
 		compactionHistory := core.CloneMessages(messages)
 		autoCompactOff := false
 		hasNewToolTurns := false
-		forcedRecoveryUsed := false
 
 		for range maxToolTurns {
 			if err := c.proactivelyCompactHistory(
@@ -522,25 +520,6 @@ func (c *OpenAICompatibleClient) StreamChat(
 			); err != nil {
 				autoCompactOff = true
 			}
-
-			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
-				ctx, &compactionHistory, &oaiMessages, &injectedPending, &turnStartLen,
-				streamOpts, toolRegistry, forcedRecoveryUsed, eventCh,
-			)
-			if err != nil {
-				if compactionAttempted {
-					c.exitIncomplete(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, err, oneShot)
-				} else {
-					c.pendingState = nil
-					c.emitTerminalEvent(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, err)
-				}
-				return
-			}
-			if compactionAttempted {
-				forcedRecoveryUsed = true
-				continue
-			}
-			oaiMessages = reducedMessages
 
 			params := c.buildChatParams(oaiMessages, oaiTools)
 
@@ -625,7 +604,7 @@ func (c *OpenAICompatibleClient) proactivelyCompactHistory(
 ) error {
 	if streamOpts.DisableAutoCompaction || !hasNewToolTurns || autoCompactOff ||
 		!core.ShouldAutoCompact(
-			contextreduce.EstimateOpenAI(*oaiMessages),
+			estimateOpenAIInput(*oaiMessages),
 			core.ContextInputBudget(c.contextWindowTokenCount),
 		) {
 		return nil
@@ -637,31 +616,16 @@ func (c *OpenAICompatibleClient) proactivelyCompactHistory(
 	)
 }
 
-func (c *OpenAICompatibleClient) reduceContextOrCompact(
-	ctx context.Context,
-	compactionHistory *[]core.Message,
-	oaiMessages *[]openai.ChatCompletionMessageParamUnion,
-	injectedPending *[]openai.ChatCompletionMessageParamUnion,
-	turnStartLen *int,
-	streamOpts core.StreamOptions,
-	toolRegistry *tools.Registry,
-	forcedRecoveryUsed bool,
-	eventCh chan<- core.StreamEvent,
-) ([]openai.ChatCompletionMessageParamUnion, bool, error) {
-	reducedMessages, reduction := contextreduce.ReduceOpenAI(c.contextWindowTokenCount, *oaiMessages)
-	if reduction.FitsBudget {
-		return reducedMessages, false, nil
+func estimateOpenAIInput(messages []openai.ChatCompletionMessageParamUnion) int {
+	tokens := 0
+	for _, message := range messages {
+		b, err := json.Marshal(message)
+		if err != nil {
+			continue
+		}
+		tokens += core.EstimateContextTokenCount(string(b))
 	}
-	if streamOpts.DisableAutoCompaction || forcedRecoveryUsed {
-		return nil, false, fmt.Errorf("%w: %s", contextreduce.ErrContextWindowExceeded, contextreduce.ContextWindowExceededError)
-	}
-	if err := c.compactHistory(
-		ctx, compactionHistory, oaiMessages, injectedPending, turnStartLen,
-		toolRegistry, streamOpts.SessionID, eventCh,
-	); err != nil {
-		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", contextreduce.ErrContextWindowExceeded, err)
-	}
-	return nil, true, nil
+	return tokens
 }
 
 func (c *OpenAICompatibleClient) compactHistory(

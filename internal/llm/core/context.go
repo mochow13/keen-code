@@ -34,10 +34,6 @@ func ShouldAutoCompact(estimatedInputTokenCount, effectiveBudget int) bool {
 	return estimatedInputTokenCount >= effectiveBudget-(effectiveBudget/10)
 }
 
-func ContextFitsBudget(contextWindowTokenCount int, currentInputTokenCount int) bool {
-	return currentInputTokenCount <= ContextInputBudget(contextWindowTokenCount)
-}
-
 type ContextBreakdown struct {
 	SystemPromptTokens  int
 	ToolDefinitionCount int

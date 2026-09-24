@@ -15,7 +15,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm/compaction"
-	"github.com/mochow13/keen-code/internal/llm/contextreduce"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/llm/history"
 	"github.com/mochow13/keen-code/internal/llm/providerconfig"
@@ -593,7 +592,7 @@ func (c *AnthropicClient) proactivelyCompactHistory(
 ) error {
 	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || !hasNewToolTurns || autoCompactOff || len(*injectedPending) > 0 ||
 		!core.ShouldAutoCompact(
-			contextreduce.EstimateAnthropic(*msgParams),
+			estimateAnthropicInput(*msgParams),
 			core.ContextInputBudget(c.contextWindowTokenCount),
 		) {
 		return nil
@@ -602,30 +601,16 @@ func (c *AnthropicClient) proactivelyCompactHistory(
 	return c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, toolRegistry, streamOpts.SessionID, eventCh)
 }
 
-func (c *AnthropicClient) reduceContextOrCompact(
-	ctx context.Context,
-	compactionHistory *[]core.Message,
-	msgParams *[]anthropic.MessageParam,
-	injectedPending *[]anthropic.MessageParam,
-	turnStartLen *int,
-	streamOpts core.StreamOptions,
-	toolRegistry *tools.Registry,
-	forcedRecoveryUsed bool,
-	eventCh chan<- core.StreamEvent,
-) ([]anthropic.MessageParam, bool, error) {
-	reducedMessages, reduction := contextreduce.ReduceAnthropic(c.contextWindowTokenCount, *msgParams)
-	if reduction.FitsBudget {
-		return reducedMessages, false, nil
+func estimateAnthropicInput(messages []anthropic.MessageParam) int {
+	tokens := 0
+	for _, message := range messages {
+		b, err := json.Marshal(message)
+		if err != nil {
+			continue
+		}
+		tokens += core.EstimateContextTokenCount(string(b))
 	}
-
-	slog.Debug("Anthropic context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || forcedRecoveryUsed || len(*injectedPending) > 0 {
-		return nil, false, fmt.Errorf("%w: %s", contextreduce.ErrContextWindowExceeded, contextreduce.ContextWindowExceededError)
-	}
-	if err := c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, toolRegistry, streamOpts.SessionID, eventCh); err != nil {
-		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", contextreduce.ErrContextWindowExceeded, err)
-	}
-	return nil, true, nil
+	return tokens
 }
 
 func (c *AnthropicClient) compactHistory(
@@ -684,7 +669,6 @@ func (c *AnthropicClient) StreamChat(
 		compactionHistory := core.CloneMessages(messages)
 		autoCompactOff := false
 		hasNewToolTurns := false
-		forcedRecoveryUsed := false
 
 		for range maxToolTurns {
 			if err := c.proactivelyCompactHistory(
@@ -694,24 +678,6 @@ func (c *AnthropicClient) StreamChat(
 				autoCompactOff = true
 			}
 
-			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
-				ctx, &compactionHistory, &msgParams, &injectedPending, &turnStartLen,
-				streamOpts, toolRegistry, forcedRecoveryUsed, eventCh,
-			)
-			if err != nil {
-				if compactionAttempted {
-					c.exitIncomplete(ctx, eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
-				} else {
-					c.pendingState = nil
-					c.emitTerminalEvent(ctx, eventCh, msgParams, turnStartLen, injectedPending, err)
-				}
-				return
-			}
-			if compactionAttempted {
-				forcedRecoveryUsed = true
-				continue
-			}
-			msgParams = reducedMessages
 			turnSystem, turnTools, turnMessages := applyAnthropicBlockCacheControl(systemBlocks, anthropicTools, msgParams, turnStartLen)
 
 			params := anthropic.MessageNewParams{

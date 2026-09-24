@@ -15,7 +15,6 @@ import (
 	"github.com/firebase/genkit/go/plugins/googlegenai"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm/compaction"
-	"github.com/mochow13/keen-code/internal/llm/contextreduce"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/llm/history"
 	"github.com/mochow13/keen-code/internal/llm/providerconfig"
@@ -240,7 +239,6 @@ func (c *GenkitClient) StreamChat(
 		}
 		turnStartLen := len(aiMessages)
 		autoCompactOff := false
-		forcedRecoveryUsed := false
 		hasNewToolTurns := false
 
 		var genkitTools []ai.ToolRef
@@ -255,25 +253,6 @@ func (c *GenkitClient) StreamChat(
 			); err != nil {
 				autoCompactOff = true
 			}
-
-			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
-				ctx, &compactionHistory, &aiMessages, &injectedPending, &turnStartLen,
-				streamOpts, toolRegistry, forcedRecoveryUsed, eventCh,
-			)
-			if err != nil {
-				if compactionAttempted {
-					c.exitIncomplete(ctx, eventCh, aiMessages, turnStartLen, injectedPending, err, oneShot)
-				} else {
-					c.pendingState = nil
-					c.emitTerminalEvent(ctx, eventCh, aiMessages, turnStartLen, injectedPending, err)
-				}
-				return
-			}
-			if compactionAttempted {
-				forcedRecoveryUsed = true
-				continue
-			}
-			aiMessages = reducedMessages
 
 			opts := []ai.GenerateOption{
 				ai.WithModelName(c.model),
@@ -361,36 +340,22 @@ func (c *GenkitClient) proactivelyCompactHistory(
 	eventCh chan<- core.StreamEvent,
 ) error {
 	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || !hasNewToolTurns || autoCompactOff || len(*injectedPending) > 0 ||
-		!core.ShouldAutoCompact(contextreduce.EstimateGenkit(*aiMessages), core.ContextInputBudget(c.contextWindowTokenCount)) {
+		!core.ShouldAutoCompact(estimateGenkitInput(*aiMessages), core.ContextInputBudget(c.contextWindowTokenCount)) {
 		return nil
 	}
 	return c.compactHistory(ctx, compactionHistory, aiMessages, injectedPending, turnStartLen, toolRegistry, streamOpts.SessionID, eventCh)
 }
 
-func (c *GenkitClient) reduceContextOrCompact(
-	ctx context.Context,
-	compactionHistory *[]core.Message,
-	aiMessages *[]*ai.Message,
-	injectedPending *[]*ai.Message,
-	turnStartLen *int,
-	streamOpts core.StreamOptions,
-	toolRegistry *tools.Registry,
-	forcedRecoveryUsed bool,
-	eventCh chan<- core.StreamEvent,
-) ([]*ai.Message, bool, error) {
-	reducedMessages, reduction := contextreduce.ReduceGenkit(c.contextWindowTokenCount, *aiMessages)
-	if reduction.FitsBudget {
-		return reducedMessages, false, nil
+func estimateGenkitInput(messages []*ai.Message) int {
+	tokens := 0
+	for _, message := range messages {
+		b, err := json.Marshal(message)
+		if err != nil {
+			continue
+		}
+		tokens += core.EstimateContextTokenCount(string(b))
 	}
-
-	slog.Debug("Genkit context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || forcedRecoveryUsed || len(*injectedPending) > 0 {
-		return nil, false, fmt.Errorf("%w: %s", contextreduce.ErrContextWindowExceeded, contextreduce.ContextWindowExceededError)
-	}
-	if err := c.compactHistory(ctx, compactionHistory, aiMessages, injectedPending, turnStartLen, toolRegistry, streamOpts.SessionID, eventCh); err != nil {
-		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", contextreduce.ErrContextWindowExceeded, err)
-	}
-	return nil, true, nil
+	return tokens
 }
 
 func (c *GenkitClient) compactHistory(

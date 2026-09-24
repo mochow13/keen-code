@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Remove the in-request context reducer that pruned the oldest tool results, which invalidated provider prompt caches from the first pruned result onward and silently dropped tool output. Automatic compaction is now the only over-budget path; a request that still exceeds the provider window fails through the normal provider context-window error.
+
 ## [0.56.2] - 2026-09-22
 
 ### Fixed

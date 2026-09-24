@@ -10,7 +10,6 @@ import (
 
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm/compaction"
-	"github.com/mochow13/keen-code/internal/llm/contextreduce"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/llm/history"
 	"github.com/mochow13/keen-code/internal/llm/providerconfig"
@@ -193,37 +192,23 @@ func (c *OpenAIResponsesClient) proactivelyCompactHistory(
 	eventCh chan<- core.StreamEvent,
 ) error {
 	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || !hasNewToolTurns || autoCompactOff ||
-		!core.ShouldAutoCompact(contextreduce.EstimateResponses(*input), core.ContextInputBudget(c.contextWindowTokenCount)) {
+		!core.ShouldAutoCompact(estimateResponsesInput(*input), core.ContextInputBudget(c.contextWindowTokenCount)) {
 		return nil
 	}
 
 	return c.compactHistory(ctx, compactionHistory, input, replayedPendingInput, turnStartLen, streamOpts, toolRegistry, eventCh)
 }
 
-func (c *OpenAIResponsesClient) reduceContextOrCompact(
-	ctx context.Context,
-	compactionHistory *[]core.Message,
-	input *[]responses.ResponseInputItemUnionParam,
-	replayedPendingInput *[]responses.ResponseInputItemUnionParam,
-	turnStartLen *int,
-	streamOpts core.StreamOptions,
-	toolRegistry *tools.Registry,
-	forcedRecoveryUsed bool,
-	eventCh chan<- core.StreamEvent,
-) ([]responses.ResponseInputItemUnionParam, bool, error) {
-	reducedInput, reduction := contextreduce.ReduceResponses(c.contextWindowTokenCount, *input)
-	if reduction.FitsBudget {
-		return reducedInput, false, nil
+func estimateResponsesInput(input []responses.ResponseInputItemUnionParam) int {
+	tokens := 0
+	for _, item := range input {
+		b, err := json.Marshal(item)
+		if err != nil {
+			continue
+		}
+		tokens += core.EstimateContextTokenCount(string(b))
 	}
-
-	slog.Debug("OpenAI Responses context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || forcedRecoveryUsed {
-		return nil, false, fmt.Errorf("%w: %s", contextreduce.ErrContextWindowExceeded, contextreduce.ContextWindowExceededError)
-	}
-	if err := c.compactHistory(ctx, compactionHistory, input, replayedPendingInput, turnStartLen, streamOpts, toolRegistry, eventCh); err != nil {
-		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", contextreduce.ErrContextWindowExceeded, err)
-	}
-	return nil, true, nil
+	return tokens
 }
 
 func (c *OpenAIResponsesClient) StreamChat(
@@ -243,7 +228,6 @@ func (c *OpenAIResponsesClient) StreamChat(
 		oneShot := streamOpts.OneShot
 		sessionID := streamOpts.SessionID
 		autoCompactOff := false
-		forcedRecoveryUsed := false
 		hasNewToolTurns := false
 		var replayedPendingInput []responses.ResponseInputItemUnionParam
 		if !oneShot {
@@ -259,25 +243,6 @@ func (c *OpenAIResponsesClient) StreamChat(
 			); err != nil {
 				autoCompactOff = true
 			}
-
-			reducedInput, compactionAttempted, err := c.reduceContextOrCompact(
-				ctx, &compactionHistory, &input, &replayedPendingInput, &turnStartLen,
-				streamOpts, toolRegistry, forcedRecoveryUsed, eventCh,
-			)
-			if err != nil {
-				if compactionAttempted {
-					c.exitIncomplete(ctx, eventCh, input, turnStartLen, replayedPendingInput, err, oneShot)
-				} else {
-					c.pendingState = nil
-					c.emitTerminalEvent(ctx, eventCh, input, turnStartLen, replayedPendingInput, err)
-				}
-				return
-			}
-			if compactionAttempted {
-				forcedRecoveryUsed = true
-				continue
-			}
-			input = reducedInput
 
 			params := responses.ResponseNewParams{
 				Model: c.model,

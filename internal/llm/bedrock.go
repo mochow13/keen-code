@@ -17,7 +17,6 @@ import (
 	"github.com/aws/smithy-go/middleware"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/mochow13/keen-code/internal/llm/compaction"
-	"github.com/mochow13/keen-code/internal/llm/contextreduce"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/llm/history"
 	"github.com/mochow13/keen-code/internal/llm/providerconfig"
@@ -273,7 +272,6 @@ func (c *BedrockClient) StreamChat(
 		toolConfig := toBedrockTools(toolRegistry)
 		compactionHistory := core.CloneMessages(messages)
 		autoCompactOff := false
-		forcedRecoveryUsed := false
 		hasNewToolTurns := false
 
 		for range maxToolTurns {
@@ -283,25 +281,6 @@ func (c *BedrockClient) StreamChat(
 			); err != nil {
 				autoCompactOff = true
 			}
-
-			reducedMessages, compactionAttempted, err := c.reduceContextOrCompact(
-				ctx, &compactionHistory, &msgParams, &injectedPending, &turnStartLen,
-				streamOpts, toolRegistry, forcedRecoveryUsed, eventCh,
-			)
-			if err != nil {
-				if compactionAttempted {
-					c.exitIncomplete(ctx, eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
-				} else {
-					c.pendingState = nil
-					c.emitTerminalEvent(ctx, eventCh, msgParams, turnStartLen, injectedPending, err)
-				}
-				return
-			}
-			if compactionAttempted {
-				forcedRecoveryUsed = true
-				continue
-			}
-			msgParams = reducedMessages
 
 			turnToolConfig := cloneBedrockToolConfig(toolConfig)
 			turnSystem := append([]brtypes.SystemContentBlock(nil), system...)
@@ -386,7 +365,7 @@ func (c *BedrockClient) proactivelyCompactHistory(
 ) error {
 	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || !hasNewToolTurns || autoCompactOff || len(*injectedPending) > 0 ||
 		!core.ShouldAutoCompact(
-			contextreduce.EstimateBedrock(*msgParams),
+			estimateBedrockInput(*msgParams),
 			core.ContextInputBudget(c.contextWindowTokenCount),
 		) {
 		return nil
@@ -394,30 +373,16 @@ func (c *BedrockClient) proactivelyCompactHistory(
 	return c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, toolRegistry, streamOpts.SessionID, eventCh)
 }
 
-func (c *BedrockClient) reduceContextOrCompact(
-	ctx context.Context,
-	compactionHistory *[]core.Message,
-	msgParams *[]brtypes.Message,
-	injectedPending *[]brtypes.Message,
-	turnStartLen *int,
-	streamOpts core.StreamOptions,
-	toolRegistry *tools.Registry,
-	forcedRecoveryUsed bool,
-	eventCh chan<- core.StreamEvent,
-) ([]brtypes.Message, bool, error) {
-	reducedMessages, reduction := contextreduce.ReduceBedrock(c.contextWindowTokenCount, *msgParams)
-	if reduction.FitsBudget {
-		return reducedMessages, false, nil
+func estimateBedrockInput(messages []brtypes.Message) int {
+	tokens := 0
+	for _, message := range messages {
+		b, err := json.Marshal(message)
+		if err != nil {
+			continue
+		}
+		tokens += core.EstimateContextTokenCount(string(b))
 	}
-
-	slog.Debug("Bedrock context still exceeds budget after reduction", "inputTokenCount", reduction.ReducedTokenCount, "removedToolResultCount", reduction.RemovedToolResults)
-	if streamOpts.DisableAutoCompaction || streamOpts.OneShot || forcedRecoveryUsed || len(*injectedPending) > 0 {
-		return nil, false, fmt.Errorf("%w: %s", contextreduce.ErrContextWindowExceeded, contextreduce.ContextWindowExceededError)
-	}
-	if err := c.compactHistory(ctx, compactionHistory, msgParams, injectedPending, turnStartLen, toolRegistry, streamOpts.SessionID, eventCh); err != nil {
-		return nil, true, fmt.Errorf("%w: automatic compaction failed: %v", contextreduce.ErrContextWindowExceeded, err)
-	}
-	return nil, true, nil
+	return tokens
 }
 
 func (c *BedrockClient) compactHistory(

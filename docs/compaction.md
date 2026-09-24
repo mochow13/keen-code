@@ -25,17 +25,13 @@ auto-compaction threshold = 90% of input budget
 
 These are approximate token counts. The safety margin covers estimation error and provider-side framing overhead.
 
-### Context reduction
+### Over-budget requests
 
-Before a provider request is sent, Keen may replace older raw tool results with:
+Automatic compaction is the only over-budget path. Keen does not prune or rewrite individual tool results inside a request: rewriting the head of the request prefix would invalidate the provider KV cache from the first rewritten result onward, and the discarded tool output has no summary to recover it.
 
-```text
-Tool result removed to fit context.
-```
+When estimated input reaches the auto-compaction threshold, the provider runs a proactive compaction. If a request still exceeds the input budget afterward, Keen sends it unchanged and the provider's context-window error fails through the normal provider error path.
 
-This reducer is a final local guardrail. If the reduced request still exceeds the input budget, Keen may run automatic compaction once and retry local request preparation with the replacement history.
-
-Provider-reported context-window errors do **not** trigger automatic compaction. If the provider rejects a request for context length, the request fails through the normal provider error path.
+Provider-reported context-window errors do **not** trigger automatic compaction.
 
 ### Compaction history
 
@@ -175,7 +171,7 @@ A proactive attempt requires:
 - no unreconciled provider-native pending state is being replayed where the provider requires that restriction;
 - estimated input has reached 90% of the local input budget.
 
-The provider then runs the reducer. If reduction cannot fit the request within the hard input budget, Keen may perform one local forced compaction attempt. This is still a pre-request decision; provider context-length errors do not start compaction.
+If estimated input has not crossed the threshold, or proactive compaction is suppressed, the request is sent unchanged. A provider context-length error then fails through the normal provider error path; it does not start compaction.
 
 ### Provider loop
 
@@ -196,15 +192,11 @@ New tool turn completed?
 Then for every request:
         |
         v
-Reduce old tool results if needed
+Send provider request
         |
-        +-- fits --> send provider request
+        +-- provider accepts --> continue tool loop
         |
-        +-- does not fit --> one local forced compaction attempt
-                                  |
-                                  +-- applied --> rebuild native history and retry preparation
-                                  |
-                                  +-- unavailable/failed --> terminal local context error
+        +-- provider context-length error --> terminal provider error
 ```
 
 ### Private compaction request
@@ -384,7 +376,7 @@ The earlier assistant checkpoint remains available in the transcript for UI repl
 
 | Behavior | Manual `/compact` | Automatic compaction |
 |---|---|---|
-| Trigger | Explicit slash command | 90% proactive threshold or local hard-budget failure |
+| Trigger | Explicit slash command | 90% proactive threshold |
 | Runs inside parent turn | No | Yes |
 | Summary visibility | Visible | Private |
 | Tools in summary request | Same registry; attempted calls rejected with a tool-error result | None |
@@ -402,7 +394,7 @@ The earlier assistant checkpoint remains available in the transcript for UI repl
 | Area | Files |
 |---|---|
 | Shared prompts and compactor | `internal/llm/systemprompt.go`, `internal/llm/tool_execution.go`, `internal/llm/auto_compaction.go` |
-| Budgeting and context reduction | `internal/llm/context_reducer.go` |
+| Budgeting | `internal/llm/core/context.go` |
 | Lifecycle event contract | `internal/llm/core/message.go`, `internal/llm/client.go` |
 | Provider loops | `internal/llm/openai.go`, `openai_responses.go`, `openai_codex.go`, `anthropic.go`, `genkit.go`, `bedrock.go` |
 | Manual AppState flow | `internal/cli/repl/appstate/state.go`, `internal/cli/repl/command_handlers.go` |
