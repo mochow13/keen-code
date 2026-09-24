@@ -1,7 +1,7 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"strings"
 	"testing"
 
@@ -114,11 +114,11 @@ func TestContextStatus_ShouldSuggestCompaction(t *testing.T) {
 
 func TestContextStatus_AddUsage(t *testing.T) {
 	var s contextStatus
-	s.AddUsage(&core.TokenUsage{InputTokens: 100, OutputTokens: 50})
+	s.AddUsage(&agentcore.TokenUsage{InputTokens: 100, OutputTokens: 50})
 	if s.TotalInputTokens != 100 || s.TotalOutputTokens != 50 {
 		t.Fatalf("expected totals 100/50, got %d/%d", s.TotalInputTokens, s.TotalOutputTokens)
 	}
-	s.AddUsage(&core.TokenUsage{InputTokens: 200, OutputTokens: 100})
+	s.AddUsage(&agentcore.TokenUsage{InputTokens: 200, OutputTokens: 100})
 	if s.TotalInputTokens != 300 || s.TotalOutputTokens != 150 {
 		t.Fatalf("expected totals 300/150, got %d/%d", s.TotalInputTokens, s.TotalOutputTokens)
 	}
@@ -130,7 +130,7 @@ func TestContextStatus_AddUsage(t *testing.T) {
 
 func TestContextStatus_ResetTotals(t *testing.T) {
 	var s contextStatus
-	s.AddUsage(&core.TokenUsage{InputTokens: 100, OutputTokens: 50})
+	s.AddUsage(&agentcore.TokenUsage{InputTokens: 100, OutputTokens: 50})
 	s.ResetTotals()
 	if s.TotalInputTokens != 0 || s.TotalOutputTokens != 0 {
 		t.Fatalf("expected totals reset to 0, got %d/%d", s.TotalInputTokens, s.TotalOutputTokens)
@@ -162,9 +162,10 @@ func TestFormatCompactTokens(t *testing.T) {
 
 func TestHandleContextCommand_RendersBreakdown(t *testing.T) {
 	m := newTestModel()
-	m.appState.AppendMessage(core.Message{Role: core.RoleUser, Content: "hello world"})
-	m.appState.AppendMessage(core.Message{Role: core.RoleAssistant, Content: "hi there"})
-	m.appState.SetLastUsage(&core.TokenUsage{InputTokens: 10000, OutputTokens: 100})
+	m.agentCore = newAgentCore(nil, "")
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "hello world"})
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleAssistant, Content: "hi there"})
+	m.agentCore.SetLastUsage(&agentcore.TokenUsage{InputTokens: 10000, OutputTokens: 100})
 
 	_, _, handled := m.dispatchCommand("/context")
 	if !handled {
@@ -181,7 +182,8 @@ func TestHandleContextCommand_RendersBreakdown(t *testing.T) {
 
 func TestHandleContextCommand_NoUsageShowsEstimateNote(t *testing.T) {
 	m := newTestModel()
-	m.appState.AppendMessage(core.Message{Role: core.RoleUser, Content: "hi"})
+	m.agentCore = newAgentCore(nil, "")
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "hi"})
 
 	m.handleContextCommand()
 
@@ -193,8 +195,9 @@ func TestHandleContextCommand_NoUsageShowsEstimateNote(t *testing.T) {
 
 func TestHandleContextCommand_UnknownWindowOmitsFreeRow(t *testing.T) {
 	m := newTestModel()
-	m.appState.AppendMessage(core.Message{Role: core.RoleUser, Content: "hi"})
-	m.appState.SetLastUsage(&core.TokenUsage{InputTokens: 5000})
+	m.agentCore = newAgentCore(nil, "")
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "hi"})
+	m.agentCore.SetLastUsage(&agentcore.TokenUsage{InputTokens: 5000})
 
 	m.handleContextCommand()
 

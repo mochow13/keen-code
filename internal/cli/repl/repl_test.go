@@ -3,6 +3,7 @@ package repl
 import (
 	"context"
 	"errors"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"os"
 	"path/filepath"
@@ -16,18 +17,19 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
-	"github.com/mochow13/keen-code/internal/llm"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/tools"
 )
+
+func newInitialModelTest(ctx *replContext) replModel {
+	return initialModel(ctx, context.Background(), agentcore.New(nil, ctx.workingDir, ctx.cfg, ctx.globalCfg), false)
+}
 
 func styleColorPrefix(style lipgloss.Style) string {
 	rendered := style.Render("x")
@@ -47,18 +49,17 @@ func newTestModel() replModel {
 	ta.MaxContentHeight = inputMaxContentHeight
 	ta.SetHeight(inputMinHeight)
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+	cfg := &config.ResolvedConfig{}
 	return replModel{
 		textarea:            ta,
 		viewport:            vp,
-		ctx:                 &replContext{cfg: &config.ResolvedConfig{}},
-		mode:                llm.ModeBuild,
-		appState:            replappstate.New(nil, ""),
+		ctx:                 &replContext{cfg: cfg},
+		agentCore:           &mockAgentCore{cfg: cfg, mode: agentcore.ModeBuild},
 		output:              reploutput.NewOutputBuilder(80, ""),
 		stream:              streamState{handler: NewStreamHandler(nil)},
 		permissionRequester: replpermissions.NewRequester(nil),
 		projectPerms:        config.NewProjectPermissions(),
 		diffEmitter:         repltooling.NewDiffEmitter(),
-		sessions:            newReplSessionState(""),
 		loading:             loadingState{spinner: spinner.New()},
 		btw:                 btwState{spinner: spinner.New()},
 		width:               80,
@@ -67,6 +68,15 @@ func newTestModel() replModel {
 	}
 }
 
+func TestNewTestModelDoesNotEnablePersistence(t *testing.T) {
+	m := newTestModel()
+	if m.sessions != nil {
+		t.Fatal("UI-only test models must not create a session store")
+	}
+	if err := m.sessions.appendUserMessage("test input"); err != nil {
+		t.Fatalf("disabled persistence should be a no-op: %v", err)
+	}
+}
 func TestFormatTurnElapsed(t *testing.T) {
 	tests := []struct {
 		name string
@@ -111,7 +121,7 @@ func scrollViewportAwayFromBottom(t *testing.T, m *replModel) int {
 
 func TestUpdate_InlinePermission_AllowsToolStartEvent(t *testing.T) {
 	sh := NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
 	req := &replpermissions.Request{
@@ -131,7 +141,7 @@ func TestUpdate_InlinePermission_AllowsToolStartEvent(t *testing.T) {
 		output:  reploutput.NewOutputBuilder(80, ""),
 	}
 
-	toolCall := &core.ToolCall{Name: "read_file", Input: map[string]any{"path": "../foo.txt"}}
+	toolCall := &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "../foo.txt"}}
 	updatedModel, cmd := m.Update(llmToolStartMsg{toolCall: toolCall})
 
 	updated, ok := updatedModel.(*replModel)
@@ -195,7 +205,7 @@ func TestActivateSkillInput(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	activated, ok := m.activateSkillInput("/demo thing")
 	if !ok {
 		t.Fatal("expected skill activation")
@@ -219,7 +229,7 @@ func TestActivateSkillInput_UsesFrontmatterNameNotDir(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 
 	if _, ok := m.activateSkillInput("/any-dir foo"); ok {
 		t.Fatal("expected /<dirname> to NOT activate")
@@ -275,7 +285,7 @@ func TestUpdateNormalMode_WindowResizeWhileModelSelectionActive(t *testing.T) {
 func TestUpdateViewportContent_UsesViewportWidthWhenModelStartsWithoutResize(t *testing.T) {
 	m := newTestModel()
 	m.width = 0
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.stream.handler.HandleReasoningChunk("thinking")
 
@@ -292,7 +302,7 @@ func TestUpdateViewportContent_UsesViewportWidthWhenModelStartsWithoutResize(t *
 
 func TestInitialModel_DimsBlurredPromptGlyph(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	m := initialModel(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}}, nil, false)
+	m := newInitialModelTest(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}})
 	styles := m.textarea.Styles()
 
 	got := styles.Blurred.Prompt.Render(" ▶ ")
@@ -304,8 +314,8 @@ func TestInitialModel_DimsBlurredPromptGlyph(t *testing.T) {
 
 func TestInitialModel_PlanModeSetsPromptStyle(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	m := initialModel(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}}, nil, false)
-	m.setMode(llm.ModePlan)
+	m := newInitialModelTest(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}})
+	m.setMode(agentcore.ModePlan)
 	view := m.View().Content
 	if !strings.Contains(view, repltheme.ModePlanChipStyle.Render("plan")) {
 		t.Fatalf("expected plan mode chip in view, got %q", view)
@@ -324,8 +334,8 @@ func TestInitialModel_PlanModeSetsPromptStyle(t *testing.T) {
 
 func TestInitialModel_YoloModeSetsPromptStyle(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	m := initialModel(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}}, nil, false)
-	m.setMode(llm.ModeYolo)
+	m := newInitialModelTest(&replContext{version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{}})
+	m.setMode(agentcore.ModeYolo)
 	view := m.View().Content
 	if !strings.Contains(view, repltheme.ModeYoloChipStyle.Render("yolo")) {
 		t.Fatalf("expected yolo mode chip in view, got %q", view)
@@ -343,8 +353,8 @@ func TestInitialModel_YoloModeSetsPromptStyle(t *testing.T) {
 }
 
 func TestRenderInputArea_UsesViewportWidthRules(t *testing.T) {
-	focusedWide := renderInputArea("▶ hello", 80, true, false, false, false, llm.ModeBuild)
-	blurredWide := renderInputArea("▶ hello", 80, false, false, false, false, llm.ModeBuild)
+	focusedWide := renderInputArea("▶ hello", 80, true, false, false, false, agentcore.ModeBuild)
+	blurredWide := renderInputArea("▶ hello", 80, false, false, false, false, agentcore.ModeBuild)
 	if focusedWide == blurredWide {
 		t.Fatal("expected focused and blurred input areas to render differently")
 	}
@@ -361,7 +371,7 @@ func TestRenderInputArea_UsesViewportWidthRules(t *testing.T) {
 		t.Fatalf("expected wide input rules to match viewport width, got width %d", wideRuleWidth)
 	}
 
-	narrow := renderInputArea("▶ hi", 24, true, false, false, false, llm.ModeBuild)
+	narrow := renderInputArea("▶ hi", 24, true, false, false, false, agentcore.ModeBuild)
 	narrowLines := strings.Split(strings.TrimRight(narrow, "\n"), "\n")
 	if len(narrowLines) != 3 {
 		t.Fatalf("expected 3 narrow input-area lines, got %v", narrowLines)
@@ -451,7 +461,7 @@ func TestUpdate_CleanupFailureShowsGenericMessage(t *testing.T) {
 
 func TestUpdate_RoutesToPermissionHandling(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 
 	req := &replpermissions.Request{
@@ -488,7 +498,7 @@ func TestHandleLLMStreamMsg_UnknownMsg(t *testing.T) {
 
 func TestHandleLLMStreamMsg_RoutesChunk(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.loading.showSpinner = true
 
@@ -524,7 +534,7 @@ func TestHandleLLMStreamMsg_StreamRenderFlushesWithoutMainStream(t *testing.T) {
 
 func TestUpdateNormalMode_PermissionReadyRendersImmediately(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.loading.showSpinner = true
 
@@ -552,7 +562,7 @@ func TestUpdateNormalMode_PermissionReadyRendersImmediately(t *testing.T) {
 
 func TestUpdateNormalMode_PermissionReadyPreservesUserScroll(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.loading.showSpinner = true
 	offset := scrollViewportAwayFromBottom(t, &m)
@@ -575,13 +585,13 @@ func TestUpdateNormalMode_PermissionReadyPreservesUserScroll(t *testing.T) {
 
 func TestUpdateNormalMode_DiffReadyRendersImmediately(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 
 	done := make(chan struct{})
 	req := repltooling.DiffRequest{
-		Lines: []tools.EditDiffLine{
-			{Kind: tools.DiffLineAdded, Content: "hello", NewLineNum: 1},
+		Lines: []agentcore.EditDiffLine{
+			{Kind: agentcore.EditDiffLineAdded, Content: "hello", NewLineNum: 1},
 		},
 		Done: done,
 	}
@@ -603,14 +613,14 @@ func TestUpdateNormalMode_DiffReadyRendersImmediately(t *testing.T) {
 
 func TestUpdateNormalMode_DiffReadyPreservesUserScroll(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	offset := scrollViewportAwayFromBottom(t, &m)
 
 	done := make(chan struct{})
 	req := repltooling.DiffRequest{
-		Lines: []tools.EditDiffLine{
-			{Kind: tools.DiffLineAdded, Content: "hello", NewLineNum: 1},
+		Lines: []agentcore.EditDiffLine{
+			{Kind: agentcore.EditDiffLineAdded, Content: "hello", NewLineNum: 1},
 		},
 		Done: done,
 	}
@@ -690,14 +700,14 @@ func TestReplayLoadedSession_RebuildsOutputAndConversation(t *testing.T) {
 		t.Fatalf("expected replayed compaction transcript, got %q", m.output.Join())
 	}
 
-	messages := m.appState.GetMessages()
+	messages := m.agentCore.GetMessages()
 	if len(messages) != 1 || messages[0].Content != "summary" {
 		t.Fatalf("expected compacted conversation state, got %#v", messages)
 	}
 }
 
 func TestRenderInputArea_UsesSecondaryStyleForPlanMode(t *testing.T) {
-	area := renderInputArea("▶ hello", 80, true, false, false, false, llm.ModePlan)
+	area := renderInputArea("▶ hello", 80, true, false, false, false, agentcore.ModePlan)
 	lines := strings.Split(strings.TrimRight(area, "\n"), "\n")
 	if len(lines) < 1 {
 		t.Fatalf("expected at least 1 line, got %v", lines)
@@ -711,7 +721,7 @@ func TestRenderInputArea_UsesSecondaryStyleForPlanMode(t *testing.T) {
 }
 
 func TestRenderInputArea_UsesErrorStyleForYoloMode(t *testing.T) {
-	area := renderInputArea("▶ hello", 80, true, false, false, false, llm.ModeYolo)
+	area := renderInputArea("▶ hello", 80, true, false, false, false, agentcore.ModeYolo)
 	lines := strings.Split(strings.TrimRight(area, "\n"), "\n")
 	if len(lines) < 1 {
 		t.Fatalf("expected at least 1 line, got %v", lines)
@@ -725,7 +735,7 @@ func TestRenderInputArea_UsesErrorStyleForYoloMode(t *testing.T) {
 }
 
 func TestRenderInputArea_UsesPrimaryStyleForBuildMode(t *testing.T) {
-	area := renderInputArea("▶ hello", 80, true, false, false, false, llm.ModeBuild)
+	area := renderInputArea("▶ hello", 80, true, false, false, false, agentcore.ModeBuild)
 	lines := strings.Split(strings.TrimRight(area, "\n"), "\n")
 	if len(lines) < 1 {
 		t.Fatalf("expected at least 1 line, got %v", lines)
@@ -739,7 +749,7 @@ func TestRenderInputArea_UsesPrimaryStyleForBuildMode(t *testing.T) {
 }
 
 func TestRenderInputArea_UsesAccentStyleForBtw(t *testing.T) {
-	area := renderInputArea("▶ hello", 80, true, false, true, false, llm.ModeBuild)
+	area := renderInputArea("▶ hello", 80, true, false, true, false, agentcore.ModeBuild)
 	lines := strings.Split(strings.TrimRight(area, "\n"), "\n")
 	if len(lines) < 1 {
 		t.Fatalf("expected at least 1 line, got %v", lines)
@@ -753,7 +763,7 @@ func TestRenderInputArea_UsesAccentStyleForBtw(t *testing.T) {
 }
 
 func TestRenderInputArea_UsesSecondaryStyleForAdversary(t *testing.T) {
-	area := renderInputArea("▶ hello", 80, true, false, false, true, llm.ModeBuild)
+	area := renderInputArea("▶ hello", 80, true, false, false, true, agentcore.ModeBuild)
 	lines := strings.Split(strings.TrimRight(area, "\n"), "\n")
 	if len(lines) < 1 {
 		t.Fatalf("expected at least 1 line, got %v", lines)
@@ -898,7 +908,7 @@ func TestHandleCompactionDone_StopsCompactionAndRefreshesOutput(t *testing.T) {
 	m.loading.showSpinner = true
 	m.compaction.cancel = func() {}
 	m.contextStatus = contextStatus{KnownWindow: true, Percent: 10}
-	m.stream.handler.Start(make(chan core.StreamEvent), "Compacting...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Compacting...")
 	m.stream.handler.HandleChunk("compacted summary")
 
 	newM, cmd := m.handleCompactionDone()
@@ -912,8 +922,8 @@ func TestHandleCompactionDone_StopsCompactionAndRefreshesOutput(t *testing.T) {
 	if !strings.Contains(newM.output.Join(), "compacted summary") {
 		t.Fatalf("expected streamed compaction summary, got %q", newM.output.Join())
 	}
-	compacted := newM.appState.GetMessages()
-	if len(compacted) != 1 || compacted[0].Role != core.RoleUser || compacted[0].Content != "compacted summary" {
+	compacted := newM.agentCore.GetMessages()
+	if len(compacted) != 1 || compacted[0].Role != agentcore.RoleUser || compacted[0].Content != "compacted summary" {
 		t.Fatalf("expected compacted state to keep summary as single user message, got %#v", compacted)
 	}
 	if cmd != nil {
@@ -926,17 +936,17 @@ func TestHandleCompactionDone_RejectsPreToolPreambleWithoutSummary(t *testing.T)
 	m.compaction.active = true
 	m.loading.showSpinner = true
 	m.compaction.cancel = func() {}
-	m.stream.handler.Start(make(chan core.StreamEvent), "Compacting...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Compacting...")
 	m.stream.handler.HandleChunk("I'll inspect the file.")
-	m.stream.handler.HandleToolStart(&core.ToolCall{Name: "glob", Input: map[string]any{"pattern": "*.go"}})
-	m.stream.handler.HandleToolEnd(&core.ToolCall{Name: "glob", Error: "Tool calls are disabled during compaction; use the history."})
+	m.stream.handler.HandleToolStart(&agentcore.ToolCall{Name: "glob", Input: map[string]any{"pattern": "*.go"}})
+	m.stream.handler.HandleToolEnd(&agentcore.ToolCall{Name: "glob", Error: "Tool calls are disabled during compaction; use the history."})
 
 	newM, _ := m.handleCompactionDone()
 
 	if newM.compaction.active || newM.loading.showSpinner || newM.compaction.cancel != nil {
 		t.Fatal("failed compaction did not reset state")
 	}
-	if messages := newM.appState.GetMessages(); len(messages) != 0 {
+	if messages := newM.agentCore.GetMessages(); len(messages) != 0 {
 		t.Fatalf("expected pre-tool preamble not to replace history, got %#v", messages)
 	}
 	if got := newM.output.Join(); !strings.Contains(got, "Compaction failed: compaction returned empty summary") {
@@ -949,16 +959,16 @@ func TestHandleCompactionDone_AppliesOnlyFinalAssistantRun(t *testing.T) {
 	m.compaction.active = true
 	m.loading.showSpinner = true
 	m.compaction.cancel = func() {}
-	m.stream.handler.Start(make(chan core.StreamEvent), "Compacting...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Compacting...")
 	m.stream.handler.HandleChunk("Let me check the config first. ")
-	m.stream.handler.HandleToolStart(&core.ToolCall{Name: "glob", Input: map[string]any{"pattern": "*.go"}})
-	m.stream.handler.HandleToolEnd(&core.ToolCall{Name: "glob"})
+	m.stream.handler.HandleToolStart(&agentcore.ToolCall{Name: "glob", Input: map[string]any{"pattern": "*.go"}})
+	m.stream.handler.HandleToolEnd(&agentcore.ToolCall{Name: "glob"})
 	m.stream.handler.HandleChunk("## Goal\nShip the fix.")
 
 	newM, _ := m.handleCompactionDone()
 
-	compacted := newM.appState.GetMessages()
-	if len(compacted) != 1 || compacted[0].Role != core.RoleUser || compacted[0].Content != "## Goal\nShip the fix." {
+	compacted := newM.agentCore.GetMessages()
+	if len(compacted) != 1 || compacted[0].Role != agentcore.RoleUser || compacted[0].Content != "## Goal\nShip the fix." {
 		t.Fatalf("expected only the final assistant run to replace history, got %#v", compacted)
 	}
 }
@@ -967,7 +977,7 @@ func TestHandleLLMIncomplete_RoutesManualCompactionFailure(t *testing.T) {
 	m := newTestModel()
 	m.compaction = compactionState{active: true, mode: compactionManual, cancel: func() {}}
 	m.loading.showSpinner = true
-	m.stream.handler.Start(make(chan core.StreamEvent), "Compacting...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Compacting...")
 	m.stream.handler.HandleChunk("I'll inspect the file.")
 
 	newM, _ := m.handleLLMIncomplete(errors.New("stream ended after tool turns"))
@@ -975,7 +985,7 @@ func TestHandleLLMIncomplete_RoutesManualCompactionFailure(t *testing.T) {
 	if newM.compaction.active || newM.compaction.cancel != nil || newM.loading.showSpinner {
 		t.Fatal("incomplete compaction did not reset state")
 	}
-	if messages := newM.appState.GetMessages(); len(messages) != 0 {
+	if messages := newM.agentCore.GetMessages(); len(messages) != 0 {
 		t.Fatalf("expected no summary to replace history, got %#v", messages)
 	}
 	if got := newM.output.Join(); !strings.Contains(got, "Compaction failed: stream ended after tool turns") {

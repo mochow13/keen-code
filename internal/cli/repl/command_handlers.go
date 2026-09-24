@@ -3,7 +3,7 @@ package repl
 import (
 	"context"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,11 +18,8 @@ import (
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
-	"github.com/mochow13/keen-code/internal/llm"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/memory"
-	"github.com/mochow13/keen-code/internal/skills"
-	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 const (
@@ -173,7 +170,7 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 
 	case input == replcommands.Compact || strings.HasPrefix(input, replcommands.Compact+" "):
 		extraPrompt := strings.TrimSpace(strings.TrimPrefix(input, replcommands.Compact))
-		if !m.appState.IsClientReady(m.ctx.cfg) {
+		if !m.agentCore.IsReady() {
 			m.output.AddError("LLM client not initialized. Use /model to configure.", repltheme.ErrorStyle)
 			m.textarea.Reset()
 			m.updateViewportContent()
@@ -240,7 +237,7 @@ func (m *replModel) startCompaction(extraPrompt string) (replModel, tea.Cmd) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	eventCh, err := m.appState.StreamCompact(ctx, m.ctx.cfg, extraPrompt, core.StreamOptions{SessionID: m.sessions.currentID()})
+	eventCh, err := m.agentCore.Compact(ctx, m.sessions.currentID(), extraPrompt)
 	if err != nil {
 		cancel()
 		m.output.AddError(err.Error(), repltheme.ErrorStyle)
@@ -420,11 +417,11 @@ func (m *replModel) handleModeCommand(input string) replModel {
 
 	switch arg {
 	case "plan":
-		m.setMode(llm.ModePlan)
+		m.setMode(agentcore.ModePlan)
 	case "build":
-		m.setMode(llm.ModeBuild)
+		m.setMode(agentcore.ModeBuild)
 	case "yolo":
-		m.setMode(llm.ModeYolo)
+		m.setMode(agentcore.ModeYolo)
 	case "":
 		m.output.AddStyledLine("  Mode: "+string(m.currentMode())+" (use /mode plan|build|yolo)", repltheme.HighlightStyle)
 	default:
@@ -692,18 +689,13 @@ func (m *replModel) handleToolPermissionCommand(input, command string, allow boo
 }
 
 func (m *replModel) registeredToolNames() []string {
-	all := m.appState.GetToolRegistry().All()
-	names := make([]string, 0, len(all))
-	for _, t := range all {
-		names = append(names, t.Name())
-	}
-	return names
+	return m.agentCore.RegisteredToolNames()
 }
 
 func (m *replModel) handleSkillsCommand(input string) replModel {
 	args := parseSkillArgs(input)
-	discovery := m.appState.GetSkills()
-	cfg := m.appState.GetSkillsConfig()
+	discovery := m.agentCore.GetSkills()
+	cfg := m.agentCore.GetSkillsConfig()
 
 	for _, warning := range discovery.Warnings {
 		m.output.AddError(warning, repltheme.ErrorStyle)
@@ -723,7 +715,7 @@ func (m *replModel) handleSkillsCommand(input string) replModel {
 	}
 
 	if len(args) == 1 && args[0] == "reload" {
-		discovery = m.appState.ReloadSkills()
+		discovery = m.agentCore.ReloadSkills()
 		for _, warning := range discovery.Warnings {
 			m.output.AddError(warning, repltheme.ErrorStyle)
 		}
@@ -742,25 +734,25 @@ func (m *replModel) handleSkillsCommand(input string) replModel {
 	}
 
 	name := args[1]
-	if _, ok := skills.Find(discovery.Skills, name); !ok {
+	if _, ok := agentcore.FindSkill(discovery.Skills, name); !ok {
 		m.output.AddError("Skill not found: "+name, repltheme.ErrorStyle)
 		m.updateViewportContent()
 		m.viewport.GotoBottom()
 		return *m
 	}
 
-	status := skills.StatusDisabled
+	status := agentcore.SkillStatusDisabled
 	if args[0] == "enable" {
-		status = skills.StatusEnabled
+		status = agentcore.SkillStatusEnabled
 	}
-	if err := m.appState.SetSkillStatus(name, status); err != nil {
+	if err := m.agentCore.SetSkillStatus(name, status); err != nil {
 		m.output.AddError("Failed to save skills config: "+err.Error(), repltheme.ErrorStyle)
 		m.updateViewportContent()
 		m.viewport.GotoBottom()
 		return *m
 	}
 
-	if status == skills.StatusEnabled {
+	if status == agentcore.SkillStatusEnabled {
 		m.output.AddStyledLine("  ✓ Skill \""+name+"\" enabled", repltheme.HighlightStyle)
 	} else {
 		m.output.AddStyledLine("  ✓ Skill \""+name+"\" disabled", repltheme.HighlightStyle)
@@ -784,7 +776,7 @@ func (m *replModel) handleSubagentsCommand(input string) replModel {
 		return *m
 	}
 
-	discovery := m.appState.GetSubagents()
+	discovery := m.agentCore.GetSubagents()
 	for _, warning := range discovery.Warnings {
 		m.output.AddError(warning, repltheme.ErrorStyle)
 	}
@@ -806,8 +798,8 @@ func parseSubagentArgs(input string) []string {
 	return strings.Fields(strings.TrimSpace(strings.TrimPrefix(input, replcommands.Subagents)))
 }
 
-func visibleSubagents(profiles []subagents.Profile) []subagents.Profile {
-	items := make([]subagents.Profile, 0, len(profiles))
+func visibleSubagents(profiles []agentcore.SubagentProfile) []agentcore.SubagentProfile {
+	items := make([]agentcore.SubagentProfile, 0, len(profiles))
 	for _, profile := range profiles {
 		if !profile.Hidden {
 			items = append(items, profile)
@@ -816,7 +808,7 @@ func visibleSubagents(profiles []subagents.Profile) []subagents.Profile {
 	return items
 }
 
-func (m *replModel) addSubagentTable(profiles []subagents.Profile) {
+func (m *replModel) addSubagentTable(profiles []agentcore.SubagentProfile) {
 	nameWidth := max(maxSubagentNameWidth(profiles), len("Subagent"))
 	rows := make([][]string, 0, len(profiles))
 	for _, profile := range profiles {
@@ -837,7 +829,7 @@ func (m *replModel) addSubagentTable(profiles []subagents.Profile) {
 	})
 }
 
-func maxSubagentNameWidth(profiles []subagents.Profile) int {
+func maxSubagentNameWidth(profiles []agentcore.SubagentProfile) int {
 	width := 0
 	for _, profile := range profiles {
 		width = max(width, lipgloss.Width(profile.Name))
@@ -845,7 +837,7 @@ func maxSubagentNameWidth(profiles []subagents.Profile) int {
 	return width
 }
 
-func (m *replModel) addSkillTable(skillList []skills.Skill, cfg skills.Config) {
+func (m *replModel) addSkillTable(skillList []agentcore.Skill, cfg agentcore.SkillsConfig) {
 	nameWidth := max(maxSkillNameWidth(skillList), len("Skill"))
 	statusWidth := max(lipgloss.Width("Status"), lipgloss.Width("✗ disabled"))
 
@@ -928,7 +920,7 @@ func (m *replModel) addCommandTable(headers []string, rows [][]string, styleFunc
 	}
 }
 
-func maxSkillNameWidth(skillList []skills.Skill) int {
+func maxSkillNameWidth(skillList []agentcore.Skill) int {
 	width := 0
 	for _, skill := range skillList {
 		width = max(width, lipgloss.Width(skill.Name))
@@ -972,7 +964,7 @@ func (m *replModel) handleBtwCommand(input string) (replModel, tea.Cmd) {
 		return *m, nil
 	}
 
-	if !m.appState.IsClientReady(m.ctx.cfg) {
+	if !m.agentCore.IsReady() {
 		m.output.AddError("LLM client not initialized. Use /model to configure.", repltheme.ErrorStyle)
 		m.updateViewportContent()
 		m.viewport.GotoBottom()
@@ -987,7 +979,7 @@ func (m *replModel) handleBtwCommand(input string) (replModel, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.btw.streamCancel = cancel
 
-	eventCh, err := m.appState.StreamBtw(ctx, question)
+	eventCh, err := m.agentCore.Btw(ctx, question)
 	if err != nil {
 		cancel()
 		m.btw.streamCancel = nil
@@ -1055,7 +1047,7 @@ func (m *replModel) handleAdversaryCommand(input string) (replModel, tea.Cmd) {
 		return *m, nil
 	}
 
-	if !m.appState.IsAdversaryClientReady() {
+	if !m.agentCore.IsAdversaryReady() {
 		if err := m.buildAdversaryClient(); err != nil {
 			m.output.AddError("Failed to initialize adversary client: "+err.Error(), repltheme.ErrorStyle)
 			m.updateViewportContent()
@@ -1070,7 +1062,7 @@ func (m *replModel) handleAdversaryCommand(input string) (replModel, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.adversary.streamCancel = cancel
 
-	eventCh, err := m.appState.StreamAdversary(ctx, arg)
+	eventCh, err := m.agentCore.Adversary(ctx, arg)
 	if err != nil {
 		cancel()
 		m.adversary.streamCancel = nil
@@ -1151,7 +1143,7 @@ func (m *replModel) handleLogoutCommand() replModel {
 		m.viewport.GotoBottom()
 		return *m
 	}
-	m.appState.UpdateClient(nil)
+	m.agentCore.ClearClient()
 	m.output.AddStyledLine("  ✓ Signed out of "+m.ctx.cfg.Provider, repltheme.HighlightStyle)
 	m.output.AddEmptyLine()
 	m.updateViewportContent()
@@ -1161,15 +1153,15 @@ func (m *replModel) handleLogoutCommand() replModel {
 
 func (m *replModel) handleClearCommand() replModel {
 	currentMode := m.currentMode()
-	m.appState.ClearMessages()
-	m.appState.ResetClientState()
-	m.appState.ClearContextMetrics()
+	m.agentCore.ClearMessages()
+	m.agentCore.ResetClientState()
+	m.agentCore.ClearContextMetrics()
 	m.contextStatus.ResetTotals()
-	m.appState.SetMode(currentMode)
+	m.agentCore.SetMode(currentMode)
 	m.sessions.resetSession()
 	if m.permissionRequester != nil {
 		m.permissionRequester.ResetSessionPermissions()
-		m.permissionRequester.SetYoloMode(currentMode == llm.ModeYolo)
+		m.permissionRequester.SetYoloMode(currentMode == agentcore.ModeYolo)
 	}
 	m.history.Reset()
 	m.loading.lastTurnElapsedMsg = ""
@@ -1180,7 +1172,7 @@ func (m *replModel) handleClearCommand() replModel {
 	for _, line := range initialLines {
 		newOutput.AddLine(line)
 	}
-	if currentMode != llm.ModeBuild {
+	if currentMode != agentcore.ModeBuild {
 		newOutput.AddStyledLine("  ✓ Mode restored: "+string(currentMode), repltheme.HighlightStyle)
 	}
 	newOutput.AddStyledLine("  ✓ New session started", repltheme.CompactionSuccessStyle)

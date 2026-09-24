@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/agentcore"
 )
 
 type Request struct {
 	Context       context.Context
-	Questionnaire tools.AskUserRequest
-	ResponseChan  chan tools.AskUserResult
+	Questionnaire agentcore.AskUserRequest
+	ResponseChan  chan agentcore.AskUserResult
 }
 
 type Requester struct {
@@ -24,12 +24,12 @@ func NewRequester() *Requester {
 	return &Requester{requestChan: make(chan *Request, 1)}
 }
 
-func (r *Requester) RequestUser(ctx context.Context, questionnaire tools.AskUserRequest) (tools.AskUserResult, error) {
-	req := &Request{Context: ctx, Questionnaire: questionnaire, ResponseChan: make(chan tools.AskUserResult, 1)}
+func (r *Requester) RequestUser(ctx context.Context, questionnaire agentcore.AskUserRequest) (agentcore.AskUserResult, error) {
+	req := &Request{Context: ctx, Questionnaire: questionnaire, ResponseChan: make(chan agentcore.AskUserResult, 1)}
 	r.mu.Lock()
 	if r.pending != nil {
 		r.mu.Unlock()
-		return tools.AskUserResult{}, fmt.Errorf("ask_user already has a pending questionnaire")
+		return agentcore.AskUserResult{}, fmt.Errorf("ask_user already has a pending questionnaire")
 	}
 	r.pending = req
 	r.mu.Unlock()
@@ -38,13 +38,13 @@ func (r *Requester) RequestUser(ctx context.Context, questionnaire tools.AskUser
 	select {
 	case r.requestChan <- req:
 	case <-ctx.Done():
-		return tools.AskUserResult{}, ctx.Err()
+		return agentcore.AskUserResult{}, ctx.Err()
 	}
 	select {
 	case result := <-req.ResponseChan:
 		return result, nil
 	case <-ctx.Done():
-		return tools.AskUserResult{}, ctx.Err()
+		return agentcore.AskUserResult{}, ctx.Err()
 	}
 }
 
@@ -59,7 +59,7 @@ func (r *Requester) IsPending(req *Request) bool {
 	return r.pending == req && req.Context.Err() == nil
 }
 
-func (r *Requester) Respond(req *Request, result tools.AskUserResult) {
+func (r *Requester) Respond(req *Request, result agentcore.AskUserResult) {
 	if req == nil {
 		return
 	}

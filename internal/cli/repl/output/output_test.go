@@ -1,7 +1,7 @@
 package output
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -189,7 +189,7 @@ func TestFormatToolInput_DelegateTaskShowsTaskAndAgentCounts(t *testing.T) {
 }
 
 func TestFormatToolDone_DelegateTaskShowsResultCounts(t *testing.T) {
-	start := &core.ToolCall{Name: "delegate_task", Input: map[string]any{
+	start := &agentcore.ToolCall{Name: "delegate_task", Input: map[string]any{
 		"tasks": []any{
 			map[string]any{"agent": "explorer", "task": "one"},
 			map[string]any{"agent": "reviewer", "task": "two"},
@@ -220,7 +220,7 @@ func TestFormatToolDone_DelegateTaskShowsResultCounts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatToolDone(start, &core.ToolCall{Name: "delegate_task", Output: tt.output}, "/tmp/project")
+			got := FormatToolDone(start, &agentcore.ToolCall{Name: "delegate_task", Output: tt.output}, "/tmp/project")
 			if !strings.Contains(got, tt.wantStatus) || !strings.Contains(got, tt.wantMarker) {
 				t.Fatalf("FormatToolDone() = %q, want marker %q and status %q", got, tt.wantMarker, tt.wantStatus)
 			}
@@ -229,7 +229,7 @@ func TestFormatToolDone_DelegateTaskShowsResultCounts(t *testing.T) {
 }
 
 func TestFormatToolEnd_DoesNotAddTrailingNewline(t *testing.T) {
-	got := FormatToolEnd(&core.ToolCall{Name: "call_mcp_tool", Duration: 5 * 1e6})
+	got := FormatToolEnd(&agentcore.ToolCall{Name: "call_mcp_tool", Duration: 5 * 1e6})
 
 	if strings.HasSuffix(got, "\n") {
 		t.Fatalf("expected no trailing newline in tool end, got %q", got)
@@ -392,8 +392,8 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			start := &core.ToolCall{Name: tt.tool, Input: tt.input}
-			end := &core.ToolCall{Name: tt.tool, Output: tt.output, Duration: 8 * 1e6}
+			start := &agentcore.ToolCall{Name: tt.tool, Input: tt.input}
+			end := &agentcore.ToolCall{Name: tt.tool, Output: tt.output, Duration: 8 * 1e6}
 			got := FormatToolDone(start, end, "/tmp/project")
 			plain := ansi.Strip(got)
 			for _, want := range tt.contains {
@@ -406,8 +406,8 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 }
 
 func TestFormatToolDone_ErrorShowsReasonAndDuration(t *testing.T) {
-	start := &core.ToolCall{Name: "edit_file", Input: map[string]any{"path": "output.go"}}
-	end := &core.ToolCall{Name: "edit_file", Error: "op 1: line hash mismatch at 2:fff (actual a1b)", Duration: 2 * 1e6}
+	start := &agentcore.ToolCall{Name: "edit_file", Input: map[string]any{"path": "output.go"}}
+	end := &agentcore.ToolCall{Name: "edit_file", Error: "op 1: line hash mismatch at 2:fff (actual a1b)", Duration: 2 * 1e6}
 	got := FormatToolDone(start, end, "/tmp/project")
 
 	for _, want := range []string{"✗ Edit", "output.go", "line hash mismatch", "2ms"} {
@@ -418,11 +418,11 @@ func TestFormatToolDone_ErrorShowsReasonAndDuration(t *testing.T) {
 }
 
 func TestMCPFailuresHideErrorDetailsForMainAndSubagent(t *testing.T) {
-	start := &core.ToolCall{
+	start := &agentcore.ToolCall{
 		Name:  "call_mcp_tool",
 		Input: map[string]any{"server": "context7", "tool": "query-docs"},
 	}
-	end := &core.ToolCall{
+	end := &agentcore.ToolCall{
 		Name:     "call_mcp_tool",
 		Error:    "transport failed\nsensitive MCP response content",
 		Duration: time.Second,
@@ -449,8 +449,8 @@ func TestMCPFailuresHideErrorDetailsForMainAndSubagent(t *testing.T) {
 }
 
 func TestFormatSubagentToolPrefixesAgentAndHidesOutput(t *testing.T) {
-	start := &core.ToolCall{Name: "bash", Input: map[string]any{"command": "go test -race ./..."}}
-	end := &core.ToolCall{Name: "bash", Output: map[string]any{"stdout": "hidden-output", "exit_code": 9}, Error: "failed", Duration: time.Second}
+	start := &agentcore.ToolCall{Name: "bash", Input: map[string]any{"command": "go test -race ./..."}}
+	end := &agentcore.ToolCall{Name: "bash", Output: map[string]any{"stdout": "hidden-output", "exit_code": 9}, Error: "failed", Duration: time.Second}
 	got := FormatSubagentTool("worker", start, end, "/tmp/project")
 	for _, want := range []string{"[worker]", "Run", "failed", "1.0s"} {
 		if !strings.Contains(got, want) {
@@ -465,7 +465,7 @@ func TestFormatSubagentToolPrefixesAgentAndHidesOutput(t *testing.T) {
 }
 
 func TestFormatToolEnd_OrphanEndShowsLabelAndDuration(t *testing.T) {
-	got := FormatToolEnd(&core.ToolCall{Name: "read_file", Duration: 1500 * 1e6})
+	got := FormatToolEnd(&agentcore.ToolCall{Name: "read_file", Duration: 1500 * 1e6})
 
 	if !strings.Contains(got, "✓") || !strings.Contains(got, "Read") || !strings.Contains(got, "1.5s") {
 		t.Fatalf("expected label and duration, got %q", got)
@@ -476,7 +476,7 @@ func TestFormatToolEnd_OrphanEndShowsLabelAndDuration(t *testing.T) {
 }
 
 func TestFormatToolStart_UsesFriendlyLabel(t *testing.T) {
-	got := FormatToolStart(&core.ToolCall{Name: "grep", Input: map[string]any{"pattern": "foo", "path": "internal"}}, "/tmp/project")
+	got := FormatToolStart(&agentcore.ToolCall{Name: "grep", Input: map[string]any{"pattern": "foo", "path": "internal"}}, "/tmp/project")
 
 	if !strings.Contains(got, "●") || !strings.Contains(got, "Search") {
 		t.Fatalf("expected friendly running label, got %q", got)
@@ -647,8 +647,8 @@ func TestOutputBuilder_SetWidth(t *testing.T) {
 
 func TestOutputBuilder_AddToolLifecycle(t *testing.T) {
 	builder := NewOutputBuilder(80, "/tmp/project")
-	builder.AddToolStart(&core.ToolCall{Name: "read_file", Input: map[string]any{"path": "README.md"}})
-	builder.AddToolEnd(&core.ToolCall{Name: "read_file"})
+	builder.AddToolStart(&agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "README.md"}})
+	builder.AddToolEnd(&agentcore.ToolCall{Name: "read_file"})
 	if len(builder.GetLines()) != 2 {
 		t.Fatalf("tool lifecycle lines = %d, want 2", len(builder.GetLines()))
 	}
@@ -688,8 +688,8 @@ func TestGenericValueBranches(t *testing.T) {
 type unknownOutputValue struct{}
 
 func TestFormatSubagentToolPartialCalls(t *testing.T) {
-	start := &core.ToolCall{Name: "read_file", Input: map[string]any{"path": "README.md"}}
-	end := &core.ToolCall{Name: "read_file", Output: map[string]any{"total_lines": 2}}
+	start := &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "README.md"}}
+	end := &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"total_lines": 2}}
 	if got := ansi.Strip(FormatSubagentTool("reviewer", start, nil, "")); !strings.Contains(got, "[reviewer] Read") {
 		t.Fatalf("start-only subagent output = %q", got)
 	}

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/genkit"
@@ -224,15 +225,13 @@ func TestGenkitClient_StreamChat_ContextCancellation(t *testing.T) {
 	messages := []core.Message{{Role: core.RoleUser, Content: "Hello"}}
 	eventCh, _ := client.StreamChat(ctx, messages, nil)
 
-	var errorReceived bool
-	for event := range eventCh {
-		if event.Type == core.StreamEventTypeError {
-			errorReceived = true
+	select {
+	case _, ok := <-eventCh:
+		if ok {
+			t.Fatal("expected cancelled stream to close without an event")
 		}
-	}
-
-	if !errorReceived {
-		t.Error("expected error event for cancelled context")
+	case <-time.After(time.Second):
+		t.Fatal("cancelled stream did not close")
 	}
 }
 

@@ -1,7 +1,7 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"strings"
 	"testing"
 
@@ -10,13 +10,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 func testAskUserState() askUserState {
 	return askUserState{
 		input: newAskUserInput(),
-		request: &replaskuser.Request{Questionnaire: tools.AskUserRequest{Questions: []tools.AskUserQuestion{
+		request: &replaskuser.Request{Questionnaire: agentcore.AskUserRequest{Questions: []agentcore.AskUserQuestion{
 			{Question: "Choose one", Options: []string{"Recommended", "Alternative"}},
 			{Question: "Choose two", Options: []string{"First", "Second"}},
 		}}},
@@ -198,7 +197,7 @@ func TestAskUserResolvedSummaryKeepsAnswers(t *testing.T) {
 
 func TestAskUserResolvedSummaryIsOrderedInStream(t *testing.T) {
 	m := newTestModel()
-	m.stream.handler.Start(make(chan core.StreamEvent), "Loading...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.stream.handler.HandleChunk("Before")
 	m.askUser = testAskUserState()
 	m.stream.handler.SetAskUser(&m.askUser)
@@ -219,7 +218,7 @@ func TestAskUserResolvedSummaryIsOrderedInStream(t *testing.T) {
 func TestAskUserResolvedSummaryUsesViewportWidth(t *testing.T) {
 	m := newTestModel()
 	m.width = 80
-	m.stream.handler.Start(make(chan core.StreamEvent), "Loading...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.askUser = testAskUserState()
 	m.stream.handler.SetAskUser(&m.askUser)
 	m.askUser.answers = []string{"Recommended", "Second"}

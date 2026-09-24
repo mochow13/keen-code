@@ -1,14 +1,13 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
 	"time"
 
+	"github.com/mochow13/keen-code/internal/agentcore"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
-	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 type llmChunkMsg string
@@ -25,33 +24,33 @@ type llmRetryMsg struct {
 	attempt int
 }
 type llmToolStartMsg struct {
-	toolCall *core.ToolCall
+	toolCall *agentcore.ToolCall
 }
 type llmToolEndMsg struct {
-	toolCall *core.ToolCall
+	toolCall *agentcore.ToolCall
 }
 type llmUsageMsg struct {
-	usage *core.TokenUsage
+	usage *agentcore.TokenUsage
 }
 type llmAutoCompactionStartedMsg struct {
-	event *core.AutoCompactionEvent
+	event *agentcore.AutoCompactionEvent
 }
 type llmAutoCompactionAppliedMsg struct {
-	event *core.AutoCompactionEvent
+	event *agentcore.AutoCompactionEvent
 }
 type llmAutoCompactionCancelledMsg struct {
-	event *core.AutoCompactionEvent
+	event *agentcore.AutoCompactionEvent
 }
 type llmAutoCompactionFailedMsg struct {
-	event *core.AutoCompactionEvent
+	event *agentcore.AutoCompactionEvent
 }
 type mainStreamMsg struct {
-	eventCh <-chan core.StreamEvent
-	event   core.StreamEvent
+	eventCh <-chan agentcore.StreamEvent
+	event   agentcore.StreamEvent
 	closed  bool
 }
 type subagentActivityMsg struct {
-	activity subagents.ToolActivity
+	activity agentcore.ToolActivity
 }
 type askUserReadyMsg struct {
 	req *replaskuser.Request
@@ -116,8 +115,8 @@ type adversaryErrorMsg struct {
 	err error
 }
 type adversaryToolStartMsg struct {
-	toolCall *core.ToolCall
+	toolCall *agentcore.ToolCall
 }
 type adversaryToolEndMsg struct {
-	toolCall *core.ToolCall
+	toolCall *agentcore.ToolCall
 }

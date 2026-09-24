@@ -24,7 +24,7 @@ func (m *replModel) isQueueable(input string) bool {
 	if len(fields) == 0 {
 		return false
 	}
-	_, ok := m.appState.FindEnabledSkill(fields[0])
+	_, ok := m.agentCore.FindEnabledSkill(fields[0])
 	return ok
 }
 

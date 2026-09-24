@@ -2,33 +2,32 @@ package repl
 
 import (
 	"encoding/json"
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"maps"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/mochow13/keen-code/internal/llm/compress"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const maxHistoricalToolInputFieldBytes = 4 * 1024
 
 var retainedHistoricalToolInputs = map[string]struct{}{
-	tools.ReadFileToolName:  {},
-	tools.GrepToolName:      {},
-	tools.GlobToolName:      {},
-	tools.WebFetchToolName:  {},
-	tools.BashToolName:      {},
-	tools.DelegateToolName:  {},
-	tools.CallMCPToolName:   {},
-	tools.WriteFileToolName: {},
-	tools.EditFileToolName:  {},
-	tools.AskUserToolName:   {},
+	agentcore.ToolNameReadFile:  {},
+	agentcore.ToolNameGrep:      {},
+	agentcore.ToolNameGlob:      {},
+	agentcore.ToolNameWebFetch:  {},
+	agentcore.ToolNameBash:      {},
+	agentcore.ToolNameDelegate:  {},
+	agentcore.ToolNameCallMCP:   {},
+	agentcore.ToolNameWriteFile: {},
+	agentcore.ToolNameEditFile:  {},
+	agentcore.ToolNameAskUser:   {},
 }
 
 type turnMemoryAccumulator struct {
-	toolActivity []core.HistoricalToolActivity
+	toolActivity []agentcore.HistoricalToolActivity
 	retainOutput bool
 }
 
@@ -43,9 +42,9 @@ func (a *turnMemoryAccumulator) RecordToolActivity(segments []streamSegment, wor
 	a.toolActivity = collectHistoricalToolActivity(segments, workingDir, a.retainOutput)
 }
 
-func collectHistoricalToolActivity(segments []streamSegment, workingDir string, retainOutput bool) []core.HistoricalToolActivity {
+func collectHistoricalToolActivity(segments []streamSegment, workingDir string, retainOutput bool) []agentcore.HistoricalToolActivity {
 	textOffset := 0
-	activities := make([]core.HistoricalToolActivity, 0)
+	activities := make([]agentcore.HistoricalToolActivity, 0)
 
 	for _, segment := range segments {
 		switch segment.kind {
@@ -65,8 +64,8 @@ func collectHistoricalToolActivity(segments []streamSegment, workingDir string, 
 	return activities
 }
 
-func historicalToolActivity(toolCall *core.ToolCall, textOffset int, workingDir, bashCommand string, retainOutput bool) core.HistoricalToolActivity {
-	activity := core.HistoricalToolActivity{
+func historicalToolActivity(toolCall *agentcore.ToolCall, textOffset int, workingDir, bashCommand string, retainOutput bool) agentcore.HistoricalToolActivity {
+	activity := agentcore.HistoricalToolActivity{
 		TextOffset: textOffset,
 		Tool:       toolCall.Name,
 		Status:     "success",
@@ -82,7 +81,7 @@ func historicalToolActivity(toolCall *core.ToolCall, textOffset int, workingDir,
 		} else {
 			activity.RetainedOutput = compress.ForLLM(toolCall.Name, toolCall.Output)
 		}
-	} else if toolCall.Name == tools.AskUserToolName {
+	} else if toolCall.Name == agentcore.ToolNameAskUser {
 		activity.RetainedOutput = toolCall.Output
 	}
 
@@ -94,18 +93,18 @@ func historicalToolActivity(toolCall *core.ToolCall, textOffset int, workingDir,
 				input["path"] = relativizePath(path, workingDir)
 			}
 		}
-		if toolCall.Name == tools.BashToolName && bashCommand != "" {
+		if toolCall.Name == agentcore.ToolNameBash && bashCommand != "" {
 			input = cloneToolInput(input)
 			input["command"] = bashCommand
 		}
-		if toolCall.Name == tools.AskUserToolName {
+		if toolCall.Name == agentcore.ToolNameAskUser {
 			activity.Input = cloneToolInput(input)
 		} else {
 			activity.Input = boundedHistoricalToolInput(input, truncatesHistoricalToolInput(toolCall.Name))
 		}
 	}
 
-	if toolCall.Name == tools.BashToolName {
+	if toolCall.Name == agentcore.ToolNameBash {
 		exitCode, ok := extractIntField(toolCall.Output, "exit_code")
 		if ok && exitCode != 0 {
 			activity.ExitCode = &exitCode
@@ -153,19 +152,19 @@ func cloneToolInput(input map[string]any) map[string]any {
 }
 
 func retainsPathInput(tool string) bool {
-	return tool == tools.ReadFileToolName || tool == tools.GrepToolName || tool == tools.GlobToolName || tool == tools.WriteFileToolName || tool == tools.EditFileToolName
+	return tool == agentcore.ToolNameReadFile || tool == agentcore.ToolNameGrep || tool == agentcore.ToolNameGlob || tool == agentcore.ToolNameWriteFile || tool == agentcore.ToolNameEditFile
 }
 
 func truncatesHistoricalToolInput(tool string) bool {
-	return tool == tools.WriteFileToolName || tool == tools.EditFileToolName
+	return tool == agentcore.ToolNameWriteFile || tool == agentcore.ToolNameEditFile
 }
 
-func (a *turnMemoryAccumulator) Build() *core.TurnMemory {
+func (a *turnMemoryAccumulator) Build() *agentcore.TurnMemory {
 	if a == nil || len(a.toolActivity) == 0 {
 		return nil
 	}
 
-	return core.CloneTurnMemory(&core.TurnMemory{ToolActivity: a.toolActivity})
+	return agentcore.CloneTurnMemory(&agentcore.TurnMemory{ToolActivity: a.toolActivity})
 }
 
 func extractIntField(output any, key string) (int, bool) {
@@ -202,7 +201,7 @@ func (m *replModel) recordHistoricalToolActivity(segments []streamSegment) {
 	m.turnMemory.RecordToolActivity(segments, m.turnMemoryWorkingDir())
 }
 
-func (m *replModel) consumeTurnMemory() *core.TurnMemory {
+func (m *replModel) consumeTurnMemory() *agentcore.TurnMemory {
 	if m == nil || m.turnMemory == nil {
 		return nil
 	}
@@ -222,8 +221,8 @@ func (m *replModel) turnMemoryWorkingDir() string {
 	if m == nil {
 		return ""
 	}
-	if m.appState != nil && m.appState.WorkingDir() != "" {
-		return m.appState.WorkingDir()
+	if m.agentCore != nil && m.agentCore.WorkingDir() != "" {
+		return m.agentCore.WorkingDir()
 	}
 	if m.ctx != nil {
 		return m.ctx.workingDir

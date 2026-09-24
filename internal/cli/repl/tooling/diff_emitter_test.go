@@ -3,12 +3,12 @@ package tooling
 import (
 	"testing"
 
-	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/agentcore"
 )
 
 func TestDiffEmitterRoundTrip(t *testing.T) {
 	emitter := NewDiffEmitter()
-	lines := []tools.EditDiffLine{{Kind: tools.DiffLineAdded, NewLineNum: 1, Content: "added"}}
+	lines := []agentcore.EditDiffLine{{Kind: agentcore.EditDiffLineAdded, NewLineNum: 1, Content: "added"}}
 	finished := make(chan struct{})
 	go func() {
 		emitter.EmitDiff(lines)

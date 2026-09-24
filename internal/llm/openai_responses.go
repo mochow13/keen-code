@@ -159,7 +159,7 @@ func (c *OpenAIResponsesClient) compactHistory(
 	}
 
 	childCtx, cancel := context.WithCancel(ctx)
-	eventCh <- core.StreamEvent{Type: core.StreamEventTypeAutoCompactionStarted, AutoCompaction: &core.AutoCompactionEvent{Cancel: cancel}}
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeAutoCompactionStarted, AutoCompaction: &core.AutoCompactionEvent{Cancel: cancel}})
 	replacement, usage, err := AutoCompact(childCtx, c, *compactionHistory, toolRegistry, streamOpts.SessionID)
 	cancel()
 	if err != nil {
@@ -167,7 +167,7 @@ func (c *OpenAIResponsesClient) compactHistory(
 		if compaction.IsCancellation(err) {
 			eventType = core.StreamEventTypeAutoCompactionCancelled
 		}
-		eventCh <- core.StreamEvent{Type: eventType, AutoCompaction: &core.AutoCompactionEvent{Usage: usage, Error: err}}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: eventType, AutoCompaction: &core.AutoCompactionEvent{Usage: usage, Error: err}})
 		return err
 	}
 
@@ -176,7 +176,7 @@ func (c *OpenAIResponsesClient) compactHistory(
 	*turnStartLen = len(*input)
 	*replayedPendingInput = nil
 	c.pendingState = nil
-	eventCh <- core.StreamEvent{Type: core.StreamEventTypeAutoCompactionApplied, AutoCompaction: &core.AutoCompactionEvent{Replacement: replacement, Usage: usage}}
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeAutoCompactionApplied, AutoCompaction: &core.AutoCompactionEvent{Replacement: replacement, Usage: usage}})
 	return nil
 }
 
@@ -266,10 +266,10 @@ func (c *OpenAIResponsesClient) StreamChat(
 			)
 			if err != nil {
 				if compactionAttempted {
-					c.exitIncomplete(eventCh, input, turnStartLen, replayedPendingInput, err, oneShot)
+					c.exitIncomplete(ctx, eventCh, input, turnStartLen, replayedPendingInput, err, oneShot)
 				} else {
 					c.pendingState = nil
-					c.emitTerminalEvent(eventCh, input, turnStartLen, replayedPendingInput, err)
+					c.emitTerminalEvent(ctx, eventCh, input, turnStartLen, replayedPendingInput, err)
 				}
 				return
 			}
@@ -300,11 +300,11 @@ func (c *OpenAIResponsesClient) StreamChat(
 
 			completed, streamedContent, toolCalls, err := c.collectTurnWithRetry(ctx, params, eventCh, c.requestOptions(sessionID)...)
 			if err != nil {
-				c.exitIncomplete(eventCh, input, turnStartLen, replayedPendingInput, err, oneShot)
+				c.exitIncomplete(ctx, eventCh, input, turnStartLen, replayedPendingInput, err, oneShot)
 				return
 			}
 			if completed == nil {
-				c.exitIncomplete(eventCh, input, turnStartLen, replayedPendingInput, nil, oneShot)
+				c.exitIncomplete(ctx, eventCh, input, turnStartLen, replayedPendingInput, nil, oneShot)
 				return
 			}
 
@@ -317,7 +317,7 @@ func (c *OpenAIResponsesClient) StreamChat(
 					"reasoningTokens", completed.Usage.OutputTokensDetails.ReasoningTokens,
 					"cachedTokens", completed.Usage.InputTokensDetails.CachedTokens,
 				)
-				eventCh <- core.StreamEvent{
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{
 					Type: core.StreamEventTypeUsage,
 					Usage: &core.TokenUsage{
 						InputTokens:     int(completed.Usage.InputTokens),
@@ -326,12 +326,12 @@ func (c *OpenAIResponsesClient) StreamChat(
 						ReasoningTokens: int(completed.Usage.OutputTokensDetails.ReasoningTokens),
 						CachedTokens:    int(completed.Usage.InputTokensDetails.CachedTokens),
 					},
-				}
+				})
 			}
-			emitMissingFinalContent(eventCh, completed.OutputText(), streamedContent)
+			emitMissingFinalContent(ctx, eventCh, completed.OutputText(), streamedContent)
 
 			if len(toolCalls) == 0 {
-				eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 				return
 			}
 
@@ -353,7 +353,7 @@ func (c *OpenAIResponsesClient) StreamChat(
 			autoCompactOff = false
 		}
 
-		c.exitIncomplete(eventCh, input, turnStartLen, replayedPendingInput, nil, oneShot)
+		c.exitIncomplete(ctx, eventCh, input, turnStartLen, replayedPendingInput, nil, oneShot)
 	}()
 
 	return eventCh, nil
@@ -397,11 +397,19 @@ func (c *OpenAIResponsesClient) injectPendingState(input []responses.ResponseInp
 	return input, replayedPendingInput
 }
 
-func (c *OpenAIResponsesClient) exitIncomplete(eventCh chan<- core.StreamEvent, input []responses.ResponseInputItemUnionParam, turnStartLen int, replayedPendingInput []responses.ResponseInputItemUnionParam, err error, oneShot bool) {
+func (c *OpenAIResponsesClient) exitIncomplete(
+	ctx context.Context,
+	eventCh chan<- core.StreamEvent,
+	input []responses.ResponseInputItemUnionParam,
+	turnStartLen int,
+	replayedPendingInput []responses.ResponseInputItemUnionParam,
+	err error,
+	oneShot bool,
+) {
 	if !oneShot {
 		c.savePendingIfAccumulated(input, turnStartLen, replayedPendingInput)
 	}
-	c.emitTerminalEvent(eventCh, input, turnStartLen, replayedPendingInput, err)
+	c.emitTerminalEvent(ctx, eventCh, input, turnStartLen, replayedPendingInput, err)
 }
 
 func (c *OpenAIResponsesClient) savePendingIfAccumulated(input []responses.ResponseInputItemUnionParam, turnStartLen int, replayedPendingInput []responses.ResponseInputItemUnionParam) {
@@ -419,13 +427,20 @@ func (c *OpenAIResponsesClient) savePendingIfAccumulated(input []responses.Respo
 	c.pendingState = append(c.pendingState, newDelta...)
 }
 
-func (c *OpenAIResponsesClient) emitTerminalEvent(eventCh chan<- core.StreamEvent, input []responses.ResponseInputItemUnionParam, turnStartLen int, replayedPendingInput []responses.ResponseInputItemUnionParam, err error) {
+func (c *OpenAIResponsesClient) emitTerminalEvent(
+	ctx context.Context,
+	eventCh chan<- core.StreamEvent,
+	input []responses.ResponseInputItemUnionParam,
+	turnStartLen int,
+	replayedPendingInput []responses.ResponseInputItemUnionParam,
+	err error,
+) {
 	if len(replayedPendingInput) > 0 || len(input) > turnStartLen {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err})
 	} else if err != nil {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeError, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeError, Error: err})
 	} else {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 	}
 }
 
@@ -435,7 +450,7 @@ func (c *OpenAIResponsesClient) collectTurnWithRetry(ctx context.Context, params
 	var calls []responses.ResponseFunctionToolCall
 	err := retry.Run(ctx, c.maxRetries, func(attempt, maxRetries int, err error) {
 		slog.Debug("LLM stream error, retrying", "attempt", attempt, "maxRetries", maxRetries, "backoff", time.Duration(attempt)*time.Second, "error", err)
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt})
 	}, func() error {
 		var err error
 		completed, content, calls, err = c.collectTurn(ctx, params, eventCh, opts...)
@@ -464,7 +479,7 @@ func (c *OpenAIResponsesClient) collectTurn(
 		case "response.output_text.delta":
 			if ev.Delta != "" {
 				streamedContent.WriteString(ev.Delta)
-				emitChunk(eventCh, ev.Delta)
+				emitChunk(ctx, eventCh, ev.Delta)
 			}
 		case "response.reasoning.delta", "response.reasoning_summary.delta", "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
 			reasoning := ev.Delta
@@ -472,10 +487,10 @@ func (c *OpenAIResponsesClient) collectTurn(
 				reasoning = ev.Text
 			}
 			if reasoning != "" {
-				eventCh <- core.StreamEvent{
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{
 					Type:    core.StreamEventTypeReasoningChunk,
 					Content: reasoning,
-				}
+				})
 			}
 		case "error":
 			msg := strings.TrimSpace(ev.Message)

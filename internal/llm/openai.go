@@ -228,14 +228,14 @@ func extractReasoningDelta(extra map[string]respjson.Field) string {
 	return ""
 }
 
-func emitChunk(eventCh chan<- core.StreamEvent, content string) {
+func emitChunk(ctx context.Context, eventCh chan<- core.StreamEvent, content string) {
 	if content == "" {
 		return
 	}
-	eventCh <- core.StreamEvent{
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{
 		Type:    core.StreamEventTypeChunk,
 		Content: content,
-	}
+	})
 }
 
 func functionToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []openai.ChatCompletionMessageFunctionToolCall {
@@ -280,6 +280,7 @@ func (c *OpenAICompatibleClient) buildAssistantMessage(message openai.ChatComple
 }
 
 func emitMissingFinalContent(
+	ctx context.Context,
 	eventCh chan<- core.StreamEvent,
 	fullContent string,
 	streamedContent string,
@@ -293,13 +294,13 @@ func emitMissingFinalContent(
 	// duplicate UI text while still handling providers that send little/no deltas.
 	if strings.HasPrefix(fullContent, streamedContent) {
 		if tail := fullContent[len(streamedContent):]; tail != "" {
-			emitChunk(eventCh, tail)
+			emitChunk(ctx, eventCh, tail)
 		}
 		return
 	}
 
 	if streamedContent == "" {
-		emitChunk(eventCh, fullContent)
+		emitChunk(ctx, eventCh, fullContent)
 	}
 }
 
@@ -332,7 +333,7 @@ func (c *OpenAICompatibleClient) collectTurn(
 		delta := chunk.Choices[0].Delta
 		if delta.Content != "" {
 			streamedContent.WriteString(delta.Content)
-			emitChunk(eventCh, delta.Content)
+			emitChunk(ctx, eventCh, delta.Content)
 		}
 
 		// reasoning_content/reasoning are OpenAI-compatible extensions not modeled by openai-go.
@@ -340,10 +341,10 @@ func (c *OpenAICompatibleClient) collectTurn(
 		reasoningDelta := extractReasoningDelta(delta.JSON.ExtraFields)
 		reasoningContent.WriteString(reasoningDelta)
 		if reasoningDelta != "" {
-			eventCh <- core.StreamEvent{
+			sendStreamEvent(ctx, eventCh, core.StreamEvent{
 				Type:    core.StreamEventTypeReasoningChunk,
 				Content: reasoningDelta,
-			}
+			})
 		}
 
 		if len(delta.ToolCalls) > 0 {
@@ -372,7 +373,7 @@ func (c *OpenAICompatibleClient) collectTurnWithRetry(ctx context.Context, param
 	var usage openai.CompletionUsage
 	err := retry.Run(ctx, c.maxRetries, func(attempt, maxRetries int, err error) {
 		slog.Debug("LLM stream error, retrying", "attempt", attempt, "maxRetries", maxRetries, "backoff", time.Duration(attempt)*time.Second, "error", err)
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt})
 	}, func() error {
 		var err error
 		message, reasoning, content, hasChoice, usage, err = c.collectTurn(ctx, params, eventCh, requestOpts...)
@@ -478,11 +479,11 @@ func openAIThinkingMode(provider providerconfig.Provider, model string) openAITh
 	return openAIThinkingParamNone
 }
 
-func (c *OpenAICompatibleClient) exitIncomplete(eventCh chan<- core.StreamEvent, oaiMessages []openai.ChatCompletionMessageParamUnion, turnStartLen int, injectedPending []openai.ChatCompletionMessageParamUnion, err error, oneShot bool) {
+func (c *OpenAICompatibleClient) exitIncomplete(ctx context.Context, eventCh chan<- core.StreamEvent, oaiMessages []openai.ChatCompletionMessageParamUnion, turnStartLen int, injectedPending []openai.ChatCompletionMessageParamUnion, err error, oneShot bool) {
 	if !oneShot {
 		c.savePendingIfAccumulated(oaiMessages, turnStartLen, injectedPending)
 	}
-	c.emitTerminalEvent(eventCh, oaiMessages, turnStartLen, injectedPending, err)
+	c.emitTerminalEvent(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, err)
 }
 
 func (c *OpenAICompatibleClient) StreamChat(
@@ -528,10 +529,10 @@ func (c *OpenAICompatibleClient) StreamChat(
 			)
 			if err != nil {
 				if compactionAttempted {
-					c.exitIncomplete(eventCh, oaiMessages, turnStartLen, injectedPending, err, oneShot)
+					c.exitIncomplete(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, err, oneShot)
 				} else {
 					c.pendingState = nil
-					c.emitTerminalEvent(eventCh, oaiMessages, turnStartLen, injectedPending, err)
+					c.emitTerminalEvent(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, err)
 				}
 				return
 			}
@@ -545,12 +546,12 @@ func (c *OpenAICompatibleClient) StreamChat(
 
 			message, reasoningContent, streamedContent, hasChoice, usage, err := c.collectTurnWithRetry(ctx, params, eventCh, requestOpts...)
 			if err != nil {
-				c.exitIncomplete(eventCh, oaiMessages, turnStartLen, injectedPending, err, oneShot)
+				c.exitIncomplete(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, err, oneShot)
 				return
 			}
 
 			if !hasChoice {
-				c.exitIncomplete(eventCh, oaiMessages, turnStartLen, injectedPending, nil, oneShot)
+				c.exitIncomplete(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, nil, oneShot)
 				return
 			}
 			if usage.PromptTokens > 0 || usage.CompletionTokens > 0 {
@@ -562,7 +563,7 @@ func (c *OpenAICompatibleClient) StreamChat(
 					"cached_tokens", usage.PromptTokensDetails.CachedTokens,
 					"reasoning_tokens", usage.CompletionTokensDetails.ReasoningTokens,
 				)
-				eventCh <- core.StreamEvent{
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{
 					Type: core.StreamEventTypeUsage,
 					Usage: &core.TokenUsage{
 						InputTokens:     int(usage.PromptTokens),
@@ -571,14 +572,14 @@ func (c *OpenAICompatibleClient) StreamChat(
 						CachedTokens:    int(usage.PromptTokensDetails.CachedTokens),
 						ReasoningTokens: int(usage.CompletionTokensDetails.ReasoningTokens),
 					},
-				}
+				})
 			}
-			emitMissingFinalContent(eventCh, message.Content, streamedContent)
+			emitMissingFinalContent(ctx, eventCh, message.Content, streamedContent)
 			toolCalls := functionToolCalls(message.ToolCalls)
 			assistant := c.buildAssistantMessage(message, reasoningContent, toolCalls)
 
 			if len(toolCalls) == 0 {
-				eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 				return
 			}
 
@@ -604,7 +605,7 @@ func (c *OpenAICompatibleClient) StreamChat(
 			hasNewToolTurns = true
 		}
 
-		c.exitIncomplete(eventCh, oaiMessages, turnStartLen, injectedPending, nil, oneShot)
+		c.exitIncomplete(ctx, eventCh, oaiMessages, turnStartLen, injectedPending, nil, oneShot)
 	}()
 
 	return eventCh, nil
@@ -689,26 +690,26 @@ func (c *OpenAICompatibleClient) compactHistory(
 func (c *OpenAICompatibleClient) autoCompact(ctx context.Context, history []core.Message, toolRegistry *tools.Registry, sessionID string, eventCh chan<- core.StreamEvent) ([]core.Message, bool, error) {
 	compactionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	eventCh <- core.StreamEvent{
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{
 		Type:           core.StreamEventTypeAutoCompactionStarted,
 		AutoCompaction: &core.AutoCompactionEvent{Cancel: cancel},
-	}
+	})
 	replacement, usage, err := AutoCompact(compactionCtx, c, history, toolRegistry, sessionID)
 	if err != nil {
 		eventType := core.StreamEventTypeAutoCompactionFailed
 		if compaction.IsCancellation(err) {
 			eventType = core.StreamEventTypeAutoCompactionCancelled
 		}
-		eventCh <- core.StreamEvent{
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{
 			Type:           eventType,
 			AutoCompaction: &core.AutoCompactionEvent{Usage: usage, Error: err},
-		}
+		})
 		return nil, false, err
 	}
-	eventCh <- core.StreamEvent{
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{
 		Type:           core.StreamEventTypeAutoCompactionApplied,
 		AutoCompaction: &core.AutoCompactionEvent{Replacement: replacement, Usage: usage},
-	}
+	})
 	return replacement, true, nil
 }
 
@@ -727,7 +728,11 @@ func (c *OpenAICompatibleClient) Reset() {
 	c.pendingState = nil
 }
 
-func (c *OpenAICompatibleClient) savePendingIfAccumulated(oaiMessages []openai.ChatCompletionMessageParamUnion, turnStartLen int, injectedPending []openai.ChatCompletionMessageParamUnion) {
+func (c *OpenAICompatibleClient) savePendingIfAccumulated(
+	oaiMessages []openai.ChatCompletionMessageParamUnion,
+	turnStartLen int,
+	injectedPending []openai.ChatCompletionMessageParamUnion,
+) {
 	if len(injectedPending) == 0 && len(oaiMessages) <= turnStartLen {
 		return
 	}
@@ -742,13 +747,20 @@ func (c *OpenAICompatibleClient) savePendingIfAccumulated(oaiMessages []openai.C
 	c.pendingState = append(c.pendingState, newDelta...)
 }
 
-func (c *OpenAICompatibleClient) emitTerminalEvent(eventCh chan<- core.StreamEvent, oaiMessages []openai.ChatCompletionMessageParamUnion, turnStartLen int, injectedPending []openai.ChatCompletionMessageParamUnion, err error) {
+func (c *OpenAICompatibleClient) emitTerminalEvent(
+	ctx context.Context,
+	eventCh chan<- core.StreamEvent,
+	oaiMessages []openai.ChatCompletionMessageParamUnion,
+	turnStartLen int,
+	injectedPending []openai.ChatCompletionMessageParamUnion,
+	err error,
+) {
 	if len(injectedPending) > 0 || len(oaiMessages) > turnStartLen {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err})
 	} else if err != nil {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeError, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeError, Error: err})
 	} else {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 	}
 }
 

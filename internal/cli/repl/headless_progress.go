@@ -2,7 +2,7 @@ package repl
 
 import (
 	"fmt"
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"io"
 
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
@@ -28,7 +28,7 @@ func (p *headlessProgress) writeText(content string) {
 	p.midLine = true
 }
 
-func (p *headlessProgress) writeToolEnd(toolCall *core.ToolCall) {
+func (p *headlessProgress) writeToolEnd(toolCall *agentcore.ToolCall) {
 	if p.out == nil || toolCall == nil {
 		return
 	}

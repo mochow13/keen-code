@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/session"
 	"github.com/mochow13/keen-code/internal/tools"
@@ -405,12 +406,11 @@ func loadOnlyHeadlessSessionEvents(t *testing.T, workingDir string) []session.Ev
 
 func TestCheckpointHeadlessAutoCompactionRejectsEmptyReplacement(t *testing.T) {
 	handler := NewStreamHandler(nil)
-	handler.Start(make(chan core.StreamEvent), "")
-	appState := appstate.New(nil, "/tmp")
+	handler.Start(make(chan agentcore.StreamEvent), "")
 	completedText := &strings.Builder{}
 	turnMemory := newTurnMemoryAccumulator(false)
 
-	err := checkpointHeadlessAutoCompaction(nil, appState, handler, turnMemory, completedText, &core.AutoCompactionEvent{})
+	err := checkpointHeadlessAutoCompaction(nil, agentcore.New(nil, "/tmp", &config.ResolvedConfig{}, nil), handler, turnMemory, completedText, &agentcore.AutoCompactionEvent{})
 	if err == nil {
 		t.Fatal("expected empty replacement error")
 	}
@@ -496,6 +496,77 @@ func TestRunHeadless_AutoCompactionCheckpointsOutputAndSession(t *testing.T) {
 	}
 	if got := session.BuildConversation(events); len(got) != 2 || got[0].Role != core.RoleUser || got[0].Content != "compacted context" || got[1].Content != " after checkpoint" {
 		t.Fatalf("unexpected projected conversation: %#v", got)
+	}
+}
+
+func TestRunHeadless_ClosedStreamWithoutDoneFinishesSuccessfully(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []core.StreamEvent{
+		{Type: core.StreamEventTypeChunk, Content: "partial"},
+	}}
+	var out bytes.Buffer
+
+	result, err := RunHeadless(context.Background(), HeadlessRunOptions{
+		WorkingDir: workingDir,
+		Config:     headlessTestConfig(),
+		Client:     client,
+		Prompt:     "task",
+		Out:        &out,
+	})
+	if err != nil {
+		t.Fatalf("RunHeadless() error = %v", err)
+	}
+	if result.Text != "partial" {
+		t.Fatalf("result text = %q, want %q", result.Text, "partial")
+	}
+	if !strings.Contains(out.String(), "partial") {
+		t.Fatalf("expected output to contain partial response: %q", out.String())
+	}
+}
+
+func TestRunHeadless_ClosedStreamWithCancelledContextFails(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{}
+	var out bytes.Buffer
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := RunHeadless(ctx, HeadlessRunOptions{
+		WorkingDir: workingDir,
+		Config:     headlessTestConfig(),
+		Client:     client,
+		Prompt:     "task",
+		Out:        &out,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RunHeadless() error = %v, want context.Canceled", err)
+	}
+	if result == nil {
+		t.Fatal("expected partial result on cancellation")
+	}
+}
+
+func TestRunHeadless_ClosedStreamWithDeadlineExceededFails(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{}
+	var out bytes.Buffer
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
+	defer cancel()
+
+	result, err := RunHeadless(ctx, HeadlessRunOptions{
+		WorkingDir: workingDir,
+		Config:     headlessTestConfig(),
+		Client:     client,
+		Prompt:     "task",
+		Out:        &out,
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("RunHeadless() error = %v, want context.DeadlineExceeded", err)
+	}
+	if result == nil {
+		t.Fatal("expected partial result on deadline exceeded")
 	}
 }
 

@@ -3,7 +3,7 @@ package repl
 import (
 	"context"
 	"errors"
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"strings"
 	"testing"
 	"time"
@@ -14,9 +14,7 @@ import (
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	"github.com/mochow13/keen-code/internal/config"
-	"github.com/mochow13/keen-code/internal/llm"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 func TestDisplayModelName(t *testing.T) {
@@ -68,12 +66,16 @@ func TestLoadingElapsedText(t *testing.T) {
 
 func TestCurrentModeDefaultsToBuild(t *testing.T) {
 	m := newTestModel()
-	m.mode = ""
-	if got := m.currentMode(); got != llm.ModeBuild {
+	if got := m.currentMode(); got != agentcore.ModeBuild {
 		t.Fatalf("currentMode() = %q, want build", got)
 	}
-	m.mode = llm.ModePlan
-	if got := m.currentMode(); got != llm.ModePlan {
+	// An unknown mode behind the AgentCore boundary falls back to build.
+	m.agentCore.(*mockAgentCore).mode = agentcore.Mode("unknown")
+	if got := m.currentMode(); got != agentcore.ModeBuild {
+		t.Fatalf("currentMode() = %q, want build for unknown mode", got)
+	}
+	m.setMode(agentcore.ModePlan)
+	if got := m.currentMode(); got != agentcore.ModePlan {
 		t.Fatalf("currentMode() = %q, want plan", got)
 	}
 }
@@ -135,8 +137,8 @@ func TestWaitForAsyncEventRoutesReadyInputs(t *testing.T) {
 		t.Fatal("waitForAsyncEvent returned a command without an LLM channel")
 	}
 
-	llmCh := make(chan core.StreamEvent, 1)
-	llmCh <- core.StreamEvent{Type: core.StreamEventTypeChunk, Content: "chunk"}
+	llmCh := make(chan agentcore.StreamEvent, 1)
+	llmCh <- agentcore.StreamEvent{Type: agentcore.StreamEventTypeChunk, Content: "chunk"}
 	if msg, ok := waitForAsyncEvent(llmCh, nil, nil, nil, nil)().(mainStreamMsg); !ok || msg.event.Content != "chunk" {
 		t.Fatalf("unexpected LLM message %#v", msg)
 	}
@@ -144,26 +146,26 @@ func TestWaitForAsyncEventRoutesReadyInputs(t *testing.T) {
 	permissionCh := make(chan *replpermissions.Request, 1)
 	request := &replpermissions.Request{ToolName: "read_file"}
 	permissionCh <- request
-	if msg, ok := waitForAsyncEvent(make(chan core.StreamEvent), permissionCh, nil, nil, nil)().(permissionReadyMsg); !ok || msg.req != request {
+	if msg, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), permissionCh, nil, nil, nil)().(permissionReadyMsg); !ok || msg.req != request {
 		t.Fatalf("unexpected permission message %#v", msg)
 	}
 
 	diffCh := make(chan repltooling.DiffRequest, 1)
 	diffCh <- repltooling.DiffRequest{}
-	if _, ok := waitForAsyncEvent(make(chan core.StreamEvent), nil, diffCh, nil, nil)().(diffReadyMsg); !ok {
+	if _, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, diffCh, nil, nil)().(diffReadyMsg); !ok {
 		t.Fatal("expected diffReadyMsg")
 	}
 
-	subagentCh := make(chan subagents.ToolActivity, 1)
-	subagentCh <- subagents.ToolActivity{}
-	if _, ok := waitForAsyncEvent(make(chan core.StreamEvent), nil, nil, subagentCh, nil)().(subagentActivityMsg); !ok {
+	subagentCh := make(chan agentcore.ToolActivity, 1)
+	subagentCh <- agentcore.ToolActivity{}
+	if _, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, nil, subagentCh, nil)().(subagentActivityMsg); !ok {
 		t.Fatal("expected subagentActivityMsg")
 	}
 
 	askUserCh := make(chan *replaskuser.Request, 1)
 	askRequest := &replaskuser.Request{}
 	askUserCh <- askRequest
-	if msg, ok := waitForAsyncEvent(make(chan core.StreamEvent), nil, nil, nil, askUserCh)().(askUserReadyMsg); !ok || msg.req != askRequest {
+	if msg, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, nil, nil, askUserCh)().(askUserReadyMsg); !ok || msg.req != askRequest {
 		t.Fatalf("unexpected ask_user message %#v", msg)
 	}
 }
@@ -213,26 +215,26 @@ func TestWaitForAdversaryEvent(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		event core.StreamEvent
+		event agentcore.StreamEvent
 		check func(tea.Msg) bool
 	}{
-		{name: "chunk", event: core.StreamEvent{Type: core.StreamEventTypeChunk, Content: "text"}, check: func(msg tea.Msg) bool { v, ok := msg.(adversaryChunkMsg); return ok && string(v) == "text" }},
-		{name: "tool start", event: core.StreamEvent{Type: core.StreamEventTypeToolStart, ToolCall: &core.ToolCall{Name: "read_file"}}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryToolStartMsg); return ok }},
-		{name: "tool end", event: core.StreamEvent{Type: core.StreamEventTypeToolEnd, ToolCall: &core.ToolCall{Name: "read_file"}}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryToolEndMsg); return ok }},
-		{name: "done", event: core.StreamEvent{Type: core.StreamEventTypeDone}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryDoneMsg); return ok }},
-		{name: "error", event: core.StreamEvent{Type: core.StreamEventTypeError, Error: errors.New("failed")}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryErrorMsg); return ok }},
-		{name: "incomplete", event: core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: errors.New("incomplete")}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryErrorMsg); return ok }},
+		{name: "chunk", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeChunk, Content: "text"}, check: func(msg tea.Msg) bool { v, ok := msg.(adversaryChunkMsg); return ok && string(v) == "text" }},
+		{name: "tool start", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file"}}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryToolStartMsg); return ok }},
+		{name: "tool end", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file"}}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryToolEndMsg); return ok }},
+		{name: "done", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeDone}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryDoneMsg); return ok }},
+		{name: "error", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeError, Error: errors.New("failed")}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryErrorMsg); return ok }},
+		{name: "incomplete", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeIncomplete, Error: errors.New("incomplete")}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryErrorMsg); return ok }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ch := make(chan core.StreamEvent, 1)
+			ch := make(chan agentcore.StreamEvent, 1)
 			ch <- tt.event
 			if msg := waitForAdversaryEvent(ch)(); !tt.check(msg) {
 				t.Fatalf("unexpected message %#v", msg)
 			}
 		})
 	}
-	closed := make(chan core.StreamEvent)
+	closed := make(chan agentcore.StreamEvent)
 	close(closed)
 	if _, ok := waitForAdversaryEvent(closed)().(adversaryDoneMsg); !ok {
 		t.Fatal("closed channel did not produce adversaryDoneMsg")
@@ -244,22 +246,22 @@ func TestWaitForBtwEvent(t *testing.T) {
 		t.Fatal("waitForBtwEvent returned command for nil channel")
 	}
 	tests := []struct {
-		event core.StreamEvent
+		event agentcore.StreamEvent
 		check func(tea.Msg) bool
 	}{
-		{event: core.StreamEvent{Type: core.StreamEventTypeChunk, Content: "text"}, check: func(msg tea.Msg) bool { v, ok := msg.(btwChunkMsg); return ok && string(v) == "text" }},
-		{event: core.StreamEvent{Type: core.StreamEventTypeDone}, check: func(msg tea.Msg) bool { _, ok := msg.(btwDoneMsg); return ok }},
-		{event: core.StreamEvent{Type: core.StreamEventTypeError, Error: errors.New("failed")}, check: func(msg tea.Msg) bool { _, ok := msg.(btwErrorMsg); return ok }},
-		{event: core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: errors.New("incomplete")}, check: func(msg tea.Msg) bool { _, ok := msg.(btwErrorMsg); return ok }},
+		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeChunk, Content: "text"}, check: func(msg tea.Msg) bool { v, ok := msg.(btwChunkMsg); return ok && string(v) == "text" }},
+		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeDone}, check: func(msg tea.Msg) bool { _, ok := msg.(btwDoneMsg); return ok }},
+		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeError, Error: errors.New("failed")}, check: func(msg tea.Msg) bool { _, ok := msg.(btwErrorMsg); return ok }},
+		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeIncomplete, Error: errors.New("incomplete")}, check: func(msg tea.Msg) bool { _, ok := msg.(btwErrorMsg); return ok }},
 	}
 	for _, tt := range tests {
-		ch := make(chan core.StreamEvent, 1)
+		ch := make(chan agentcore.StreamEvent, 1)
 		ch <- tt.event
 		if msg := waitForBtwEvent(ch)(); !tt.check(msg) {
 			t.Fatalf("unexpected message %#v", msg)
 		}
 	}
-	closed := make(chan core.StreamEvent)
+	closed := make(chan agentcore.StreamEvent)
 	close(closed)
 	if _, ok := waitForBtwEvent(closed)().(btwDoneMsg); !ok {
 		t.Fatal("closed channel did not produce btwDoneMsg")
@@ -296,12 +298,12 @@ func TestHandleSessionPersistenceError(t *testing.T) {
 
 func TestSetModeYoloSyncsAppStateAndRequester(t *testing.T) {
 	m := newTestModel()
-	m.setMode(llm.ModeYolo)
-	if got := m.currentMode(); got != llm.ModeYolo {
+	m.setMode(agentcore.ModeYolo)
+	if got := m.currentMode(); got != agentcore.ModeYolo {
 		t.Fatalf("currentMode() = %q, want yolo", got)
 	}
-	if got := m.appState.Mode(); got != llm.ModeYolo {
-		t.Fatalf("appState.Mode() = %q, want yolo", got)
+	if got := m.agentCore.Mode(); got != agentcore.ModeYolo {
+		t.Fatalf("agentCore.Mode() = %q, want yolo", got)
 	}
 	allowed, err := m.permissionRequester.RequestPermission(context.Background(), "bash", "rm -rf /tmp/x", "", true)
 	if err != nil || !allowed {
@@ -316,9 +318,9 @@ func TestSetModeYoloSyncsAppStateAndRequester(t *testing.T) {
 	default:
 	}
 
-	m.setMode(llm.ModeBuild)
-	if got := m.appState.Mode(); got != llm.ModeBuild {
-		t.Fatalf("appState.Mode() = %q, want build", got)
+	m.setMode(agentcore.ModeBuild)
+	if got := m.agentCore.Mode(); got != agentcore.ModeBuild {
+		t.Fatalf("agentCore.Mode() = %q, want build", got)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	resultCh := make(chan bool, 1)
@@ -339,27 +341,27 @@ func TestSetModeYoloSyncsAppStateAndRequester(t *testing.T) {
 	cancel()
 	<-resultCh
 
-	m.setMode(llm.AgentMode("unknown"))
-	if got := m.currentMode(); got != llm.ModeBuild {
+	m.setMode(agentcore.Mode("unknown"))
+	if got := m.currentMode(); got != agentcore.ModeBuild {
 		t.Fatalf("currentMode() = %q, want build for unknown mode", got)
 	}
-	if got := m.appState.Mode(); got != llm.ModeBuild {
-		t.Fatalf("appState.Mode() = %q, want build for unknown mode", got)
+	if got := m.agentCore.Mode(); got != agentcore.ModeBuild {
+		t.Fatalf("agentCore.Mode() = %q, want build for unknown mode", got)
 	}
 }
 
 func TestToggleModeCyclesBuildPlanYolo(t *testing.T) {
 	m := newTestModel()
-	want := []llm.AgentMode{llm.ModePlan, llm.ModeYolo, llm.ModeBuild}
+	want := []agentcore.Mode{agentcore.ModePlan, agentcore.ModeYolo, agentcore.ModeBuild}
 	for _, mode := range want {
 		m.toggleMode()
 		if got := m.currentMode(); got != mode {
 			t.Fatalf("toggleMode() = %q, want %q", got, mode)
 		}
-		if got := m.appState.Mode(); got != mode {
-			t.Fatalf("appState.Mode() = %q, want %q", got, mode)
+		if got := m.agentCore.Mode(); got != mode {
+			t.Fatalf("agentCore.Mode() = %q, want %q", got, mode)
 		}
-		if mode == llm.ModeYolo {
+		if mode == agentcore.ModeYolo {
 			allowed, err := m.permissionRequester.RequestPermission(context.Background(), "bash", "rm -rf /tmp/x", "", true)
 			if err != nil || !allowed {
 				t.Fatalf("yolo RequestPermission() = (%v, %v), want (true, nil)", allowed, err)

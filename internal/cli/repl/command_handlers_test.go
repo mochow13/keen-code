@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,17 +15,13 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
-	"github.com/mochow13/keen-code/internal/llm"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/mcpskills"
 	"github.com/mochow13/keen-code/internal/providers"
-	"github.com/mochow13/keen-code/internal/skills"
-	"github.com/mochow13/keen-code/internal/subagents"
 )
 
 func TestHandleEnterKey_EmptyInput(t *testing.T) {
@@ -45,7 +41,7 @@ func TestHandleEnterKey_EmptyInput(t *testing.T) {
 func TestHandleEnterKey_ActiveStream(t *testing.T) {
 	m := newTestModel()
 	m.textarea.SetValue("some input")
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 
 	newM, cmd := m.handleEnterKey()
@@ -67,7 +63,7 @@ func TestHandleEnterKey_ActiveStream(t *testing.T) {
 func TestHandleEnterKey_ActiveStream_AdjustsViewportHeight(t *testing.T) {
 	m := newTestModel()
 	m.textarea.SetValue("some input")
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.adjustTextareaHeight()
 
@@ -310,8 +306,8 @@ func TestHandleEnterKey_SessionsCommand_EmptyState(t *testing.T) {
 func TestHandleEnterKey_CompactCommandStartsCompaction(t *testing.T) {
 	m := newTestModel()
 	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
-	m.appState = replappstate.New(&mockLLMClient{}, "")
-	m.appState.AddMessage(core.RoleUser, "hello")
+	m.agentCore = newAgentCore(&mockLLMClient{}, "", m.ctx.cfg)
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "hello"})
 	m.textarea.SetValue("/compact Keep business logic details")
 
 	newM, cmd := m.handleEnterKey()
@@ -480,8 +476,8 @@ func TestHandleMCPConnectDoneGeneratesAndEnablesSkill(t *testing.T) {
 	t.Setenv("HOME", home)
 	work := t.TempDir()
 	m := newTestModel()
-	m.appState = replappstate.New(nil, work)
-	if err := m.appState.SetSkillStatus("mcp:deepwiki", skills.StatusDisabled); err != nil {
+	m.agentCore = newAgentCore(nil, work)
+	if err := m.agentCore.SetSkillStatus("mcp:deepwiki", agentcore.SkillStatusDisabled); err != nil {
 		t.Fatalf("disable deepwiki: %v", err)
 	}
 	m.ctx.mcp = &fakeMCPRuntime{
@@ -500,10 +496,10 @@ func TestHandleMCPConnectDoneGeneratesAndEnablesSkill(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.output.Join()), "MCP server connected: deepwiki") {
 		t.Fatalf("output = %q, want success", m.output.Join())
 	}
-	if _, ok := skills.Find(m.appState.GetSkills().Skills, "mcp:deepwiki"); !ok {
+	if _, ok := agentcore.FindSkill(m.agentCore.GetSkills().Skills, "mcp:deepwiki"); !ok {
 		t.Fatalf("expected mcp:deepwiki skill to be reloaded")
 	}
-	if !m.appState.GetSkillsConfig().Enabled("mcp:deepwiki") {
+	if !m.agentCore.GetSkillsConfig().Enabled("mcp:deepwiki") {
 		t.Fatalf("expected mcp:deepwiki skill to be enabled")
 	}
 	data, err := os.ReadFile(filepath.Join(home, ".keen", "skills", "mcp:deepwiki", "SKILL.md"))
@@ -520,18 +516,18 @@ func TestHandleMCPConnectDoneFailureDisablesSkill(t *testing.T) {
 	t.Setenv("HOME", home)
 	work := t.TempDir()
 	m := newTestModel()
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	if err := mcpskills.Generate("deepwiki", "", []keenmcp.Tool{{Name: "ask", Description: "Ask DeepWiki"}}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	m.appState.ReloadSkills()
+	m.agentCore.ReloadSkills()
 
 	m.handleMCPConnectDone(mcpConnectDoneMsg{Server: "deepwiki", Err: errors.New("connection failed")})
 
-	if m.appState.GetSkillsConfig().Enabled("mcp:deepwiki") {
+	if m.agentCore.GetSkillsConfig().Enabled("mcp:deepwiki") {
 		t.Fatalf("expected mcp:deepwiki skill to be disabled")
 	}
-	if m.appState.SkillsCatalog() != "" && strings.Contains(m.appState.SkillsCatalog(), "mcp:deepwiki") {
+	if m.agentCore.SkillsCatalog() != "" && strings.Contains(m.agentCore.SkillsCatalog(), "mcp:deepwiki") {
 		t.Fatalf("expected mcp:deepwiki to be hidden from catalog")
 	}
 }
@@ -541,8 +537,8 @@ func TestHandleMCPStartupStatusGeneratesConnectedSkillsWithoutChangingStatus(t *
 	t.Setenv("HOME", home)
 	work := t.TempDir()
 	m := newTestModel()
-	m.appState = replappstate.New(nil, work)
-	if err := m.appState.SetSkillStatus("mcp:deepwiki", skills.StatusDisabled); err != nil {
+	m.agentCore = newAgentCore(nil, work)
+	if err := m.agentCore.SetSkillStatus("mcp:deepwiki", agentcore.SkillStatusDisabled); err != nil {
 		t.Fatalf("disable deepwiki: %v", err)
 	}
 	m.ctx.mcp = &fakeMCPRuntime{tools: map[string][]keenmcp.Tool{
@@ -551,10 +547,10 @@ func TestHandleMCPStartupStatusGeneratesConnectedSkillsWithoutChangingStatus(t *
 
 	m.handleMCPStartupStatus(mcpStartupStatusMsg{Statuses: []keenmcp.ServerStatus{{Name: "deepwiki", State: keenmcp.StateConnected, Description: "Ask questions about DeepWiki."}}})
 
-	if _, ok := skills.Find(m.appState.GetSkills().Skills, "mcp:deepwiki"); !ok {
+	if _, ok := agentcore.FindSkill(m.agentCore.GetSkills().Skills, "mcp:deepwiki"); !ok {
 		t.Fatalf("expected mcp:deepwiki skill to be reloaded")
 	}
-	if m.appState.GetSkillsConfig().Enabled("mcp:deepwiki") {
+	if m.agentCore.GetSkillsConfig().Enabled("mcp:deepwiki") {
 		t.Fatalf("expected mcp:deepwiki skill to remain disabled")
 	}
 	data, err := os.ReadFile(filepath.Join(home, ".keen", "skills", "mcp:deepwiki", "SKILL.md"))
@@ -571,21 +567,21 @@ func TestHandleMCPStartupStatusDisablesFailedSkills(t *testing.T) {
 	t.Setenv("HOME", home)
 	work := t.TempDir()
 	m := newTestModel()
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	if err := mcpskills.Generate("posthog", "", []keenmcp.Tool{{Name: "query", Description: "Query PostHog"}}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	m.appState.ReloadSkills()
+	m.agentCore.ReloadSkills()
 
 	m.handleMCPStartupStatus(mcpStartupStatusMsg{Statuses: []keenmcp.ServerStatus{{Name: "posthog", State: keenmcp.StateAuthRequired, LastError: "auth required"}}})
 
-	if m.appState.GetSkillsConfig().Enabled("mcp:posthog") {
+	if m.agentCore.GetSkillsConfig().Enabled("mcp:posthog") {
 		t.Fatalf("expected mcp:posthog skill to be disabled")
 	}
 	if _, err := os.Stat(filepath.Join(home, ".keen", "skills", "mcp:posthog", "SKILL.md")); err != nil {
 		t.Fatalf("expected mcp:posthog files to remain: %v", err)
 	}
-	if m.appState.SkillsCatalog() != "" && strings.Contains(m.appState.SkillsCatalog(), "mcp:posthog") {
+	if m.agentCore.SkillsCatalog() != "" && strings.Contains(m.agentCore.SkillsCatalog(), "mcp:posthog") {
 		t.Fatalf("expected mcp:posthog to be hidden from catalog")
 	}
 }
@@ -595,27 +591,27 @@ func TestHandleMCPStartupStatusRemovesUnconfiguredSkillStatuses(t *testing.T) {
 	t.Setenv("HOME", home)
 	work := t.TempDir()
 	m := newTestModel()
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.ctx.mcp = &fakeMCPRuntime{tools: map[string][]keenmcp.Tool{
 		"context7": {{Name: "resolve", Description: "Resolve docs"}},
 	}}
 	if err := mcpskills.Generate("deepwiki", "", []keenmcp.Tool{{Name: "ask", Description: "Ask DeepWiki"}}); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if err := m.appState.SetSkillStatus("mcp:deepwiki", skills.StatusEnabled); err != nil {
+	if err := m.agentCore.SetSkillStatus("mcp:deepwiki", agentcore.SkillStatusEnabled); err != nil {
 		t.Fatalf("enable deepwiki: %v", err)
 	}
-	if err := m.appState.SetSkillStatus("mcp:disabled", skills.StatusDisabled); err != nil {
+	if err := m.agentCore.SetSkillStatus("mcp:disabled", agentcore.SkillStatusDisabled); err != nil {
 		t.Fatalf("disable stale skill: %v", err)
 	}
-	if err := m.appState.SetSkillStatus("debug", skills.StatusEnabled); err != nil {
+	if err := m.agentCore.SetSkillStatus("debug", agentcore.SkillStatusEnabled); err != nil {
 		t.Fatalf("enable debug: %v", err)
 	}
-	m.appState.ReloadSkills()
+	m.agentCore.ReloadSkills()
 
 	m.handleMCPStartupStatus(mcpStartupStatusMsg{Statuses: []keenmcp.ServerStatus{{Name: "context7", State: keenmcp.StateConnected}}})
 
-	cfg := m.appState.GetSkillsConfig()
+	cfg := m.agentCore.GetSkillsConfig()
 	if _, ok := cfg.IsEnabled["mcp:deepwiki"]; ok {
 		t.Fatalf("expected unconfigured mcp:deepwiki status to be removed")
 	}
@@ -628,7 +624,7 @@ func TestHandleMCPStartupStatusRemovesUnconfiguredSkillStatuses(t *testing.T) {
 	if !cfg.Enabled("debug") {
 		t.Fatalf("expected non-MCP skill to remain enabled")
 	}
-	if _, ok := skills.Find(m.appState.GetSkills().Skills, "mcp:context7"); !ok {
+	if _, ok := agentcore.FindSkill(m.agentCore.GetSkills().Skills, "mcp:context7"); !ok {
 		t.Fatalf("expected configured mcp:context7 skill to be generated")
 	}
 }
@@ -681,16 +677,16 @@ func TestHandleModeCommand(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("expected nil cmd")
 	}
-	if newM.currentMode() != llm.ModePlan {
+	if newM.currentMode() != agentcore.ModePlan {
 		t.Fatalf("expected plan mode, got %q", newM.currentMode())
 	}
-	if newM.appState.Mode() != llm.ModePlan {
-		t.Fatalf("expected app state plan mode, got %q", newM.appState.Mode())
+	if newM.agentCore.Mode() != agentcore.ModePlan {
+		t.Fatalf("expected app state plan mode, got %q", newM.agentCore.Mode())
 	}
 
 	newM.textarea.SetValue("/mode build")
 	newM, _ = newM.handleEnterKey()
-	if newM.currentMode() != llm.ModeBuild {
+	if newM.currentMode() != agentcore.ModeBuild {
 		t.Fatalf("expected build mode, got %q", newM.currentMode())
 	}
 }
@@ -709,7 +705,7 @@ func TestHandleSkillsCommandList(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/skills list")
 	newM, _ := m.handleEnterKey()
 
@@ -740,14 +736,14 @@ func TestHandleSkillsCommandListStylesDisabledStatus(t *testing.T) {
 		t.Fatalf("write skill: %v", err)
 	}
 
-	cfg := skills.Config{IsEnabled: map[string]bool{"demo": false}}
-	if err := skills.SaveConfig(cfg); err != nil {
+	cfg := agentcore.SkillsConfig{IsEnabled: map[string]bool{"demo": false}}
+	if err := agentcore.SaveSkillsConfig(cfg); err != nil {
 		t.Fatalf("save skills config: %v", err)
 	}
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/skills list")
 	newM, _ := m.handleEnterKey()
 
@@ -775,7 +771,7 @@ func TestHandleSkillsCommandListWrapsLongDescriptions(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.width = 50
 	m.viewport.SetWidth(50)
 	m.output.SetWidth(50)
@@ -811,7 +807,7 @@ func TestHandleSkillsCommandListTruncatesLongDescriptions(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/skills list")
 	newM, _ := m.handleEnterKey()
 
@@ -838,14 +834,14 @@ func TestHandleSkillsCommandDisable(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/skills disable demo")
 	newM, _ := m.handleEnterKey()
 
 	if !strings.Contains(newM.output.Join(), "Skill \"demo\" disabled") {
 		t.Fatalf("expected disable confirmation, got %q", newM.output.Join())
 	}
-	if newM.appState.GetSkillsConfig().Enabled("demo") {
+	if newM.agentCore.GetSkillsConfig().Enabled("demo") {
 		t.Fatal("expected appstate config to disable skill")
 	}
 }
@@ -867,7 +863,7 @@ func TestHandleSubagentsCommandList(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/subagents list")
 	newM, _ := m.handleEnterKey()
 
@@ -896,7 +892,7 @@ func TestHandleSubagentsCommandRootLists(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/subagents")
 	newM, _ := m.handleEnterKey()
 
@@ -977,7 +973,7 @@ func TestHandleSkillsCommandStatus(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/skills status")
 	newM, _ := m.handleEnterKey()
 
@@ -1003,7 +999,7 @@ func TestHandleSkillsCommandRejectsNameFirstStatus(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 	m.textarea.SetValue("/skills demo enable")
 	newM, _ := m.handleEnterKey()
 
@@ -1025,7 +1021,7 @@ func TestHandleSkillsCommandReload(t *testing.T) {
 
 	m := newTestModel()
 	m.ctx.workingDir = work
-	m.appState = replappstate.New(nil, work)
+	m.agentCore = newAgentCore(nil, work)
 
 	writeSkillDir := filepath.Join(work, ".agents", "skills", "demo")
 	if err := os.MkdirAll(writeSkillDir, 0755); err != nil {
@@ -1041,7 +1037,7 @@ func TestHandleSkillsCommandReload(t *testing.T) {
 	if !strings.Contains(newM.output.Join(), "Skills reloaded") {
 		t.Fatalf("expected reload confirmation, got %q", newM.output.Join())
 	}
-	if _, ok := skills.Find(newM.appState.GetSkills().Skills, "demo"); !ok {
+	if _, ok := agentcore.FindSkill(newM.agentCore.GetSkills().Skills, "demo"); !ok {
 		t.Fatal("expected reloaded appstate to include new skill")
 	}
 }
@@ -1059,8 +1055,8 @@ func TestDispatchCommand_SlashPrefixedNonCommandFallsThrough(t *testing.T) {
 func TestHandleEnterKey_ClearCommand(t *testing.T) {
 	m := newTestModel()
 	client := &mockLLMClient{}
-	m.appState = replappstate.New(client, "")
-	m.appState.AddMessage(core.RoleUser, "previous")
+	m.agentCore = newAgentCore(client, "")
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "previous"})
 	m.textarea.SetValue(replcommands.Clear)
 
 	newM, cmd := m.handleEnterKey()
@@ -1074,7 +1070,7 @@ func TestHandleEnterKey_ClearCommand(t *testing.T) {
 	if newM.textarea.Value() != "" {
 		t.Error("expected textarea to be reset")
 	}
-	if len(newM.appState.GetMessages()) != 0 {
+	if len(newM.agentCore.GetMessages()) != 0 {
 		t.Fatal("expected messages to be cleared")
 	}
 	if client.resetCount != 1 {
@@ -1104,7 +1100,7 @@ func TestHandleEnterKey_LogoutCommand_NoProvider(t *testing.T) {
 func TestHandleEnterKey_NewCommand(t *testing.T) {
 	m := newTestModel()
 	client := &mockLLMClient{}
-	m.appState = replappstate.New(client, "")
+	m.agentCore = newAgentCore(client, "")
 	m.textarea.SetValue(replcommands.New)
 
 	newM, cmd := m.handleEnterKey()
@@ -1385,8 +1381,8 @@ func TestHandleShowThinkingCommand_PersistsToGlobalConfig(t *testing.T) {
 func TestHandleEnterKey_BtwCommandStartsStream(t *testing.T) {
 	m := newTestModel()
 	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
-	m.appState = replappstate.New(&mockLLMClient{}, "")
-	m.appState.AddMessage(core.RoleUser, "context message")
+	m.agentCore = newAgentCore(&mockLLMClient{}, "", m.ctx.cfg)
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "context message"})
 	m.btw.streamHandler = NewStreamHandler(nil)
 	m.textarea.SetValue("/btw what is this?")
 
@@ -1409,9 +1405,9 @@ func TestHandleEnterKey_BtwCommandStartsStream(t *testing.T) {
 func TestHandleEnterKey_BtwCommandDuringActiveStream(t *testing.T) {
 	m := newTestModel()
 	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
-	m.appState = replappstate.New(&mockLLMClient{}, "")
+	m.agentCore = newAgentCore(&mockLLMClient{}, "", m.ctx.cfg)
 	m.btw.streamHandler = NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.textarea.SetValue("/btw quick question")
 
@@ -1555,7 +1551,7 @@ func TestCancelBtwStream_ClearsState(t *testing.T) {
 	m := newTestModel()
 	m.btw.showSpinner = true
 	m.btw.streamHandler = NewStreamHandler(nil)
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.btw.streamHandler.Start(eventCh, "Loading...")
 	m.btw.lines = []string{"some lines"}
 
@@ -1589,7 +1585,7 @@ func TestCancelBtwStream_CancelsContext(t *testing.T) {
 
 func TestHandleEnterKey_QueueFullNotification(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.queuedInputs = []string{"msg1", "msg2", "msg3", "msg4", "msg5"}
 
@@ -1612,7 +1608,7 @@ func TestHandleEnterKey_QueueFullNotification(t *testing.T) {
 
 func TestHandleEnterKey_NonQueueableSlashCommandNotification(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 
 	m.textarea.SetValue("/clear")
@@ -1631,7 +1627,7 @@ func TestHandleEnterKey_NonQueueableSlashCommandNotification(t *testing.T) {
 
 func TestHandleEnterKey_UnknownSkillNotification(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 
 	m.textarea.SetValue("/nosuchskill arg")
@@ -1647,7 +1643,7 @@ func TestHandleEnterKey_UnknownSkillNotification(t *testing.T) {
 
 func TestHandleEnterKey_MultilineNormalPromptQueued(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 
 	m.textarea.SetValue("line1\nline2")
@@ -1663,7 +1659,7 @@ func TestHandleEnterKey_MultilineNormalPromptQueued(t *testing.T) {
 
 func TestHandleEnterKey_MultilineSlashNotQueued(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 
 	m.textarea.SetValue("/skill\ntext")
@@ -1707,7 +1703,7 @@ func TestDrainQueuedInput_EmptyQueueNoOp(t *testing.T) {
 func TestHandleLLMError_CanceledPreservesQueue(t *testing.T) {
 	m := newTestModel()
 	m.queuedInputs = []string{"next msg"}
-	m.stream.handler.Start(make(chan core.StreamEvent), "Loading...")
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.startLoading("Loading...")
 
 	newM, _ := m.handleLLMError(context.Canceled)
@@ -1774,7 +1770,7 @@ func TestRenderQueuedInputs_TruncatesLongMessages(t *testing.T) {
 
 func TestHandleEnterKey_EmptyQueueClearsQueue(t *testing.T) {
 	m := newTestModel()
-	eventCh := make(chan core.StreamEvent)
+	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.queuedInputs = []string{"msg1", "msg2"}
 
@@ -1961,24 +1957,10 @@ func TestIsKnownCommand_MemoryExists(t *testing.T) {
 	}
 }
 
-type commandHandlerTestTool struct {
-	name string
-}
-
-func (t commandHandlerTestTool) Name() string                            { return t.name }
-func (commandHandlerTestTool) Description() string                       { return "test tool" }
-func (commandHandlerTestTool) InputSchema() map[string]any               { return nil }
-func (commandHandlerTestTool) Execute(context.Context, any) (any, error) { return nil, nil }
-
 func TestHandleToolPermissionCommandShowsUsageAndRegisteredTools(t *testing.T) {
 	m := newTestModel()
 	m.ctx.workingDir = t.TempDir()
-	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "zeta"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "alpha"}); err != nil {
-		t.Fatal(err)
-	}
+	m.agentCore = &mockAgentCore{registeredToolNames: []string{"alpha", "zeta"}}
 
 	result := m.handleToolPermissionCommand(replcommands.AllowPermission, replcommands.AllowPermission, true)
 	output := ansi.Strip(result.output.Join())
@@ -1993,9 +1975,7 @@ func TestHandleToolPermissionCommandShowsUsageAndRegisteredTools(t *testing.T) {
 func TestHandleToolPermissionCommandRejectsUnknownTool(t *testing.T) {
 	m := newTestModel()
 	m.ctx.workingDir = t.TempDir()
-	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "read_file"}); err != nil {
-		t.Fatal(err)
-	}
+	m.agentCore = &mockAgentCore{registeredToolNames: []string{"read_file"}}
 
 	result := m.handleToolPermissionCommand(replcommands.AllowPermission+" missing", replcommands.AllowPermission, true)
 	if !strings.Contains(ansi.Strip(result.output.Join()), "Unknown tool: missing") {
@@ -2010,11 +1990,7 @@ func TestHandleToolPermissionCommandAllowsAndResetsTools(t *testing.T) {
 	work := t.TempDir()
 	m := newTestModel()
 	m.ctx.workingDir = work
-	for _, name := range []string{"read_file", "grep"} {
-		if err := m.appState.RegisterTool(commandHandlerTestTool{name: name}); err != nil {
-			t.Fatal(err)
-		}
-	}
+	m.agentCore = &mockAgentCore{registeredToolNames: []string{"read_file", "grep"}}
 
 	allowed := m.handleToolPermissionCommand(replcommands.AllowPermission+" read_file grep", replcommands.AllowPermission, true)
 	for _, name := range []string{"read_file", "grep"} {
@@ -2049,9 +2025,7 @@ func TestHandleToolPermissionCommandAllowsAndResetsTools(t *testing.T) {
 func TestDispatchPermissionCommands(t *testing.T) {
 	m := newTestModel()
 	m.ctx.workingDir = t.TempDir()
-	if err := m.appState.RegisterTool(commandHandlerTestTool{name: "read_file"}); err != nil {
-		t.Fatal(err)
-	}
+	m.agentCore = &mockAgentCore{registeredToolNames: []string{"read_file"}}
 	m.textarea.SetValue("not empty")
 
 	allowed, cmd, handled := m.dispatchCommand(replcommands.AllowPermission + " read_file")
@@ -2168,14 +2142,14 @@ func TestHandleLogoutCommandRejectsMissingAndNonOAuthProviders(t *testing.T) {
 func TestHandleModeCommandCoversStatusChangesAndValidation(t *testing.T) {
 	tests := []struct {
 		input    string
-		wantMode llm.AgentMode
+		wantMode agentcore.Mode
 		wantText string
 	}{
-		{input: replcommands.Mode, wantMode: llm.ModeBuild, wantText: "Mode: build"},
-		{input: replcommands.Mode + " plan", wantMode: llm.ModePlan},
-		{input: replcommands.Mode + " build", wantMode: llm.ModeBuild},
-		{input: replcommands.Mode + " yolo", wantMode: llm.ModeYolo},
-		{input: replcommands.Mode + " invalid", wantMode: llm.ModeBuild, wantText: "Usage: /mode plan|build|yolo"},
+		{input: replcommands.Mode, wantMode: agentcore.ModeBuild, wantText: "Mode: build"},
+		{input: replcommands.Mode + " plan", wantMode: agentcore.ModePlan},
+		{input: replcommands.Mode + " build", wantMode: agentcore.ModeBuild},
+		{input: replcommands.Mode + " yolo", wantMode: agentcore.ModeYolo},
+		{input: replcommands.Mode + " invalid", wantMode: agentcore.ModeBuild, wantText: "Usage: /mode plan|build|yolo"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
@@ -2201,9 +2175,9 @@ func TestDispatchCommandYoloRemoved(t *testing.T) {
 
 func TestHandleModeCommandInvalidKeepsMode(t *testing.T) {
 	m := newTestModel()
-	m.setMode(llm.ModePlan)
+	m.setMode(agentcore.ModePlan)
 	result := m.handleModeCommand(replcommands.Mode + " invalid")
-	if result.currentMode() != llm.ModePlan {
+	if result.currentMode() != agentcore.ModePlan {
 		t.Fatalf("mode = %q, want plan to be preserved", result.currentMode())
 	}
 	if !strings.Contains(ansi.Strip(result.output.Join()), "Usage: /mode plan|build|yolo") {
@@ -2234,7 +2208,7 @@ func TestHandleSkillsCommandListsEmptyCatalogAndValidatesArguments(t *testing.T)
 		t.Run(tt.input, func(t *testing.T) {
 			m := newTestModel()
 			m.ctx.workingDir = ""
-			m.appState = replappstate.New(nil, "")
+			m.agentCore = newAgentCore(nil, "")
 			result := m.handleSkillsCommand(tt.input)
 			if !strings.Contains(ansi.Strip(result.output.Join()), tt.want) {
 				t.Fatalf("output %q missing %q", result.output.Join(), tt.want)
@@ -2254,7 +2228,7 @@ func TestHandleSubagentsCommandListsEmptyCatalogAndValidatesArguments(t *testing
 	} {
 		t.Run(tt.input, func(t *testing.T) {
 			m := newTestModel()
-			m.appState = replappstate.New(nil, "")
+			m.agentCore = newAgentCore(nil, "")
 			result := m.handleSubagentsCommand(tt.input)
 			if !strings.Contains(ansi.Strip(result.output.Join()), tt.want) {
 				t.Fatalf("output %q missing %q", result.output.Join(), tt.want)
@@ -2295,7 +2269,7 @@ func TestCommandFormattingHelpers(t *testing.T) {
 	if got := truncateSkillDescription(strings.Join(words, " ")); !strings.HasSuffix(got, "...") || len(strings.Fields(strings.TrimSuffix(got, "..."))) != skillDescriptionWordLimit {
 		t.Fatalf("unexpected truncated description %q", got)
 	}
-	profiles := []subagents.Profile{{Name: "visible"}, {Name: "hidden", Hidden: true}}
+	profiles := []agentcore.SubagentProfile{{Name: "visible"}, {Name: "hidden", Hidden: true}}
 	if got := visibleSubagents(profiles); len(got) != 1 || got[0].Name != "visible" {
 		t.Fatalf("visibleSubagents = %#v", got)
 	}
@@ -2307,16 +2281,15 @@ func TestCommandFormattingHelpers(t *testing.T) {
 func TestHandleClearCommandPreservesModeAndResetsState(t *testing.T) {
 	m := newTestModel()
 	m.ctx.workingDir = t.TempDir()
-	m.mode = llm.ModePlan
-	m.appState.SetMode(llm.ModePlan)
-	m.appState.AddMessage(core.RoleUser, "message")
+	m.agentCore.SetMode(agentcore.ModePlan)
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "message"})
 	m.loading.lastTurnElapsedMsg = "done in 1s"
 	m.history.Push("history")
 	m.permissionRequester = replpermissions.NewRequester(config.NewProjectPermissions())
 
 	result := m.handleClearCommand()
-	if result.currentMode() != llm.ModePlan || len(result.appState.GetMessages()) != 0 {
-		t.Fatalf("clear result mode=%q messages=%#v", result.currentMode(), result.appState.GetMessages())
+	if result.currentMode() != agentcore.ModePlan || len(result.agentCore.GetMessages()) != 0 {
+		t.Fatalf("clear result mode=%q messages=%#v", result.currentMode(), result.agentCore.GetMessages())
 	}
 	if result.loading.lastTurnElapsedMsg != "" || result.history.IsNavigating() {
 		t.Fatal("clear did not reset transient state")
@@ -2330,18 +2303,18 @@ func TestHandleClearCommandPreservesModeAndResetsState(t *testing.T) {
 func TestHandleClearCommandPreservesYolo(t *testing.T) {
 	m := newTestModel()
 	m.ctx.workingDir = t.TempDir()
-	m.setMode(llm.ModeYolo)
-	m.appState.AddMessage(core.RoleUser, "message")
+	m.setMode(agentcore.ModeYolo)
+	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "message"})
 
 	result := m.handleClearCommand()
-	if result.currentMode() != llm.ModeYolo {
+	if result.currentMode() != agentcore.ModeYolo {
 		t.Fatalf("clear result mode=%q, want yolo", result.currentMode())
 	}
-	if result.appState.Mode() != llm.ModeYolo {
-		t.Fatalf("clear result appState mode=%q, want yolo", result.appState.Mode())
+	if result.agentCore.Mode() != agentcore.ModeYolo {
+		t.Fatalf("clear result agentCore mode=%q, want yolo", result.agentCore.Mode())
 	}
-	if len(result.appState.GetMessages()) != 0 {
-		t.Fatalf("clear did not reset messages: %#v", result.appState.GetMessages())
+	if len(result.agentCore.GetMessages()) != 0 {
+		t.Fatalf("clear did not reset messages: %#v", result.agentCore.GetMessages())
 	}
 	allowed, err := result.permissionRequester.RequestPermission(context.Background(), "bash", "rm -rf /tmp/x", "", true)
 	if err != nil || !allowed {
@@ -2359,14 +2332,14 @@ func TestHandleClearCommandPreservesYolo(t *testing.T) {
 func TestHandleNewCommandPreservesYolo(t *testing.T) {
 	m := newTestModel()
 	m.ctx.workingDir = t.TempDir()
-	m.setMode(llm.ModeYolo)
+	m.setMode(agentcore.ModeYolo)
 	m.textarea.SetValue("/new")
 	newM, _ := m.handleEnterKey()
-	if newM.currentMode() != llm.ModeYolo {
+	if newM.currentMode() != agentcore.ModeYolo {
 		t.Fatalf("/new result mode=%q, want yolo", newM.currentMode())
 	}
-	if newM.appState.Mode() != llm.ModeYolo {
-		t.Fatalf("/new result appState mode=%q, want yolo", newM.appState.Mode())
+	if newM.agentCore.Mode() != agentcore.ModeYolo {
+		t.Fatalf("/new result agentCore mode=%q, want yolo", newM.agentCore.Mode())
 	}
 	allowed, err := newM.permissionRequester.RequestPermission(context.Background(), "bash", "rm -rf /tmp/x", "", true)
 	if err != nil || !allowed {
@@ -2412,7 +2385,7 @@ func TestDispatchCommandRoutesStatusCommands(t *testing.T) {
 		t.Run(command, func(t *testing.T) {
 			m := newTestModel()
 			if command == replcommands.Skills || command == replcommands.Subagents {
-				m.appState = replappstate.New(nil, "")
+				m.agentCore = newAgentCore(nil, "")
 			}
 			_, cmd, handled := m.dispatchCommand(command)
 			if !handled || cmd != nil {

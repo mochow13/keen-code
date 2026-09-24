@@ -173,7 +173,7 @@ func (c *GenkitClient) collectTurnWithRetry(ctx context.Context, opts []ai.Gener
 	var response *ai.ModelResponse
 	err := retry.Run(ctx, c.maxRetries, func(attempt, maxRetries int, err error) {
 		slog.Debug("LLM stream error, retrying", "attempt", attempt, "maxRetries", maxRetries, "backoff", time.Duration(attempt)*time.Second, "error", err)
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt})
 	}, func() error { var err error; response, err = c.collectTurn(ctx, opts, eventCh); return err })
 	if err != nil {
 		return nil, err
@@ -202,15 +202,15 @@ func (c *GenkitClient) collectTurn(
 		if result.Chunk != nil && len(result.Chunk.Content) > 0 {
 			for _, part := range result.Chunk.Content {
 				if part.IsReasoning() && part.Text != "" {
-					eventCh <- core.StreamEvent{
+					sendStreamEvent(ctx, eventCh, core.StreamEvent{
 						Type:    core.StreamEventTypeReasoningChunk,
 						Content: part.Text,
-					}
+					})
 				} else if (part.IsText() || part.IsData()) && part.Text != "" {
-					eventCh <- core.StreamEvent{
+					sendStreamEvent(ctx, eventCh, core.StreamEvent{
 						Type:    core.StreamEventTypeChunk,
 						Content: part.Text,
-					}
+					})
 				}
 			}
 		}
@@ -262,10 +262,10 @@ func (c *GenkitClient) StreamChat(
 			)
 			if err != nil {
 				if compactionAttempted {
-					c.exitIncomplete(eventCh, aiMessages, turnStartLen, injectedPending, err, oneShot)
+					c.exitIncomplete(ctx, eventCh, aiMessages, turnStartLen, injectedPending, err, oneShot)
 				} else {
 					c.pendingState = nil
-					c.emitTerminalEvent(eventCh, aiMessages, turnStartLen, injectedPending, err)
+					c.emitTerminalEvent(ctx, eventCh, aiMessages, turnStartLen, injectedPending, err)
 				}
 				return
 			}
@@ -291,29 +291,29 @@ func (c *GenkitClient) StreamChat(
 
 			modelResponse, err := c.collectTurnWithRetry(ctx, opts, eventCh)
 			if err != nil {
-				c.exitIncomplete(eventCh, aiMessages, turnStartLen, injectedPending, err, oneShot)
+				c.exitIncomplete(ctx, eventCh, aiMessages, turnStartLen, injectedPending, err, oneShot)
 				return
 			}
 
 			if modelResponse == nil || modelResponse.Message == nil {
-				c.exitIncomplete(eventCh, aiMessages, turnStartLen, injectedPending, nil, oneShot)
+				c.exitIncomplete(ctx, eventCh, aiMessages, turnStartLen, injectedPending, nil, oneShot)
 				return
 			}
 
 			if modelResponse.Usage != nil && (modelResponse.Usage.InputTokens > 0 || modelResponse.Usage.OutputTokens > 0) {
-				eventCh <- core.StreamEvent{
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{
 					Type: core.StreamEventTypeUsage,
 					Usage: &core.TokenUsage{
 						InputTokens:  modelResponse.Usage.InputTokens,
 						OutputTokens: modelResponse.Usage.OutputTokens,
 						TotalTokens:  modelResponse.Usage.TotalTokens,
 					},
-				}
+				})
 			}
 
 			toolRequests := modelResponse.ToolRequests()
 			if len(toolRequests) == 0 {
-				eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 				return
 			}
 
@@ -342,7 +342,7 @@ func (c *GenkitClient) StreamChat(
 			autoCompactOff = false
 		}
 
-		c.exitIncomplete(eventCh, aiMessages, turnStartLen, injectedPending, nil, oneShot)
+		c.exitIncomplete(ctx, eventCh, aiMessages, turnStartLen, injectedPending, nil, oneShot)
 	}()
 
 	return eventCh, nil
@@ -405,14 +405,14 @@ func (c *GenkitClient) compactHistory(
 ) error {
 	compactionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	eventCh <- core.StreamEvent{Type: core.StreamEventTypeAutoCompactionStarted, AutoCompaction: &core.AutoCompactionEvent{Cancel: cancel}}
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeAutoCompactionStarted, AutoCompaction: &core.AutoCompactionEvent{Cancel: cancel}})
 	replacement, usage, err := AutoCompact(compactionCtx, c, *compactionHistory, toolRegistry, sessionID)
 	if err != nil {
 		eventType := core.StreamEventTypeAutoCompactionFailed
 		if compaction.IsCancellation(err) {
 			eventType = core.StreamEventTypeAutoCompactionCancelled
 		}
-		eventCh <- core.StreamEvent{Type: eventType, AutoCompaction: &core.AutoCompactionEvent{Error: err, Usage: usage}}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: eventType, AutoCompaction: &core.AutoCompactionEvent{Error: err, Usage: usage}})
 		return err
 	}
 
@@ -421,7 +421,7 @@ func (c *GenkitClient) compactHistory(
 	*injectedPending = nil
 	*turnStartLen = len(*aiMessages)
 	c.pendingState = nil
-	eventCh <- core.StreamEvent{Type: core.StreamEventTypeAutoCompactionApplied, AutoCompaction: &core.AutoCompactionEvent{Replacement: replacement, Usage: usage}}
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeAutoCompactionApplied, AutoCompaction: &core.AutoCompactionEvent{Replacement: replacement, Usage: usage}})
 	return nil
 }
 
@@ -474,21 +474,36 @@ func (c *GenkitClient) savePendingIfAccumulated(aiMessages []*ai.Message, turnSt
 	c.pendingState = append(c.pendingState, newDelta...)
 }
 
-func (c *GenkitClient) emitTerminalEvent(eventCh chan<- core.StreamEvent, aiMessages []*ai.Message, turnStartLen int, injectedPending []*ai.Message, err error) {
+func (c *GenkitClient) emitTerminalEvent(
+	ctx context.Context,
+	eventCh chan<- core.StreamEvent,
+	aiMessages []*ai.Message,
+	turnStartLen int,
+	injectedPending []*ai.Message,
+	err error,
+) {
 	if len(injectedPending) > 0 || len(aiMessages) > turnStartLen {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err})
 	} else if err != nil {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeError, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeError, Error: err})
 	} else {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 	}
 }
 
-func (c *GenkitClient) exitIncomplete(eventCh chan<- core.StreamEvent, aiMessages []*ai.Message, turnStartLen int, injectedPending []*ai.Message, err error, oneShot bool) {
+func (c *GenkitClient) exitIncomplete(
+	ctx context.Context,
+	eventCh chan<- core.StreamEvent,
+	aiMessages []*ai.Message,
+	turnStartLen int,
+	injectedPending []*ai.Message,
+	err error,
+	oneShot bool,
+) {
 	if !oneShot {
 		c.savePendingIfAccumulated(aiMessages, turnStartLen, injectedPending)
 	}
-	c.emitTerminalEvent(eventCh, aiMessages, turnStartLen, injectedPending, err)
+	c.emitTerminalEvent(ctx, eventCh, aiMessages, turnStartLen, injectedPending, err)
 }
 
 func (c *GenkitClient) executeTools(

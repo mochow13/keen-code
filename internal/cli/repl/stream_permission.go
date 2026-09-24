@@ -21,24 +21,28 @@ func (sh *StreamHandler) HandlePermissionRequest(req *replpermissions.Request) {
 	})
 }
 
-func (sh *StreamHandler) HasPendingPermission() bool {
-	n := len(sh.segments)
-	if n == 0 {
-		return false
+// Scan back for pending permission; later events may follow the prompt.
+func (sh *StreamHandler) pendingPermissionSegment() *streamSegment {
+	for i := len(sh.segments) - 1; i >= 0; i-- {
+		seg := &sh.segments[i]
+		if seg.kind != segmentPermission || seg.permissionReq == nil {
+			continue
+		}
+		if seg.permissionReq.Status != replpermissions.StatusPending {
+			continue
+		}
+		return seg
 	}
-	seg := &sh.segments[n-1]
-	return seg.kind == segmentPermission &&
-		seg.permissionReq != nil &&
-		seg.permissionReq.Status == replpermissions.StatusPending
+	return nil
+}
+
+func (sh *StreamHandler) HasPendingPermission() bool {
+	return sh.pendingPermissionSegment() != nil
 }
 
 func (sh *StreamHandler) MovePendingCursor(delta int) {
-	n := len(sh.segments)
-	if n == 0 {
-		return
-	}
-	seg := &sh.segments[n-1]
-	if seg.kind != segmentPermission || seg.permissionReq == nil {
+	seg := sh.pendingPermissionSegment()
+	if seg == nil {
 		return
 	}
 	choices := replpermissions.Choices(seg.permissionReq.IsDangerous)
@@ -53,36 +57,24 @@ func (sh *StreamHandler) MovePendingCursor(delta int) {
 }
 
 func (sh *StreamHandler) GetPendingChoice() replpermissions.Choice {
-	n := len(sh.segments)
-	if n == 0 {
-		return replpermissions.ChoiceDeny
-	}
-	seg := &sh.segments[n-1]
-	if seg.kind != segmentPermission || seg.permissionReq == nil {
+	seg := sh.pendingPermissionSegment()
+	if seg == nil {
 		return replpermissions.ChoiceDeny
 	}
 	return replpermissions.ChoiceAt(seg.permissionCursor, seg.permissionReq.IsDangerous)
 }
 
 func (sh *StreamHandler) GetPendingPermissionRequest() *replpermissions.Request {
-	n := len(sh.segments)
-	if n == 0 {
-		return nil
-	}
-	seg := &sh.segments[n-1]
-	if seg.kind != segmentPermission || seg.permissionReq == nil {
+	seg := sh.pendingPermissionSegment()
+	if seg == nil {
 		return nil
 	}
 	return seg.permissionReq
 }
 
 func (sh *StreamHandler) ResolvePendingPermission(status replpermissions.Status) {
-	n := len(sh.segments)
-	if n == 0 {
-		return
-	}
-	seg := &sh.segments[n-1]
-	if seg.kind != segmentPermission || seg.permissionReq == nil {
+	seg := sh.pendingPermissionSegment()
+	if seg == nil {
 		return
 	}
 	seg.permissionReq.Status = status

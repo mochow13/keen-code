@@ -3,12 +3,13 @@ package repl
 import (
 	"context"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/llm/core"
 	"log/slog"
 	"math/rand/v2"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/mochow13/keen-code/internal/agentcore"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -20,12 +21,9 @@ import (
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
-	"github.com/mochow13/keen-code/internal/llm"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/mcpskills"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/skills"
-	"github.com/mochow13/keen-code/internal/subagents"
 	"github.com/mochow13/keen-code/internal/updater"
 )
 
@@ -305,7 +303,7 @@ func (m *replModel) syncMCPSkills(statuses []keenmcp.ServerStatus) {
 			continue
 		}
 		if isMCPFailureState(status.State) {
-			_ = m.appState.SetSkillStatus(mcpskills.SkillName(status.Name), skills.StatusDisabled)
+			_ = m.agentCore.SetSkillStatus(mcpskills.SkillName(status.Name), agentcore.SkillStatusDisabled)
 			reloadSkills = true
 		}
 	}
@@ -313,13 +311,13 @@ func (m *replModel) syncMCPSkills(statuses []keenmcp.ServerStatus) {
 		reloadSkills = true
 	}
 	if reloadSkills {
-		m.appState.ReloadSkills()
+		m.agentCore.ReloadSkills()
 	}
 }
 
 func (m *replModel) removeUnconfiguredMCPSkillStatuses(configured map[string]bool) bool {
 	changed := false
-	for name := range m.appState.GetSkillsConfig().IsEnabled {
+	for name := range m.agentCore.GetSkillsConfig().IsEnabled {
 		if !mcpskills.IsSkillName(name) {
 			continue
 		}
@@ -327,7 +325,7 @@ func (m *replModel) removeUnconfiguredMCPSkillStatuses(configured map[string]boo
 		if configured[server] {
 			continue
 		}
-		_ = m.appState.RemoveSkillStatus(name)
+		_ = m.agentCore.RemoveSkillStatus(name)
 		_ = mcpskills.Remove(server)
 		changed = true
 	}
@@ -356,7 +354,7 @@ func (m *replModel) handleMCPConnectDone(msg mcpConnectDoneMsg) {
 	changed := false
 	if msg.Err != nil {
 		m.output.AddError("MCP connect failed for "+msg.Server+": "+msg.Err.Error(), repltheme.ErrorStyle)
-		_ = m.appState.SetSkillStatus(mcpskills.SkillName(msg.Server), skills.StatusDisabled)
+		_ = m.agentCore.SetSkillStatus(mcpskills.SkillName(msg.Server), agentcore.SkillStatusDisabled)
 		changed = true
 	} else {
 		m.output.AddStyledLine("  ✔ MCP server connected: "+msg.Server, repltheme.HighlightStyle)
@@ -367,11 +365,11 @@ func (m *replModel) handleMCPConnectDone(msg mcpConnectDoneMsg) {
 		if m.refreshMCPSkill(msg.Server, description) {
 			changed = true
 		}
-		_ = m.appState.SetSkillStatus(mcpskills.SkillName(msg.Server), skills.StatusEnabled)
+		_ = m.agentCore.SetSkillStatus(mcpskills.SkillName(msg.Server), agentcore.SkillStatusEnabled)
 		changed = true
 	}
 	if changed {
-		m.appState.ReloadSkills()
+		m.agentCore.ReloadSkills()
 	}
 	m.output.AddEmptyLine()
 	m.updateViewportContent()
@@ -427,33 +425,37 @@ func formatTurnElapsed(d time.Duration) string {
 	}
 }
 
-func (m *replModel) currentMode() llm.AgentMode {
-	if m.mode == "" {
-		return llm.ModeBuild
+func (m *replModel) currentMode() agentcore.Mode {
+	if m.agentCore == nil {
+		return agentcore.ModeBuild
 	}
-	return m.mode
+	switch m.agentCore.Mode() {
+	case agentcore.ModePlan, agentcore.ModeBuild, agentcore.ModeYolo:
+		return m.agentCore.Mode()
+	default:
+		return agentcore.ModeBuild
+	}
 }
 
-func (m *replModel) setMode(mode llm.AgentMode) {
-	if mode != llm.ModePlan && mode != llm.ModeYolo {
-		mode = llm.ModeBuild
+func (m *replModel) setMode(mode agentcore.Mode) {
+	if mode != agentcore.ModePlan && mode != agentcore.ModeYolo {
+		mode = agentcore.ModeBuild
 	}
-	m.mode = mode
-	if m.appState != nil {
-		m.appState.SetMode(mode)
+	if m.agentCore != nil {
+		m.agentCore.SetMode(mode)
 	}
 	if m.permissionRequester != nil {
-		m.permissionRequester.SetYoloMode(mode == llm.ModeYolo)
+		m.permissionRequester.SetYoloMode(mode == agentcore.ModeYolo)
 	}
 }
 func (m *replModel) toggleMode() {
 	switch m.currentMode() {
-	case llm.ModeBuild:
-		m.setMode(llm.ModePlan)
-	case llm.ModePlan:
-		m.setMode(llm.ModeYolo)
+	case agentcore.ModeBuild:
+		m.setMode(agentcore.ModePlan)
+	case agentcore.ModePlan:
+		m.setMode(agentcore.ModeYolo)
 	default:
-		m.setMode(llm.ModeBuild)
+		m.setMode(agentcore.ModeBuild)
 	}
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
@@ -597,7 +599,7 @@ func renderRulesWithChip(width int, ruleStyle lipgloss.Style, chipText string, c
 	return
 }
 
-func renderInputArea(content string, width int, focused bool, shellMode bool, btwMode bool, adversaryMode bool, _ llm.AgentMode) string {
+func renderInputArea(content string, width int, focused bool, shellMode bool, btwMode bool, adversaryMode bool, _ agentcore.Mode) string {
 	ruleWidth := defaultWidth
 	if width > 0 {
 		ruleWidth = width
@@ -634,7 +636,13 @@ func renderInputArea(content string, width int, focused bool, shellMode bool, bt
 	return topRule + "\n" + content + "\n" + bottomRule
 }
 
-func waitForAsyncEvent(llmCh <-chan core.StreamEvent, permissionCh <-chan *replpermissions.Request, diffCh <-chan repltooling.DiffRequest, subagentCh <-chan subagents.ToolActivity, askUserCh <-chan *replaskuser.Request) tea.Cmd {
+func waitForAsyncEvent(
+	llmCh <-chan agentcore.StreamEvent,
+	permissionCh <-chan *replpermissions.Request,
+	diffCh <-chan repltooling.DiffRequest,
+	subagentCh <-chan agentcore.ToolActivity,
+	askUserCh <-chan *replaskuser.Request,
+) tea.Cmd {
 	if llmCh == nil {
 		return nil
 	}
@@ -804,19 +812,13 @@ func (m *replModel) flushAdversaryToOutput() {
 }
 
 func (m *replModel) buildAdversaryClient() error {
-	resolved, err := config.ResolveAdversary(m.ctx.globalCfg)
-	if err != nil {
+	if err := m.agentCore.SetAdversaryClient(); err != nil {
 		return err
 	}
-	client, err := llm.NewClient(resolved)
-	if err != nil {
-		return err
-	}
-	m.appState.SetAdversaryClient(client)
 	return nil
 }
 
-func waitForAdversaryEvent(llmCh <-chan core.StreamEvent) tea.Cmd {
+func waitForAdversaryEvent(llmCh <-chan agentcore.StreamEvent) tea.Cmd {
 	if llmCh == nil {
 		return nil
 	}
@@ -829,17 +831,17 @@ func waitForAdversaryEvent(llmCh <-chan core.StreamEvent) tea.Cmd {
 			}
 
 			switch event.Type {
-			case core.StreamEventTypeChunk:
+			case agentcore.StreamEventTypeChunk:
 				return adversaryChunkMsg(event.Content)
-			case core.StreamEventTypeToolStart:
+			case agentcore.StreamEventTypeToolStart:
 				return adversaryToolStartMsg{toolCall: event.ToolCall}
-			case core.StreamEventTypeToolEnd:
+			case agentcore.StreamEventTypeToolEnd:
 				return adversaryToolEndMsg{toolCall: event.ToolCall}
-			case core.StreamEventTypeDone:
+			case agentcore.StreamEventTypeDone:
 				return adversaryDoneMsg{}
-			case core.StreamEventTypeError:
+			case agentcore.StreamEventTypeError:
 				return adversaryErrorMsg{err: event.Error}
-			case core.StreamEventTypeIncomplete:
+			case agentcore.StreamEventTypeIncomplete:
 				return adversaryErrorMsg{err: event.Error}
 			default:
 				continue
@@ -886,7 +888,7 @@ func (m *replModel) flushStreamRender() {
 	m.scrollToBottomIfFollowing()
 }
 
-func waitForBtwEvent(llmCh <-chan core.StreamEvent) tea.Cmd {
+func waitForBtwEvent(llmCh <-chan agentcore.StreamEvent) tea.Cmd {
 	if llmCh == nil {
 		return nil
 	}
@@ -899,13 +901,13 @@ func waitForBtwEvent(llmCh <-chan core.StreamEvent) tea.Cmd {
 			}
 
 			switch event.Type {
-			case core.StreamEventTypeChunk:
+			case agentcore.StreamEventTypeChunk:
 				return btwChunkMsg(event.Content)
-			case core.StreamEventTypeDone:
+			case agentcore.StreamEventTypeDone:
 				return btwDoneMsg{}
-			case core.StreamEventTypeError:
+			case agentcore.StreamEventTypeError:
 				return btwErrorMsg{err: event.Error}
-			case core.StreamEventTypeIncomplete:
+			case agentcore.StreamEventTypeIncomplete:
 				return btwErrorMsg{err: event.Error}
 			default:
 				continue
@@ -942,12 +944,11 @@ func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
 }
 
 func (m *replModel) updateLLMClient() error {
-	client, err := llm.NewClient(m.ctx.cfg)
-	if err != nil {
-		return err
+	if m.ctx != nil {
+		m.agentCore.SetConfig(m.ctx.cfg)
+		m.agentCore.SetGlobalConfig(m.ctx.globalCfg)
 	}
-	m.appState.UpdateClient(client)
-	return nil
+	return m.agentCore.UpdateClient()
 }
 
 func (m *replModel) handleSessionPersistenceError(err error) {

@@ -47,11 +47,11 @@ func executeTool(ctx context.Context, registry *tools.Registry, name string, inp
 		toolCall.Error = err.Error()
 		slog.Debug("Tool response", "tool", name, "error", err.Error(), "duration", duration)
 		if started {
-			eventCh <- core.StreamEvent{Type: core.StreamEventTypeToolEnd, ToolCall: toolCall}
+			sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeToolEnd, ToolCall: toolCall})
 		}
 	} else {
 		slog.Debug("Tool response", "tool", name, "duration", duration)
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeToolEnd, ToolCall: toolCall}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeToolEnd, ToolCall: toolCall})
 	}
 	return toolExecution{
 		RawOutput: rawOutput,
@@ -130,12 +130,14 @@ func executeValidatedTool(
 	if err := tools.ValidateInput(ctx, tool, input); err != nil {
 		return nil, nil, err, false
 	}
-	eventCh <- core.StreamEvent{
+	if !sendStreamEvent(ctx, eventCh, core.StreamEvent{
 		Type: core.StreamEventTypeToolStart,
 		ToolCall: &core.ToolCall{
 			Name:  name,
 			Input: input,
 		},
+	}) {
+		return nil, nil, ctx.Err(), false
 	}
 	rawOutput, err = tool.Execute(ctx, input)
 	if err != nil {

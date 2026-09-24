@@ -8,17 +8,14 @@ import (
 	"io"
 	"strings"
 
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/agentcore"
 
-	"github.com/mochow13/keen-code/internal/cli/repl/appstate"
-	replappstate "github.com/mochow13/keen-code/internal/cli/repl/appstate"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/session"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const (
@@ -84,10 +81,10 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	}
 	defer progress.newLine()
 
-	appState := replappstate.New(opts.Client, opts.WorkingDir)
+	agentCore := agentcore.New(opts.Client, opts.WorkingDir, opts.Config, opts.GlobalConfig)
 	permissionRequester := replpermissions.NewAutoApproveRequester()
 	diffEmitter := repltooling.NewDiffEmitter()
-	repltooling.SetupToolRegistry(opts.WorkingDir, appState, permissionRequester, diffEmitter, nil, opts.MCPRuntime, opts.Config, opts.GlobalConfig, nil)
+	_ = agentCore.SetupTools(ctx, permissionRequester, diffEmitter, nil, opts.MCPRuntime, false)
 
 	sessions := newReplSessionState(opts.WorkingDir)
 	if sessions == nil {
@@ -98,15 +95,13 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 		if err != nil {
 			return nil, err
 		}
-		appState.ReplaceMessages(session.BuildConversation(loaded.Events))
+		agentCore.ReplaceMessages(agentcore.FromCoreMessages(session.BuildConversation(loaded.Events)))
 	}
 
-	if err := sessions.appendUserMessage(appState.FormatUserMessage(prompt)); err != nil {
+	if err := sessions.appendUserMessage(agentCore.FormatUserMessage(prompt)); err != nil {
 		return nil, err
 	}
-	appState.AddUserMessage(prompt)
-
-	eventCh, err := appState.StreamChat(ctx, opts.Config, core.StreamOptions{SessionID: sessions.currentID()})
+	eventCh, err := agentCore.Submit(ctx, sessions.currentID(), prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +116,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	turnMemory := newTurnMemoryAccumulator(false)
 	var completedText strings.Builder
 
-	var lastUsage *core.TokenUsage
+	var lastUsage *agentcore.TokenUsage
 	for {
 		select {
 		case diffReq := <-diffEmitter.GetDiffChan():
@@ -129,30 +124,33 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 			close(diffReq.Done)
 		case event, ok := <-eventCh:
 			if !ok {
+				if ctx.Err() != nil {
+					return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, ctx.Err())
+				}
 				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turnMemory, completedText.String(), lastUsage)
 			}
 			switch event.Type {
-			case core.StreamEventTypeChunk:
+			case agentcore.StreamEventTypeChunk:
 				handler.HandleChunk(event.Content)
 				progress.writeText(event.Content)
-			case core.StreamEventTypeReasoningChunk:
+			case agentcore.StreamEventTypeReasoningChunk:
 				handler.HandleReasoningChunk(event.Content)
-			case core.StreamEventTypeToolStart:
+			case agentcore.StreamEventTypeToolStart:
 				handleHeadlessToolStart(handler, event.ToolCall)
 				progress.newLine()
-			case core.StreamEventTypeToolEnd:
+			case agentcore.StreamEventTypeToolEnd:
 				handleHeadlessToolEnd(handler, event.ToolCall)
 				progress.writeToolEnd(event.ToolCall)
-			case core.StreamEventTypeUsage:
+			case agentcore.StreamEventTypeUsage:
 				lastUsage = event.Usage
-			case core.StreamEventTypeRetry:
+			case agentcore.StreamEventTypeRetry:
 				handler.RewindForRetry()
 				progress.newLine()
-			case core.StreamEventTypeAutoCompactionApplied:
+			case agentcore.StreamEventTypeAutoCompactionApplied:
 				progress.newLine()
 				if err := checkpointHeadlessAutoCompaction(
 					sessions,
-					appState,
+					agentCore,
 					handler,
 					turnMemory,
 					&completedText,
@@ -161,11 +159,11 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 					return nil, err
 				}
 				lastUsage = nil
-			case core.StreamEventTypeDone:
+			case agentcore.StreamEventTypeDone:
 				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turnMemory, completedText.String(), lastUsage)
-			case core.StreamEventTypeIncomplete:
+			case agentcore.StreamEventTypeIncomplete:
 				return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, event.Error)
-			case core.StreamEventTypeError:
+			case agentcore.StreamEventTypeError:
 				return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, event.Error)
 			}
 		case <-ctx.Done():
@@ -187,11 +185,11 @@ func loadHeadlessSession(sessions *replSessionState, sessionID string) (*session
 	return nil, fmt.Errorf("session %q not found", sessionID)
 }
 
-func handleHeadlessToolStart(handler *StreamHandler, toolCall *core.ToolCall) {
+func handleHeadlessToolStart(handler *StreamHandler, toolCall *agentcore.ToolCall) {
 	if toolCall == nil {
 		return
 	}
-	if toolCall.Name == tools.BashToolName {
+	if toolCall.Name == agentcore.ToolNameBash {
 		command, _ := toolCall.Input["command"].(string)
 		summary, _ := toolCall.Input["summary"].(string)
 		handler.HandleBashStart(command, summary)
@@ -200,11 +198,11 @@ func handleHeadlessToolStart(handler *StreamHandler, toolCall *core.ToolCall) {
 	handler.HandleToolStart(toolCall)
 }
 
-func handleHeadlessToolEnd(handler *StreamHandler, toolCall *core.ToolCall) {
+func handleHeadlessToolEnd(handler *StreamHandler, toolCall *agentcore.ToolCall) {
 	if toolCall == nil {
 		return
 	}
-	if toolCall.Name == tools.BashToolName {
+	if toolCall.Name == agentcore.ToolNameBash {
 		handler.HandleBashEnd(toolCall)
 		return
 	}
@@ -213,11 +211,11 @@ func handleHeadlessToolEnd(handler *StreamHandler, toolCall *core.ToolCall) {
 
 func checkpointHeadlessAutoCompaction(
 	sessions *replSessionState,
-	appState *replappstate.AppState,
+	agentCore agentcore.AgentCore,
 	handler *StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText *strings.Builder,
-	compaction *core.AutoCompactionEvent,
+	compaction *agentcore.AutoCompactionEvent,
 ) error {
 	if compaction == nil || len(compaction.Replacement) == 0 {
 		return fmt.Errorf("automatic compaction applied without replacement history")
@@ -226,9 +224,9 @@ func checkpointHeadlessAutoCompaction(
 	segments := cloneStreamSegments(handler.segments)
 	turnMemory.RecordToolActivity(segments, handler.workingDir)
 	response := handler.GetResponse()
-	persistedReplacement := appstate.WithoutSystemMessages(compaction.Replacement)
-	if err := sessions.appendAutoCompaction(segments, core.Message{
-		Role:       core.RoleAssistant,
+	persistedReplacement := agentCore.WithoutSystemMessages(compaction.Replacement)
+	if err := sessions.appendAutoCompaction(segments, agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    response,
 		TurnMemory: turnMemory.Build(),
 	}, persistedReplacement); err != nil {
@@ -236,7 +234,7 @@ func checkpointHeadlessAutoCompaction(
 	}
 
 	completedText.WriteString(response)
-	appState.ReplaceMessages(persistedReplacement)
+	agentCore.ReplaceMessages(persistedReplacement)
 	handler.ResetContent()
 	*turnMemory = *newTurnMemoryAccumulator(false)
 	return nil
@@ -250,13 +248,13 @@ func finishHeadlessRun(
 	handler *StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText string,
-	usage *core.TokenUsage,
+	usage *agentcore.TokenUsage,
 ) (*HeadlessRunResult, error) {
 	segments := cloneStreamSegments(handler.segments)
 	turnMemory.RecordToolActivity(segments, handler.workingDir)
 	_, currentResponse := handler.HandleDone()
-	assistantMessage := core.Message{
-		Role:       core.RoleAssistant,
+	assistantMessage := agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    currentResponse,
 		TurnMemory: turnMemory.Build(),
 	}
@@ -286,7 +284,7 @@ func failHeadlessRun(
 	handler *StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText string,
-	usage *core.TokenUsage,
+	usage *agentcore.TokenUsage,
 	err error,
 ) (*HeadlessRunResult, error) {
 	if err == nil {
@@ -296,8 +294,8 @@ func failHeadlessRun(
 	turnMemory.RecordToolActivity(segments, handler.workingDir)
 	partialResponse := handler.GetResponse()
 	_, errMsg := handler.HandleError(err)
-	assistantMessage := core.Message{
-		Role:       core.RoleAssistant,
+	assistantMessage := agentcore.Message{
+		Role:       agentcore.RoleAssistant,
 		Content:    partialResponse,
 		TurnMemory: turnMemory.Build(),
 	}
@@ -314,7 +312,7 @@ func failHeadlessRun(
 	return result, err
 }
 
-func cloneHeadlessUsage(usage *core.TokenUsage) *headlessUsage {
+func cloneHeadlessUsage(usage *agentcore.TokenUsage) *headlessUsage {
 	if usage == nil {
 		return nil
 	}

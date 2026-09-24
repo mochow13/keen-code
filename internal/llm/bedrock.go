@@ -290,10 +290,10 @@ func (c *BedrockClient) StreamChat(
 			)
 			if err != nil {
 				if compactionAttempted {
-					c.exitIncomplete(eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
+					c.exitIncomplete(ctx, eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
 				} else {
 					c.pendingState = nil
-					c.emitTerminalEvent(eventCh, msgParams, turnStartLen, injectedPending, err)
+					c.emitTerminalEvent(ctx, eventCh, msgParams, turnStartLen, injectedPending, err)
 				}
 				return
 			}
@@ -325,7 +325,7 @@ func (c *BedrockClient) StreamChat(
 
 			assistantBlocks, toolUses, usage, err := c.collectTurnWithRetry(ctx, params, eventCh)
 			if err != nil {
-				c.exitIncomplete(eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
+				c.exitIncomplete(ctx, eventCh, msgParams, turnStartLen, injectedPending, err, oneShot)
 				return
 			}
 
@@ -337,11 +337,11 @@ func (c *BedrockClient) StreamChat(
 					"total_tokens", usage.TotalTokens,
 					"cached_tokens", usage.CachedTokens,
 				)
-				eventCh <- core.StreamEvent{Type: core.StreamEventTypeUsage, Usage: usage}
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeUsage, Usage: usage})
 			}
 
 			if len(toolUses) == 0 {
-				eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 				return
 			}
 
@@ -366,7 +366,7 @@ func (c *BedrockClient) StreamChat(
 			autoCompactOff = false
 		}
 
-		c.exitIncomplete(eventCh, msgParams, turnStartLen, injectedPending, nil, oneShot)
+		c.exitIncomplete(ctx, eventCh, msgParams, turnStartLen, injectedPending, nil, oneShot)
 	}()
 
 	return eventCh, nil
@@ -432,14 +432,14 @@ func (c *BedrockClient) compactHistory(
 ) error {
 	compactionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	eventCh <- core.StreamEvent{Type: core.StreamEventTypeAutoCompactionStarted, AutoCompaction: &core.AutoCompactionEvent{Cancel: cancel}}
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeAutoCompactionStarted, AutoCompaction: &core.AutoCompactionEvent{Cancel: cancel}})
 	replacement, usage, err := AutoCompact(compactionCtx, c, *compactionHistory, toolRegistry, sessionID)
 	if err != nil {
 		eventType := core.StreamEventTypeAutoCompactionFailed
 		if compaction.IsCancellation(err) {
 			eventType = core.StreamEventTypeAutoCompactionCancelled
 		}
-		eventCh <- core.StreamEvent{Type: eventType, AutoCompaction: &core.AutoCompactionEvent{Error: err, Usage: usage}}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: eventType, AutoCompaction: &core.AutoCompactionEvent{Error: err, Usage: usage}})
 		return err
 	}
 
@@ -448,7 +448,7 @@ func (c *BedrockClient) compactHistory(
 	*injectedPending = nil
 	*turnStartLen = len(*msgParams)
 	c.pendingState = nil
-	eventCh <- core.StreamEvent{Type: core.StreamEventTypeAutoCompactionApplied, AutoCompaction: &core.AutoCompactionEvent{Replacement: replacement, Usage: usage}}
+	sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeAutoCompactionApplied, AutoCompaction: &core.AutoCompactionEvent{Replacement: replacement, Usage: usage}})
 	return nil
 }
 
@@ -481,7 +481,7 @@ func (c *BedrockClient) collectTurnWithRetry(ctx context.Context, params *bedroc
 	var usage *core.TokenUsage
 	err := retry.Run(ctx, c.maxRetries, func(attempt, maxRetries int, err error) {
 		slog.Debug("Bedrock stream error, retrying", "attempt", attempt, "maxRetries", maxRetries, "backoff", time.Duration(attempt)*time.Second, "error", err)
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeRetry, Error: err, Attempt: attempt})
 	}, func() error {
 		var err error
 		blocks, uses, usage, err = c.collectTurn(ctx, params, eventCh)
@@ -537,13 +537,13 @@ func (c *BedrockClient) collectTurn(
 			case *brtypes.ContentBlockDeltaMemberText:
 				state.blockType = "text"
 				state.text += delta.Value
-				eventCh <- core.StreamEvent{Type: core.StreamEventTypeChunk, Content: delta.Value}
+				sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeChunk, Content: delta.Value})
 			case *brtypes.ContentBlockDeltaMemberReasoningContent:
 				switch reasoning := delta.Value.(type) {
 				case *brtypes.ReasoningContentBlockDeltaMemberText:
 					state.blockType = "reasoning"
 					state.thinking += reasoning.Value
-					eventCh <- core.StreamEvent{Type: core.StreamEventTypeReasoningChunk, Content: reasoning.Value}
+					sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeReasoningChunk, Content: reasoning.Value})
 				case *brtypes.ReasoningContentBlockDeltaMemberSignature:
 					state.blockType = "reasoning"
 					state.signature = reasoning.Value
@@ -693,21 +693,36 @@ func (c *BedrockClient) savePendingIfAccumulated(msgParams []brtypes.Message, tu
 	c.pendingState = append(c.pendingState, newDelta...)
 }
 
-func (c *BedrockClient) emitTerminalEvent(eventCh chan<- core.StreamEvent, msgParams []brtypes.Message, turnStartLen int, injectedPending []brtypes.Message, err error) {
+func (c *BedrockClient) emitTerminalEvent(
+	ctx context.Context,
+	eventCh chan<- core.StreamEvent,
+	msgParams []brtypes.Message,
+	turnStartLen int,
+	injectedPending []brtypes.Message,
+	err error,
+) {
 	if len(injectedPending) > 0 || len(msgParams) > turnStartLen {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeIncomplete, Error: err})
 	} else if err != nil {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeError, Error: err}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeError, Error: err})
 	} else {
-		eventCh <- core.StreamEvent{Type: core.StreamEventTypeDone}
+		sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeDone})
 	}
 }
 
-func (c *BedrockClient) exitIncomplete(eventCh chan<- core.StreamEvent, msgParams []brtypes.Message, turnStartLen int, injectedPending []brtypes.Message, err error, oneShot bool) {
+func (c *BedrockClient) exitIncomplete(
+	ctx context.Context,
+	eventCh chan<- core.StreamEvent,
+	msgParams []brtypes.Message,
+	turnStartLen int,
+	injectedPending []brtypes.Message,
+	err error,
+	oneShot bool,
+) {
 	if !oneShot {
 		c.savePendingIfAccumulated(msgParams, turnStartLen, injectedPending)
 	}
-	c.emitTerminalEvent(eventCh, msgParams, turnStartLen, injectedPending, err)
+	c.emitTerminalEvent(ctx, eventCh, msgParams, turnStartLen, injectedPending, err)
 }
 
 func (c *BedrockClient) executeTools(
