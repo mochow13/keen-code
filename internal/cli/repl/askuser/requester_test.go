@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 )
 
 func TestRequester_CancellationClearsPendingRequest(t *testing.T) {
@@ -14,7 +14,7 @@ func TestRequester_CancellationClearsPendingRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	resultCh := make(chan error, 1)
 	go func() {
-		_, err := requester.RequestUser(ctx, tools.AskUserRequest{})
+		_, err := requester.RequestUser(ctx, agentcore.AskUserRequest{})
 		resultCh <- err
 	}()
 
@@ -34,16 +34,16 @@ func TestRequester_RejectsConcurrentQuestionnaire(t *testing.T) {
 	defer cancel()
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := requester.RequestUser(ctx, tools.AskUserRequest{})
+		_, err := requester.RequestUser(ctx, agentcore.AskUserRequest{})
 		firstDone <- err
 	}()
 
 	req := <-requester.GetRequestChan()
-	_, err := requester.RequestUser(context.Background(), tools.AskUserRequest{})
+	_, err := requester.RequestUser(context.Background(), agentcore.AskUserRequest{})
 	if err == nil {
 		t.Fatal("expected concurrent request rejection")
 	}
-	requester.Respond(req, tools.AskUserResult{})
+	requester.Respond(req, agentcore.AskUserResult{})
 	select {
 	case err := <-firstDone:
 		if err != nil {

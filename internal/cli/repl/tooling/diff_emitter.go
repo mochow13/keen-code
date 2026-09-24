@@ -1,9 +1,9 @@
 package tooling
 
-import "github.com/mochow13/keen-code/internal/tools"
+import "github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 
 type DiffRequest struct {
-	Lines []tools.EditDiffLine
+	Lines []agentcore.EditDiffLine
 	Done  chan struct{}
 }
 
@@ -17,7 +17,7 @@ func NewDiffEmitter() *DiffEmitter {
 	}
 }
 
-func (e *DiffEmitter) EmitDiff(lines []tools.EditDiffLine) {
+func (e *DiffEmitter) EmitDiff(lines []agentcore.EditDiffLine) {
 	done := make(chan struct{})
 	e.diffChan <- DiffRequest{Lines: lines, Done: done}
 	<-done
