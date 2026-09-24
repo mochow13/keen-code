@@ -4,7 +4,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"encoding/json"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"

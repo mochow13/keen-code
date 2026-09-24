@@ -3,7 +3,7 @@ package tooling
 import (
 	"testing"
 
-	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
+	"github.com/mochow13/keen-code/internal/agentcore"
 )
 
 func TestDiffEmitterRoundTrip(t *testing.T) {

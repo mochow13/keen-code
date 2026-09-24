@@ -6,7 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
-	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )

@@ -3,7 +3,7 @@ package repl
 import (
 	tea "charm.land/bubbletea/v2"
 	"errors"
-	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	"testing"

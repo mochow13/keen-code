@@ -3,7 +3,7 @@ package repl
 import (
 	"context"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"slices"
 	"strconv"
 	"strings"

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"github.com/mochow13/keen-code/internal/llm"
 
 	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"

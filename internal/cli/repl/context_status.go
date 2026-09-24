@@ -1,7 +1,7 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
+	"github.com/mochow13/keen-code/internal/agentcore"
 	"strconv"
 	"strings"
 
