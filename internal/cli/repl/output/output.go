@@ -4,9 +4,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"encoding/json"
 	"fmt"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
-	"github.com/mochow13/keen-code/internal/llm/core"
-	"github.com/mochow13/keen-code/internal/tools"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"path/filepath"
@@ -132,24 +131,24 @@ func (ob *OutputBuilder) IsEmpty() bool {
 	return len(ob.lines) == 0
 }
 
-func (ob *OutputBuilder) AddToolStart(toolCall *core.ToolCall) {
+func (ob *OutputBuilder) AddToolStart(toolCall *agentcore.ToolCall) {
 	ob.lines = append(ob.lines, FormatToolStart(toolCall, ob.workingDir))
 }
 
-func (ob *OutputBuilder) AddToolEnd(toolCall *core.ToolCall) {
+func (ob *OutputBuilder) AddToolEnd(toolCall *agentcore.ToolCall) {
 	ob.lines = append(ob.lines, FormatToolEnd(toolCall))
 }
 
 var toolDisplayNames = map[string]string{
-	tools.ReadFileToolName:  "Read",
-	tools.WriteFileToolName: "Write",
-	tools.EditFileToolName:  "Edit",
-	tools.GrepToolName:      "Search",
-	tools.GlobToolName:      "Find",
-	tools.BashToolName:      "Run",
-	tools.WebFetchToolName:  "Fetch",
-	tools.CallMCPToolName:   "MCP",
-	tools.DelegateToolName:  "Delegate",
+	agentcore.ToolNameReadFile:  "Read",
+	agentcore.ToolNameWriteFile: "Write",
+	agentcore.ToolNameEditFile:  "Edit",
+	agentcore.ToolNameGrep:      "Search",
+	agentcore.ToolNameGlob:      "Find",
+	agentcore.ToolNameBash:      "Run",
+	agentcore.ToolNameWebFetch:  "Fetch",
+	agentcore.ToolNameCallMCP:   "MCP",
+	agentcore.ToolNameDelegate:  "Delegate",
 }
 
 var toolLabelCaser = cases.Title(language.English)
@@ -161,12 +160,12 @@ func toolDisplayName(name string) string {
 	return toolLabelCaser.String(strings.ReplaceAll(name, "_", " "))
 }
 
-func FormatToolStart(toolCall *core.ToolCall, workingDir string) string {
+func FormatToolStart(toolCall *agentcore.ToolCall, workingDir string) string {
 	detail := formatToolInputDetail(toolCall.Name, toolCall.Input, workingDir)
 	return "  " + renderToolStatus("●", toolCall.Name, toolDisplayName(toolCall.Name), detail, nil, nil, false) + repltheme.ToolMetaStyle.Render("...")
 }
 
-func FormatToolDone(startCall, endCall *core.ToolCall, workingDir string) string {
+func FormatToolDone(startCall, endCall *agentcore.ToolCall, workingDir string) string {
 	detail := formatToolInputDetail(startCall.Name, startCall.Input, workingDir)
 	metadata, failed := formatToolResultMetadata(startCall.Name, startCall.Input, endCall)
 	errText := formatToolError(startCall.Name, endCall.Error)
@@ -176,7 +175,7 @@ func FormatToolDone(startCall, endCall *core.ToolCall, workingDir string) string
 	return "  " + renderToolStatus("✓", startCall.Name, toolDisplayName(startCall.Name), detail, metadata, errText, false)
 }
 
-func FormatFoldedReads(startCall *core.ToolCall, endCalls []*core.ToolCall, workingDir string) string {
+func FormatFoldedReads(startCall *agentcore.ToolCall, endCalls []*agentcore.ToolCall, workingDir string) string {
 	detail := formatToolInputDetail(startCall.Name, startCall.Input, workingDir)
 	metadata := []string{pluralize(len(endCalls), "chunk")}
 	linesRead := 0
@@ -203,7 +202,7 @@ func FormatFoldedReads(startCall *core.ToolCall, endCalls []*core.ToolCall, work
 	return "  " + renderToolStatus("✓", startCall.Name, toolDisplayName(startCall.Name), detail, metadata, nil, false)
 }
 
-func FormatSubagentTool(agent string, startCall, endCall *core.ToolCall, workingDir string) string {
+func FormatSubagentTool(agent string, startCall, endCall *agentcore.ToolCall, workingDir string) string {
 	prefix := "[" + agent + "] "
 	if startCall == nil {
 		if endCall == nil {
@@ -221,7 +220,7 @@ func FormatSubagentTool(agent string, startCall, endCall *core.ToolCall, working
 	return strings.Replace(FormatToolDone(startCall, &cloned, workingDir), toolDisplayName(startCall.Name), prefix+toolDisplayName(startCall.Name), 1)
 }
 
-func FormatToolEnd(toolCall *core.ToolCall) string {
+func FormatToolEnd(toolCall *agentcore.ToolCall) string {
 	metadata, failed := formatToolResultMetadata(toolCall.Name, toolCall.Input, toolCall)
 	errText := formatToolError(toolCall.Name, toolCall.Error)
 	if failed {
@@ -234,7 +233,7 @@ func formatToolError(toolName, message string) *string {
 	if message == "" {
 		return nil
 	}
-	if toolName == tools.CallMCPToolName {
+	if toolName == agentcore.ToolNameCallMCP {
 		minimal := "failed"
 		return &minimal
 	}
@@ -271,7 +270,7 @@ func renderToolStatus(marker, toolName, label, detail string, metadata []string,
 }
 
 func renderToolDetail(toolName, detail string) string {
-	if toolName != tools.GrepToolName && toolName != tools.GlobToolName {
+	if toolName != agentcore.ToolNameGrep && toolName != agentcore.ToolNameGlob {
 		return detail
 	}
 
@@ -288,23 +287,23 @@ func formatToolInputDetail(toolName string, input map[string]any, workingDir str
 	}
 
 	switch toolName {
-	case tools.CallMCPToolName:
+	case agentcore.ToolNameCallMCP:
 		return formatMCPToolInput(input)
-	case tools.DelegateToolName:
+	case agentcore.ToolNameDelegate:
 		return formatDelegateTaskInput(input)
-	case tools.ReadFileToolName, tools.WriteFileToolName, tools.EditFileToolName:
+	case agentcore.ToolNameReadFile, agentcore.ToolNameWriteFile, agentcore.ToolNameEditFile:
 		if path, ok := input["path"].(string); ok && path != "" {
 			return compactDisplayPath(formatToolPathForUI(path, workingDir))
 		}
 		return ""
-	case tools.GrepToolName, tools.GlobToolName:
+	case agentcore.ToolNameGrep, agentcore.ToolNameGlob:
 		return formatSearchInput(input, workingDir)
-	case tools.BashToolName:
+	case agentcore.ToolNameBash:
 		if command, ok := input["command"].(string); ok && command != "" {
 			return compactDisplayValue(command, maxDisplayValueRunes)
 		}
 		return ""
-	case tools.WebFetchToolName:
+	case agentcore.ToolNameWebFetch:
 		if url, ok := input["url"].(string); ok && url != "" {
 			return compactDisplayValue(url, maxDisplayValueRunes)
 		}
@@ -389,7 +388,7 @@ func formatGenericValue(value any) (string, bool) {
 	}
 }
 
-func formatToolResultMetadata(toolName string, input map[string]any, endCall *core.ToolCall) ([]string, bool) {
+func formatToolResultMetadata(toolName string, input map[string]any, endCall *agentcore.ToolCall) ([]string, bool) {
 	if endCall.Error != "" {
 		return withDuration(nil, endCall.Duration), true
 	}
@@ -397,15 +396,15 @@ func formatToolResultMetadata(toolName string, input map[string]any, endCall *co
 	var metadata []string
 	if result, ok := endCall.Output.(map[string]any); ok {
 		switch toolName {
-		case tools.ReadFileToolName:
+		case agentcore.ToolNameReadFile:
 			metadata = readFileMetadata(result)
-		case tools.GrepToolName:
+		case agentcore.ToolNameGrep:
 			metadata = grepMetadata(result)
-		case tools.GlobToolName:
+		case agentcore.ToolNameGlob:
 			if files, ok := stringSlice(result["files"]); ok {
 				metadata = append(metadata, pluralize(len(files), "file"))
 			}
-		case tools.WriteFileToolName:
+		case agentcore.ToolNameWriteFile:
 			if created, ok := result["created"].(bool); ok {
 				if created {
 					metadata = append(metadata, "created")
@@ -416,15 +415,15 @@ func formatToolResultMetadata(toolName string, input map[string]any, endCall *co
 			if content, ok := input["content"].(string); ok {
 				metadata = append(metadata, formatByteCount(len(content)))
 			}
-		case tools.WebFetchToolName:
+		case agentcore.ToolNameWebFetch:
 			if content, ok := result["content"].(string); ok {
 				metadata = append(metadata, formatByteCount(len(content)))
 			}
-		case tools.BashToolName:
+		case agentcore.ToolNameBash:
 			if code, ok := intValue(result["exit_code"]); ok && code != 0 {
 				metadata = append(metadata, fmt.Sprintf("exit %d", code))
 			}
-		case tools.DelegateToolName:
+		case agentcore.ToolNameDelegate:
 			summary, failed := delegateTaskSummary(result)
 			if summary != "" {
 				metadata = append([]string{summary}, metadata...)
@@ -432,7 +431,7 @@ func formatToolResultMetadata(toolName string, input map[string]any, endCall *co
 					return withDuration(metadata, endCall.Duration), true
 				}
 			}
-		case tools.CallMCPToolName:
+		case agentcore.ToolNameCallMCP:
 			if truncated, _ := result["truncated"].(bool); truncated {
 				metadata = append(metadata, "truncated")
 			}
