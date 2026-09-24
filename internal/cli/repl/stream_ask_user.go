@@ -6,9 +6,9 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const askUserHorizontalMargin = 4
@@ -97,7 +97,7 @@ func (s *askUserState) resolve(requester *replaskuser.Requester, cancelled bool)
 	if !s.active() {
 		return
 	}
-	result := tools.AskUserResult{Answers: append([]string(nil), s.answers...), Cancelled: cancelled}
+	result := agentcore.AskUserResult{Answers: append([]string(nil), s.answers...), Cancelled: cancelled}
 	if requester != nil {
 		requester.Respond(s.request, result)
 	}

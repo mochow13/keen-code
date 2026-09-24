@@ -1,9 +1,8 @@
 package repl
 
 import (
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
-	"github.com/mochow13/keen-code/internal/llm/core"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type streamSegmentType string
@@ -23,16 +22,16 @@ const (
 type streamSegment struct {
 	kind             streamSegmentType
 	content          string
-	toolCall         *core.ToolCall
+	toolCall         *agentcore.ToolCall
 	command          string
 	summary          string
 	output           string
 	renderedLines    []string
 	permissionReq    *replpermissions.Request
 	permissionCursor int
-	diffLines        []tools.EditDiffLine
+	diffLines        []agentcore.EditDiffLine
 	agent            string
 	activityKey      string
-	endToolCall      *core.ToolCall
+	endToolCall      *agentcore.ToolCall
 	askUser          *askUserState
 }

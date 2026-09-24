@@ -1,19 +1,17 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
 	"strings"
 
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
-	"github.com/mochow13/keen-code/internal/subagents"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type StreamHandler struct {
 	isActive        bool
 	currentResponse string
 	rawResponse     string
-	eventCh         <-chan core.StreamEvent
+	eventCh         <-chan agentcore.StreamEvent
 	loadingText     string
 	lastWidth       int
 	workingDir      string
@@ -30,7 +28,7 @@ func NewStreamHandler(mdRenderer *replmarkdown.Renderer) *StreamHandler {
 	}
 }
 
-func (sh *StreamHandler) Start(eventCh <-chan core.StreamEvent, loadingText string) {
+func (sh *StreamHandler) Start(eventCh <-chan agentcore.StreamEvent, loadingText string) {
 	sh.isActive = true
 	sh.currentResponse = ""
 	sh.rawResponse = ""
@@ -77,11 +75,11 @@ func (sh *StreamHandler) HandleReasoningChunk(chunk string) {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentReasoning, content: chunk})
 }
 
-func (sh *StreamHandler) HandleToolStart(toolCall *core.ToolCall) {
+func (sh *StreamHandler) HandleToolStart(toolCall *agentcore.ToolCall) {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentToolStart, toolCall: toolCall})
 }
 
-func (sh *StreamHandler) HandleToolEnd(toolCall *core.ToolCall) {
+func (sh *StreamHandler) HandleToolEnd(toolCall *agentcore.ToolCall) {
 	sh.segments = append(sh.segments, streamSegment{kind: segmentToolEnd, toolCall: toolCall})
 }
 
@@ -103,17 +101,17 @@ func (sh *StreamHandler) SetAskUser(state *askUserState) {
 	}
 }
 
-func (sh *StreamHandler) HandleSubagentActivity(activity subagents.ToolActivity) {
+func (sh *StreamHandler) HandleSubagentActivity(activity agentcore.ToolActivity) {
 	key := activity.RunID + ":" + activity.CallID
 	switch activity.Event.Type {
-	case core.StreamEventTypeToolStart:
+	case agentcore.StreamEventTypeToolStart:
 		sh.segments = append(sh.segments, streamSegment{
 			kind:        segmentSubagent,
 			agent:       activity.Agent,
 			activityKey: key,
 			toolCall:    activity.Event.ToolCall,
 		})
-	case core.StreamEventTypeToolEnd:
+	case agentcore.StreamEventTypeToolEnd:
 		for i := len(sh.segments) - 1; i >= 0; i-- {
 			if sh.segments[i].kind == segmentSubagent && sh.segments[i].activityKey == key {
 				sh.segments[i].endToolCall = activity.Event.ToolCall
@@ -137,7 +135,7 @@ func (sh *StreamHandler) HandleBashStart(command, summary string) {
 	})
 }
 
-func (sh *StreamHandler) HandleBashEnd(toolCall *core.ToolCall) {
+func (sh *StreamHandler) HandleBashEnd(toolCall *agentcore.ToolCall) {
 	n := len(sh.segments)
 	if n > 0 && sh.segments[n-1].kind == segmentBash {
 		if result, ok := toolCall.Output.(map[string]any); ok {
@@ -155,7 +153,7 @@ func (sh *StreamHandler) HandleBashEnd(toolCall *core.ToolCall) {
 	}
 }
 
-func (sh *StreamHandler) HandleDiff(lines []tools.EditDiffLine) {
+func (sh *StreamHandler) HandleDiff(lines []agentcore.EditDiffLine) {
 	sh.segments = append(sh.segments, streamSegment{
 		kind:      segmentDiff,
 		diffLines: lines,

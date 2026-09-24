@@ -1,7 +1,7 @@
 package repl
 
 import (
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	"strings"
 	"testing"
 
@@ -65,7 +65,7 @@ func TestRenderViewAndTranscriptHandleStandaloneToolEnd(t *testing.T) {
 	handler.lastWidth = 40
 	handler.showThinking = true
 	handler.segments = []streamSegment{
-		{kind: segmentToolEnd, toolCall: &core.ToolCall{Name: "read_file", Output: map[string]any{"total_lines": 2}}},
+		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"total_lines": 2}}},
 		{kind: segmentAssistant, content: "done"},
 		{kind: segmentReasoning, content: "thought"},
 	}
@@ -83,8 +83,8 @@ func TestRenderViewAndTranscriptHandleStandaloneToolEnd(t *testing.T) {
 func TestRenderFoldsOnlyConsecutiveReadsOfSameFile(t *testing.T) {
 	read := func(path string, lines, bytes int) []streamSegment {
 		return []streamSegment{
-			{kind: segmentToolStart, toolCall: &core.ToolCall{Name: "read_file", Input: map[string]any{"path": path}}},
-			{kind: segmentToolEnd, toolCall: &core.ToolCall{Name: "read_file", Output: map[string]any{"lines_read": lines, "bytes_read": bytes}}},
+			{kind: segmentToolStart, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": path}}},
+			{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"lines_read": lines, "bytes_read": bytes}}},
 		}
 	}
 
@@ -112,11 +112,11 @@ func TestRenderFoldsOnlyConsecutiveReadsOfSameFile(t *testing.T) {
 
 func TestConsecutiveReadCallsRequireSuccessfulAdjacentPairs(t *testing.T) {
 	segments := []streamSegment{
-		{kind: segmentToolStart, toolCall: &core.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
-		{kind: segmentToolEnd, toolCall: &core.ToolCall{Name: "read_file"}},
+		{kind: segmentToolStart, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
+		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file"}},
 		{kind: segmentAssistant, content: "between"},
-		{kind: segmentToolStart, toolCall: &core.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
-		{kind: segmentToolEnd, toolCall: &core.ToolCall{Name: "read_file", Error: "failed"}},
+		{kind: segmentToolStart, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
+		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Error: "failed"}},
 	}
 
 	calls, endIndex := consecutiveReadCalls(segments, 0)
@@ -141,4 +141,65 @@ func TestRenderDiffBoundaryBranches(t *testing.T) {
 
 func replthemeZeroStyle() lipgloss.Style {
 	return lipgloss.NewStyle()
+}
+
+func TestRenderDiffSegment_RendersRulesUsingViewportWidth(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")
+	sh.HandleDiff([]agentcore.EditDiffLine{
+		{Kind: agentcore.EditDiffLineHunk, Content: "@@ -1,2 +1,3 @@"},
+		{Kind: agentcore.EditDiffLineRemoved, Content: strings.Repeat("short ", 6), OldLineNum: 1},
+		{Kind: agentcore.EditDiffLineAdded, Content: strings.Repeat("shorter ", 6), NewLineNum: 1},
+	})
+
+	wideView := sh.View(80)
+	wideLines := strings.Split(strings.TrimRight(wideView, "\n"), "\n")
+	if len(wideLines) < 5 {
+		t.Fatalf("expected ruled diff lines, got %v", wideLines)
+	}
+
+	nonEmpty := make([]string, 0, len(wideLines))
+	for _, line := range wideLines {
+		if strings.TrimSpace(line) != "" {
+			nonEmpty = append(nonEmpty, line)
+		}
+	}
+	if len(nonEmpty) < 4 {
+		t.Fatalf("expected non-empty diff lines, got %v", nonEmpty)
+	}
+	if !strings.Contains(nonEmpty[0], "─") || !strings.Contains(nonEmpty[len(nonEmpty)-1], "─") {
+		t.Fatalf("expected top and bottom diff rules, got %q", wideView)
+	}
+	wideRuleWidth := lipgloss.Width(nonEmpty[0])
+	if wideRuleWidth != 78 {
+		t.Fatalf("expected diff rules to leave right padding, got width %d", wideRuleWidth)
+	}
+
+	narrowView := sh.View(24)
+	narrowLines := strings.Split(strings.TrimRight(narrowView, "\n"), "\n")
+	for _, line := range narrowLines {
+		if w := lipgloss.Width(line); w > 24 {
+			t.Fatalf("line exceeds viewport width (%d > %d): %q", w, 24, line)
+		}
+	}
+	narrowNonEmpty := make([]string, 0, len(narrowLines))
+	for _, line := range narrowLines {
+		if strings.TrimSpace(line) != "" {
+			narrowNonEmpty = append(narrowNonEmpty, line)
+		}
+	}
+	if len(narrowNonEmpty) <= len(nonEmpty) {
+		t.Fatalf("expected narrow diff view to wrap long lines, got wide=%d narrow=%d", len(nonEmpty), len(narrowNonEmpty))
+	}
+	if len(narrowNonEmpty) < 4 {
+		t.Fatalf("expected non-empty narrow diff lines, got %v", narrowNonEmpty)
+	}
+	if narrowRuleWidth := lipgloss.Width(narrowNonEmpty[0]); narrowRuleWidth != 22 {
+		t.Fatalf("expected narrow diff rules to leave right padding, got width %d", narrowRuleWidth)
+	}
+	for _, line := range narrowNonEmpty {
+		if w := lipgloss.Width(line); w > 22 {
+			t.Fatalf("expected non-empty diff line to leave right padding (%d > %d): %q", w, 22, line)
+		}
+	}
 }

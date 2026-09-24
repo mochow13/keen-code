@@ -2,13 +2,12 @@ package repl
 
 import (
 	"fmt"
-	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/cli/repl/agentcore"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
-	"github.com/mochow13/keen-code/internal/tools"
 )
 
 const (
@@ -59,7 +58,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 		seg := &sh.segments[i]
 		switch seg.kind {
 		case segmentToolStart:
-			if seg.toolCall != nil && seg.toolCall.Name == tools.AskUserToolName {
+			if seg.toolCall != nil && seg.toolCall.Name == agentcore.ToolNameAskUser {
 				continue
 			}
 			if endCalls, endIndex := consecutiveReadCalls(sh.segments, i); len(endCalls) > 1 {
@@ -75,7 +74,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 			}
 		case segmentToolEnd:
 			if seg.toolCall != nil {
-				if seg.toolCall.Name == tools.AskUserToolName || isHiddenToolFailure(seg.toolCall) {
+				if seg.toolCall.Name == agentcore.ToolNameAskUser || isHiddenToolFailure(seg.toolCall) {
 					continue
 				}
 				if i > 0 && sh.segments[i-1].kind == segmentToolStart && sh.segments[i-1].toolCall != nil {
@@ -130,7 +129,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 		seg := &sh.segments[i]
 		switch seg.kind {
 		case segmentToolStart:
-			if seg.toolCall != nil && seg.toolCall.Name == tools.AskUserToolName {
+			if seg.toolCall != nil && seg.toolCall.Name == agentcore.ToolNameAskUser {
 				continue
 			}
 			if endCalls, endIndex := consecutiveReadCalls(sh.segments, i); len(endCalls) > 1 {
@@ -146,7 +145,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 			}
 		case segmentToolEnd:
 			if seg.toolCall != nil {
-				if seg.toolCall.Name == tools.AskUserToolName || isHiddenToolFailure(seg.toolCall) {
+				if seg.toolCall.Name == agentcore.ToolNameAskUser || isHiddenToolFailure(seg.toolCall) {
 					continue
 				}
 				if i > 0 && sh.segments[i-1].kind == segmentToolStart && sh.segments[i-1].toolCall != nil {
@@ -192,23 +191,23 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 	return lines
 }
 
-func consecutiveReadCalls(segments []streamSegment, startIndex int) ([]*core.ToolCall, int) {
+func consecutiveReadCalls(segments []streamSegment, startIndex int) ([]*agentcore.ToolCall, int) {
 	if startIndex >= len(segments) || segments[startIndex].kind != segmentToolStart {
 		return nil, startIndex
 	}
 	startCall := segments[startIndex].toolCall
-	if startCall == nil || startCall.Name != tools.ReadFileToolName {
+	if startCall == nil || startCall.Name != agentcore.ToolNameReadFile {
 		return nil, startIndex
 	}
 	path, _ := startCall.Input["path"].(string)
 
-	var endCalls []*core.ToolCall
+	var endCalls []*agentcore.ToolCall
 	endIndex := startIndex
 	for i := startIndex; i+1 < len(segments); i += 2 {
 		start := segments[i]
 		end := segments[i+1]
-		if start.kind != segmentToolStart || start.toolCall == nil || start.toolCall.Name != tools.ReadFileToolName ||
-			end.kind != segmentToolEnd || end.toolCall == nil || end.toolCall.Name != tools.ReadFileToolName || end.toolCall.Error != "" {
+		if start.kind != segmentToolStart || start.toolCall == nil || start.toolCall.Name != agentcore.ToolNameReadFile ||
+			end.kind != segmentToolEnd || end.toolCall == nil || end.toolCall.Name != agentcore.ToolNameReadFile || end.toolCall.Error != "" {
 			break
 		}
 		readPath, _ := start.toolCall.Input["path"].(string)
@@ -225,14 +224,14 @@ func (sh *StreamHandler) shouldHideToolStart(index int) bool {
 	return index+1 < len(sh.segments) && sh.segments[index+1].kind == segmentToolEnd && isHiddenToolFailure(sh.segments[index+1].toolCall)
 }
 
-func isHiddenToolFailure(toolCall *core.ToolCall) bool {
+func isHiddenToolFailure(toolCall *agentcore.ToolCall) bool {
 	if toolCall == nil {
 		return false
 	}
-	if toolCall.Name == tools.ReadFileToolName {
+	if toolCall.Name == agentcore.ToolNameReadFile {
 		return strings.HasPrefix(toolCall.Error, "not found: file ")
 	}
-	if toolCall.Name != tools.EditFileToolName {
+	if toolCall.Name != agentcore.ToolNameEditFile {
 		return false
 	}
 	return strings.Contains(toolCall.Error, "line hash mismatch") ||
@@ -412,15 +411,15 @@ func renderWrappedDiffLine(prefix string, content string, contentStyle lipgloss.
 	return lines
 }
 
-func renderDiffLines(dl tools.EditDiffLine, width int) []string {
+func renderDiffLines(dl agentcore.EditDiffLine, width int) []string {
 	switch dl.Kind {
-	case tools.DiffLineHunk:
+	case agentcore.EditDiffLineHunk:
 		return renderWrappedDiffLine("  ", dl.Content, repltheme.DiffHunkStyle, width)
-	case tools.DiffLineAdded:
+	case agentcore.EditDiffLineAdded:
 		lineNum := fmt.Sprintf("%4d", dl.NewLineNum)
 		prefix := repltheme.DiffLineNumStyle.Render("     "+lineNum) + " " + repltheme.DiffAddStyle.Render("+ ")
 		return renderWrappedDiffLine(prefix, dl.Content, repltheme.DiffAddStyle, width)
-	case tools.DiffLineRemoved:
+	case agentcore.EditDiffLineRemoved:
 		lineNum := fmt.Sprintf("%4d", dl.OldLineNum)
 		prefix := repltheme.DiffLineNumStyle.Render(lineNum+"     ") + " " + repltheme.DiffRemoveStyle.Render("- ")
 		return renderWrappedDiffLine(prefix, dl.Content, repltheme.DiffRemoveStyle, width)
