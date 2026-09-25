@@ -2,6 +2,10 @@ providers:
   - id: anthropic
     name: Anthropic
     models:
+      - id: claude-opus-5-5
+        name: Claude Opus 5.5
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: claude-fable-5-1
         name: Claude Fable 5.1
         context_window: 1000000
@@ -60,6 +64,14 @@ providers:
   - id: openai
     name: OpenAI
     models:
+      - id: gpt-6-sol
+        name: GPT-6 Sol
+        context_window: 1050000
+        thinking_efforts: ["none", "low", "medium", "high", "xhigh", "max"]
+      - id: gpt-6-luna
+        name: GPT-6 Luna
+        context_window: 1050000
+        thinking_efforts: ["none", "low", "medium", "high", "xhigh", "max"]
       - id: gpt-6-astra
         name: GPT-6 Astra
         context_window: 1050000
@@ -88,6 +100,14 @@ providers:
   - id: openai-codex
     name: Codex (ChatGPT OAuth)
     models:
+      - id: gpt-6-sol
+        name: GPT-6 Sol
+        context_window: 272000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]
+      - id: gpt-6-luna
+        name: GPT-6 Luna
+        context_window: 272000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: gpt-6-astra
         name: GPT-6 Astra
         context_window: 272000
@@ -120,6 +140,14 @@ providers:
   - id: googleai
     name: Google AI
     models:
+      - id: gemini-3.8-flash
+        name: Gemini 3.8 Flash
+        context_window: 1048576
+        thinking_efforts: ["low", "medium", "high"]
+      - id: gemini-3.7-flash
+        name: Gemini 3.7 Flash
+        context_window: 1048576
+        thinking_efforts: ["low", "medium", "high"]
       - id: gemini-3.1-pro-preview
         name: Gemini 3.1 Pro
         context_window: 1048576
@@ -130,10 +158,6 @@ providers:
         thinking_efforts: ["minimal", "low", "medium", "high"]
       - id: gemini-3.6-flash
         name: Gemini 3.6 Flash
-        context_window: 1048576
-        thinking_efforts: ["minimal", "low", "medium", "high"]
-      - id: gemini-3.5-flash
-        name: Gemini 3.5 Flash
         context_window: 1048576
         thinking_efforts: ["minimal", "low", "medium", "high"]
 
@@ -207,14 +231,18 @@ providers:
   - id: opencode-go
     name: OpenCode Go
     models:
+      - id: grok-4.7
+        name: Grok 4.7
+        context_window: 500000
+        thinking_efforts: ["low", "medium", "high", "xhigh"]
       - id: grok-4.6
         name: Grok 4.6
         context_window: 500000
         thinking_efforts: ["low", "medium", "high", "xhigh"]
-      - id: grok-4.5
-        name: Grok 4.5
-        context_window: 500000
-        thinking_efforts: ["low", "medium", "high"]
+      - id: gpt-6-luna
+        name: GPT-6 Luna
+        context_window: 1050000
+        thinking_efforts: ["none", "low", "medium", "high", "xhigh", "max"]
       - id: gpt-5.6-luna
         name: GPT-5.6 Luna
         context_window: 1050000
@@ -231,9 +259,6 @@ providers:
         name: GLM-5.2
         context_window: 1000000
         thinking_efforts: ["high", "max"]
-      - id: glm-5.1
-        name: GLM-5.1
-        context_window: 202752
       - id: kimi-k3
         name: Kimi K3
         context_window: 1048576
@@ -249,6 +274,12 @@ providers:
         name: LongCat-2.0
         context_window: 1048576
         thinking_efforts: ["enabled", "disabled"]
+      - id: mimo-v2.6-flash
+        name: MiMo V2.6 Flash
+        context_window: 1048576
+      - id: mimo-v2.6-pro
+        name: MiMo V2.6 Pro
+        context_window: 1048576
       - id: mimo-v2.5-pro
         name: MiMo V2.5 Pro
         context_window: 1048576
@@ -277,10 +308,6 @@ providers:
         thinking_efforts: ["enabled", "disabled"]
       - id: qwen3.7-plus
         name: Qwen3.7 Plus
-        context_window: 1000000
-        thinking_efforts: ["enabled", "disabled"]
-      - id: qwen3.6-plus
-        name: Qwen3.6 Plus
         context_window: 1000000
         thinking_efforts: ["enabled", "disabled"]
       - id: minimax-m3

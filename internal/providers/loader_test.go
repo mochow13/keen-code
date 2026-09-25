@@ -146,6 +146,30 @@ func TestModel_ThinkingEffortsLoadFromYAML(t *testing.T) {
 		t.Fatalf("expected openai-codex/gpt-5.4 context 272000, got %d", codex.ContextWindow)
 	}
 
+	codexSol, ok := reg.GetModel("openai-codex", "gpt-6-sol")
+	if !ok {
+		t.Fatal("expected to find openai-codex/gpt-6-sol")
+	}
+	if codexSol.ContextWindow != 272000 {
+		t.Fatalf("expected openai-codex/gpt-6-sol context 272000, got %d", codexSol.ContextWindow)
+	}
+	expectedCodexSol := []string{"low", "medium", "high", "xhigh", "max", "ultra"}
+	if !slices.Equal(codexSol.ThinkingEfforts, expectedCodexSol) {
+		t.Fatalf("expected openai-codex/gpt-6-sol efforts %v, got %v", expectedCodexSol, codexSol.ThinkingEfforts)
+	}
+
+	codexLuna, ok := reg.GetModel("openai-codex", "gpt-6-luna")
+	if !ok {
+		t.Fatal("expected to find openai-codex/gpt-6-luna")
+	}
+	if codexLuna.ContextWindow != 272000 {
+		t.Fatalf("expected openai-codex/gpt-6-luna context 272000, got %d", codexLuna.ContextWindow)
+	}
+	expectedCodexLuna := []string{"low", "medium", "high", "xhigh", "max"}
+	if !slices.Equal(codexLuna.ThinkingEfforts, expectedCodexLuna) {
+		t.Fatalf("expected openai-codex/gpt-6-luna efforts %v, got %v", expectedCodexLuna, codexLuna.ThinkingEfforts)
+	}
+
 	deepseek, ok := reg.GetModel("deepseek", "deepseek-v4-pro")
 	if !ok {
 		t.Fatal("expected to find deepseek-v4-pro")
@@ -180,8 +204,45 @@ func TestModel_ThinkingEffortsLoadFromYAML(t *testing.T) {
 	if !ok {
 		t.Fatal("expected to find opencode-go provider")
 	}
-	if len(opencode.Models) != 28 {
-		t.Fatalf("expected 28 opencode-go models, got %d", len(opencode.Models))
+	if len(opencode.Models) != 29 {
+		t.Fatalf("expected 29 opencode-go models, got %d", len(opencode.Models))
+	}
+
+	grok47, ok := reg.GetModel("opencode-go", "grok-4.7")
+	if !ok {
+		t.Fatal("expected to find opencode-go/grok-4.7")
+	}
+	if grok47.ContextWindow != 500000 {
+		t.Fatalf("expected grok-4.7 context 500000, got %d", grok47.ContextWindow)
+	}
+	expectedGrok47 := []string{"low", "medium", "high", "xhigh"}
+	if !slices.Equal(grok47.ThinkingEfforts, expectedGrok47) {
+		t.Fatalf("expected grok-4.7 efforts %v, got %v", expectedGrok47, grok47.ThinkingEfforts)
+	}
+
+	gpt6Luna, ok := reg.GetModel("opencode-go", "gpt-6-luna")
+	if !ok {
+		t.Fatal("expected to find opencode-go/gpt-6-luna")
+	}
+	if gpt6Luna.ContextWindow != 1050000 {
+		t.Fatalf("expected gpt-6-luna context 1050000, got %d", gpt6Luna.ContextWindow)
+	}
+	expectedGPT6Luna := []string{"none", "low", "medium", "high", "xhigh", "max"}
+	if !slices.Equal(gpt6Luna.ThinkingEfforts, expectedGPT6Luna) {
+		t.Fatalf("expected gpt-6-luna efforts %v, got %v", expectedGPT6Luna, gpt6Luna.ThinkingEfforts)
+	}
+
+	for _, id := range []string{"mimo-v2.6-flash", "mimo-v2.6-pro"} {
+		mimo, ok := reg.GetModel("opencode-go", id)
+		if !ok {
+			t.Fatalf("expected to find opencode-go/%s", id)
+		}
+		if mimo.ContextWindow != 1048576 {
+			t.Fatalf("expected %s context 1048576, got %d", id, mimo.ContextWindow)
+		}
+		if mimo.SupportsThinkingEffort() {
+			t.Fatalf("expected %s to omit thinking efforts, got %v", id, mimo.ThinkingEfforts)
+		}
 	}
 
 	qwen, ok := reg.GetModel("opencode-go", "qwen3.7-plus")

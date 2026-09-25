@@ -198,7 +198,9 @@ func isOpenCodeGoReasoningEffortModel(model string) bool {
 }
 
 func isOpenCodeGoResponsesModel(model string) bool {
-	return model == "gpt-5.6-luna" ||
+	return model == "gpt-6-luna" ||
+		model == "gpt-5.6-luna" ||
+		model == "grok-4.7" ||
 		model == "grok-4.6" ||
 		model == "muse-spark-1.2-contributor" ||
 		model == "muse-spark-1.3-contributor"

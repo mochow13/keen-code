@@ -247,7 +247,9 @@ func TestNewClient_OpenCodeGoResponsesModel(t *testing.T) {
 		model          string
 		thinkingEffort string
 	}{
+		{name: "gpt-6-luna", model: "gpt-6-luna", thinkingEffort: "max"},
 		{name: "gpt-5.6-luna", model: "gpt-5.6-luna", thinkingEffort: "max"},
+		{name: "grok-4.7", model: "grok-4.7", thinkingEffort: "high"},
 		{name: "grok-4.6", model: "grok-4.6", thinkingEffort: "high"},
 		{name: "muse spark 1.2", model: "muse-spark-1.2-contributor", thinkingEffort: "high"},
 		{name: "muse spark 1.3", model: "muse-spark-1.3-contributor", thinkingEffort: "high"},
