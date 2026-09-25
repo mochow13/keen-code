@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-09-25
+
+### Added
+- Add the [Yolo-Auto](https://yolo-auto.com) provider (`yolo-auto`) with the `yolo` and `yolo-small` models.
+- Add a `worker` subagent definition for bounded, self-contained tasks.
+- Refresh the model registry with current Anthropic, OpenAI, Codex, Google AI, and OpenCode Go models: Claude Opus 5.5; GPT-6 Sol and GPT-6 Luna (OpenAI, Codex, and OpenCode Go); Gemini 3.8 and 3.7 Flash; Grok 4.7 and MiMo V2.6 Flash/Pro on OpenCode Go. Removes retired entries (Gemini 3.5 Flash, Grok 4.5, GLM-5.1, Qwen3.6 Plus) and routes newer OpenCode models through the Responses API.
+
 ### Changed
+- Route the REPL through a new `agentcore` agent facade: promote `agentcore` and `appstate` out of the CLI tree into importable internal packages and migrate the stream, headless, tooling, and ask-user paths onto it.
 - Remove the in-request context reducer that pruned the oldest tool results, which invalidated provider prompt caches from the first pruned result onward and silently dropped tool output. Automatic compaction is now the only over-budget path; a request that still exceeds the provider window fails through the normal provider context-window error.
+- Bump `go.opentelemetry.io/otel/sdk` from 1.44.0 to 1.45.0.
+
+### Fixed
+- Make stream event delivery cancel-safe: cancelled consumers now close the stream instead of hanging provider goroutines, and tool execution is skipped when `ToolStart` cannot be delivered.
+- Report context cancellation and deadlines on closed subagent streams instead of reading a closed event channel as success, and propagate parent session IDs into child runs.
 
 ## [0.56.2] - 2026-09-22
 
@@ -1000,7 +1013,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.56.2...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.57.0...HEAD
+[0.57.0]: https://github.com/mochow13/keen-code/compare/v0.56.2...v0.57.0
 [0.56.2]: https://github.com/mochow13/keen-code/compare/v0.56.1...v0.56.2
 [0.56.1]: https://github.com/mochow13/keen-code/compare/v0.56.0...v0.56.1
 [0.56.0]: https://github.com/mochow13/keen-code/compare/v0.55.0...v0.56.0
