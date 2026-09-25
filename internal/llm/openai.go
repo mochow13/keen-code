@@ -117,6 +117,8 @@ func openAICompatibleBaseURL(provider providerconfig.Provider) (string, error) {
 		return zaiBaseURL, nil
 	case providerconfig.Provider(config.ProviderOpenCodeGo):
 		return openCodeGoBaseURL + "/v1/", nil
+	case providerconfig.Provider(config.ProviderYoloAuto):
+		return yoloAutoBaseURL, nil
 	case providerconfig.Provider(config.ProviderOpenAICompatible):
 		return "", fmt.Errorf("base_url must be configured for provider: %s. %s", provider, config.ConfigFixHint)
 	default:

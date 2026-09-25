@@ -67,7 +67,7 @@ type LLMClient interface {
 Implementations:
 - `AnthropicClient` - Direct Anthropic SDK integration
 - `OpenAIResponsesClient` - OpenAI Responses API (GPT models)
-- `OpenAICompatibleClient` - OpenAI-compatible API (DeepSeek, Moonshot, Z.ai, OpenCode Go compatible models)
+- `OpenAICompatibleClient` - OpenAI-compatible API (DeepSeek, Moonshot, Z.ai, OpenCode Go compatible models, Yolo-Auto)
 - `GenkitClient` - Firebase Genkit for Google AI
 
 MiniMax uses `AnthropicClient` with `https://api.minimax.io/anthropic`.

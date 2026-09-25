@@ -412,3 +412,28 @@ func TestNewClient_DeepSeek(t *testing.T) {
 		t.Errorf("expected fallback context window %d, got %d", core.DefaultContextWindowTokenCount, oaiClient.contextWindowTokenCount)
 	}
 }
+
+func TestNewClient_YoloAuto(t *testing.T) {
+	client, err := NewClient(&config.ResolvedConfig{
+		Provider: config.ProviderYoloAuto,
+		Model:    "yolo",
+		APIKey:   "yolo_test_key",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	oaiClient, ok := client.(*OpenAICompatibleClient)
+	if !ok {
+		t.Fatalf("expected *OpenAICompatibleClient, got %T", client)
+	}
+	if oaiClient.provider != providerconfig.Provider(config.ProviderYoloAuto) {
+		t.Fatalf("expected provider yolo-auto, got %s", oaiClient.provider)
+	}
+	if oaiClient.model != "yolo" {
+		t.Fatalf("expected model yolo, got %s", oaiClient.model)
+	}
+	if oaiClient.contextWindowTokenCount != 131072 {
+		t.Fatalf("expected context window 131072, got %d", oaiClient.contextWindowTokenCount)
+	}
+}

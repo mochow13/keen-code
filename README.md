@@ -47,7 +47,7 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 
 ## Features
 
-- **Multi-provider** — Anthropic, OpenAI, Codex (via OAuth), Gemini, DeepSeek, Kimi, GLM, MiniMax, OpenCode Go, and Amazon Bedrock. Switch with `/model`. More providers will be added in the future.
+- **Multi-provider** — Anthropic, OpenAI, Codex (via OAuth), Gemini, DeepSeek, Kimi, GLM, MiniMax, OpenCode Go, Yolo-Auto, and Amazon Bedrock. Switch with `/model`. More providers will be added in the future.
 - **10 built-in tools** — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_fetch`, `ask_user`, `delegate_task`, and `call_mcp_tool`. Core coding tools stay deliberately lean.
 - **Hashline editing** — `read_file` prefixes every line with an `N:HASH|` anchor (line number + 3-character FNV-1a hash of the line), and `edit_file` applies a multi-op `ops[]` array validated against one file snapshot, atomically — stale anchors are rejected instead of editing drifted content. Inspired by [pi-hashline-edit](https://pi.dev/packages/pi-hashline-edit).
 - **MCP (Model Context Protocol)** — Connect external tool providers from `~/.keen/mcp/configs.json` over streamable HTTP or stdio, with `none`, `api_key`, or browser-based `oauth` auth. Connect and inspect servers with `/mcp`. See [docs/mcp-servers.md](docs/mcp-servers.md).
@@ -227,12 +227,14 @@ keen
 - Z.ai (GLM)
 - MiniMax
 - OpenCode Go
+- Yolo-Auto
 - Amazon Bedrock
 
 > Use `/model` to switch providers. The ChatGPT/Codex option opens a browser-based OpenAI sign-in flow and stores OAuth credentials in `~/.keen/auth.json`.
 
 MiniMax uses its Anthropic-compatible API and includes MiniMax M2.7 and M2.5.
 OpenCode Go uses an API key and includes GLM, Kimi, DeepSeek, MiMo, MiniMax, and Qwen models.
+Yolo-Auto uses an API key against `https://yolo-auto.com/v1` and ships the `yolo` and `yolo-small` aliases; the catalog for your key is discoverable at `GET /v1/models`.
 
 ## Built-in Tools
 

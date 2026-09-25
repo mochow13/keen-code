@@ -16,6 +16,7 @@ const (
 	zaiBaseURL        = "https://api.z.ai/api/paas/v4/"
 	miniMaxBaseURL    = "https://api.minimax.io/anthropic"
 	openCodeGoBaseURL = "https://opencode.ai/zen/go"
+	yoloAutoBaseURL   = "https://yolo-auto.com/v1/"
 )
 
 func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
@@ -98,6 +99,7 @@ func NewClient(cfg *config.ResolvedConfig) (LLMClient, error) {
 	case config.ProviderDeepSeek,
 		config.ProviderMoonshotAI,
 		config.ProviderZAI,
+		config.ProviderYoloAuto,
 		config.ProviderOpenAICompatible:
 		return NewOpenAICompatibleClient(&providerconfig.ClientConfig{
 			Provider:            providerconfig.Provider(cfg.Provider),

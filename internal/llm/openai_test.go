@@ -437,6 +437,16 @@ func TestOpenAICompatibleBaseURL_OpenCodeGo(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatibleBaseURL_YoloAuto(t *testing.T) {
+	baseURL, err := openAICompatibleBaseURL(providerconfig.Provider(config.ProviderYoloAuto))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if baseURL != yoloAutoBaseURL {
+		t.Fatalf("expected %q, got %q", yoloAutoBaseURL, baseURL)
+	}
+}
+
 func TestOpenAICompatibleClient_StoresThinkingEffort(t *testing.T) {
 	client, err := NewOpenAICompatibleClient(&providerconfig.ClientConfig{
 		Provider:       providerconfig.Provider(config.ProviderDeepSeek),
