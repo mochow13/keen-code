@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"os"
 	"path/filepath"
@@ -405,7 +406,7 @@ func loadOnlyHeadlessSessionEvents(t *testing.T, workingDir string) []session.Ev
 }
 
 func TestCheckpointHeadlessAutoCompactionRejectsEmptyReplacement(t *testing.T) {
-	handler := NewStreamHandler(nil)
+	handler := replstream.NewStreamHandler(nil)
 	handler.Start(make(chan agentcore.StreamEvent), "")
 	completedText := &strings.Builder{}
 	turnMemory := newTurnMemoryAccumulator(false)

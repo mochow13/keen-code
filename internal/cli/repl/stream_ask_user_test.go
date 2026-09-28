@@ -200,7 +200,7 @@ func TestAskUserResolvedSummaryIsOrderedInStream(t *testing.T) {
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.stream.handler.HandleChunk("Before")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(&m.askUser)
+	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
 	m.askUser.answers = []string{"Recommended", "Second"}
 	m.askUser.resolve(nil, false)
 	m.appendResolvedAskUserSegment()
@@ -220,7 +220,7 @@ func TestAskUserResolvedSummaryUsesViewportWidth(t *testing.T) {
 	m.width = 80
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(&m.askUser)
+	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
 	m.askUser.answers = []string{"Recommended", "Second"}
 	m.askUser.resolve(nil, false)
 	m.appendResolvedAskUserSegment()

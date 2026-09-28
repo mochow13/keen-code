@@ -23,6 +23,7 @@ import (
 	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
@@ -126,14 +127,14 @@ type loadingState struct {
 type btwState struct {
 	lines         []string
 	question      string
-	streamHandler *StreamHandler
+	streamHandler *replstream.StreamHandler
 	streamCancel  context.CancelFunc
 	showSpinner   bool
 	spinner       spinner.Model
 }
 
 type adversaryState struct {
-	streamHandler  *StreamHandler
+	streamHandler  *replstream.StreamHandler
 	streamCancel   context.CancelFunc
 	lines          []string
 	focus          string
@@ -143,7 +144,7 @@ type adversaryState struct {
 }
 
 type streamState struct {
-	handler *StreamHandler
+	handler *replstream.StreamHandler
 	cancel  context.CancelFunc
 
 	// Streamed tokens arrive faster than the terminal can redraw. Batch
@@ -262,7 +263,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 		agentCore:           agentCore,
 		output:              output,
 		loading:             loadingState{spinner: s},
-		stream:              streamState{handler: NewStreamHandler(mdRenderer), renderInterval: streamRenderInterval},
+		stream:              streamState{handler: replstream.NewStreamHandler(mdRenderer), renderInterval: streamRenderInterval},
 		mdRenderer:          mdRenderer,
 		permissionRequester: permissionRequester,
 		askUser:             askUserState{requester: askUserRequester},
@@ -274,11 +275,11 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 		showThinking:        true,
 		btw: btwState{
 			spinner:       bs,
-			streamHandler: NewStreamHandler(mdRenderer),
+			streamHandler: replstream.NewStreamHandler(mdRenderer),
 		},
 		adversary: adversaryState{
 			spinner:       as,
-			streamHandler: NewStreamHandler(mdRenderer),
+			streamHandler: replstream.NewStreamHandler(mdRenderer),
 		},
 		lastSession:      lastSession,
 		projectPermsErr:  projectPermsErr,
@@ -287,8 +288,8 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 	if ctx.globalCfg != nil && ctx.globalCfg.ShowThinking != nil {
 		model.showThinking = *ctx.globalCfg.ShowThinking
 	}
-	model.stream.handler.workingDir = ctx.workingDir
-	model.stream.handler.showThinking = model.showThinking
+	model.stream.handler.SetWorkingDir(ctx.workingDir)
+	model.stream.handler.SetShowThinking(model.showThinking)
 	model.refreshGitBranch()
 
 	if ctx.resumeSession != nil {
@@ -544,7 +545,7 @@ func (m *replModel) updateViewportContent() {
 }
 
 func (m replModel) waitForAsyncEvent() tea.Cmd {
-	if m.stream.handler == nil || !m.stream.handler.IsActive() || m.stream.handler.eventCh == nil {
+	if m.stream.handler == nil || !m.stream.handler.IsActive() || m.stream.handler.EventChannel() == nil {
 		return nil
 	}
 	var askUserCh <-chan *replaskuser.Request
@@ -560,7 +561,7 @@ func (m replModel) waitForAsyncEvent() tea.Cmd {
 		diffCh = m.diffEmitter.GetDiffChan()
 	}
 	return waitForAsyncEvent(
-		m.stream.handler.eventCh,
+		m.stream.handler.EventChannel(),
 		permissionCh,
 		diffCh,
 		m.subagentActivity,
@@ -657,7 +658,7 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 			return m, m.waitForAsyncEvent()
 		}
 		m.askUser.begin(msg.req)
-		m.stream.handler.SetAskUser(&m.askUser)
+		m.stream.handler.SetAskUser(askUserCard(&m.askUser))
 		m.textarea.Reset()
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
@@ -988,7 +989,7 @@ func (m *replModel) replayLoadedSession(loaded *session.LoadedSession) {
 	}
 
 	replay := newSessionReplay(m.width, m.mdRenderer, m.ctx.workingDir)
-	replay.handler.showThinking = m.showThinking
+	replay.handler.SetShowThinking(m.showThinking)
 
 	for _, event := range loaded.Events {
 		replay.applyEvent(event)

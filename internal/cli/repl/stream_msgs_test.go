@@ -117,28 +117,6 @@ func TestWaitForAsyncEvent_ChannelClosed(t *testing.T) {
 	}
 }
 
-func TestFormatResponseLines(t *testing.T) {
-	input := "Line 1\nLine 2\nLine 3"
-	result := formatResponseLines(input)
-
-	if len(result) != 3 {
-		t.Errorf("expected 3 lines, got %d", len(result))
-	}
-	if result[0] != "  Line 1" {
-		t.Errorf("expected '  Line 1', got '%s'", result[0])
-	}
-	if result[1] != "  Line 2" {
-		t.Errorf("expected '  Line 2', got '%s'", result[1])
-	}
-}
-
-func TestFormatResponseLines_Empty(t *testing.T) {
-	result := formatResponseLines("")
-	if len(result) != 1 {
-		t.Errorf("expected 1 line for empty input, got %d", len(result))
-	}
-}
-
 func TestWaitForAsyncEvent_Permission(t *testing.T) {
 	permissionCh := make(chan *replpermissions.Request, 1)
 	req := makeTestPermissionRequest(false)

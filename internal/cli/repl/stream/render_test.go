@@ -1,4 +1,4 @@
-package repl
+package stream
 
 import (
 	"github.com/mochow13/keen-code/internal/agentcore"
@@ -45,7 +45,7 @@ func TestRenderBashSegmentCoversWidthSummaryAndTruncation(t *testing.T) {
 		output[i] = "line"
 	}
 	handler := NewStreamHandler(nil)
-	segment := &streamSegment{kind: segmentBash, command: "go test ./...", summary: "testing", output: strings.Join(output, "\n")}
+	segment := &Segment{Kind: SegmentBash, Command: "go test ./...", Summary: "testing", Output: strings.Join(output, "\n")}
 	lines := handler.renderBashSegment(segment, 20)
 	got := ansi.Strip(strings.Join(lines, "\n"))
 	for _, want := range []string{"$ go test", "testing", "2 more lines"} {
@@ -54,7 +54,7 @@ func TestRenderBashSegmentCoversWidthSummaryAndTruncation(t *testing.T) {
 		}
 	}
 
-	withoutWidth := ansi.Strip(strings.Join(handler.renderBashSegment(&streamSegment{command: "pwd", output: "path"}, 0), "\n"))
+	withoutWidth := ansi.Strip(strings.Join(handler.renderBashSegment(&Segment{Command: "pwd", Output: "path"}, 0), "\n"))
 	if !strings.Contains(withoutWidth, "$ pwd") || !strings.Contains(withoutWidth, "path") {
 		t.Fatalf("unbounded bash render = %q", withoutWidth)
 	}
@@ -64,10 +64,10 @@ func TestRenderViewAndTranscriptHandleStandaloneToolEnd(t *testing.T) {
 	handler := NewStreamHandler(nil)
 	handler.lastWidth = 40
 	handler.showThinking = true
-	handler.segments = []streamSegment{
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"total_lines": 2}}},
-		{kind: segmentAssistant, content: "done"},
-		{kind: segmentReasoning, content: "thought"},
+	handler.segments = []Segment{
+		{Kind: SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"total_lines": 2}}},
+		{Kind: SegmentAssistant, Content: "done"},
+		{Kind: SegmentReasoning, Content: "thought"},
 	}
 	view := ansi.Strip(strings.Join(handler.renderViewLines(40), "\n"))
 	transcript := ansi.Strip(strings.Join(handler.renderTranscriptLines(), "\n"))
@@ -81,10 +81,10 @@ func TestRenderViewAndTranscriptHandleStandaloneToolEnd(t *testing.T) {
 }
 
 func TestRenderFoldsOnlyConsecutiveReadsOfSameFile(t *testing.T) {
-	read := func(path string, lines, bytes int) []streamSegment {
-		return []streamSegment{
-			{kind: segmentToolStart, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": path}}},
-			{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"lines_read": lines, "bytes_read": bytes}}},
+	read := func(path string, lines, bytes int) []Segment {
+		return []Segment{
+			{Kind: SegmentToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": path}}},
+			{Kind: SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"lines_read": lines, "bytes_read": bytes}}},
 		}
 	}
 
@@ -111,12 +111,12 @@ func TestRenderFoldsOnlyConsecutiveReadsOfSameFile(t *testing.T) {
 }
 
 func TestConsecutiveReadCallsRequireSuccessfulAdjacentPairs(t *testing.T) {
-	segments := []streamSegment{
-		{kind: segmentToolStart, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file"}},
-		{kind: segmentAssistant, content: "between"},
-		{kind: segmentToolStart, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Error: "failed"}},
+	segments := []Segment{
+		{Kind: SegmentToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
+		{Kind: SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file"}},
+		{Kind: SegmentAssistant, Content: "between"},
+		{Kind: SegmentToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "same.go"}}},
+		{Kind: SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file", Error: "failed"}},
 	}
 
 	calls, endIndex := consecutiveReadCalls(segments, 0)
@@ -130,7 +130,7 @@ func TestConsecutiveReadCallsRequireSuccessfulAdjacentPairs(t *testing.T) {
 }
 
 func TestRenderDiffBoundaryBranches(t *testing.T) {
-	if lines := renderDiffSegment(&streamSegment{}, 20); lines != nil {
+	if lines := renderDiffSegment(&Segment{}, 20); lines != nil {
 		t.Fatalf("empty diff segment = %#v", lines)
 	}
 	lines := renderWrappedDiffLine("prefix", "content", replthemeZeroStyle(), 0)

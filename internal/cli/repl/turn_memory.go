@@ -3,6 +3,7 @@ package repl
 import (
 	"encoding/json"
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	"maps"
 	"path/filepath"
 	"strings"
@@ -35,28 +36,28 @@ func newTurnMemoryAccumulator(retainOutput bool) *turnMemoryAccumulator {
 	return &turnMemoryAccumulator{retainOutput: retainOutput}
 }
 
-func (a *turnMemoryAccumulator) RecordToolActivity(segments []streamSegment, workingDir string) {
+func (a *turnMemoryAccumulator) RecordToolActivity(segments []replstream.Segment, workingDir string) {
 	if a == nil {
 		return
 	}
 	a.toolActivity = collectHistoricalToolActivity(segments, workingDir, a.retainOutput)
 }
 
-func collectHistoricalToolActivity(segments []streamSegment, workingDir string, retainOutput bool) []agentcore.HistoricalToolActivity {
+func collectHistoricalToolActivity(segments []replstream.Segment, workingDir string, retainOutput bool) []agentcore.HistoricalToolActivity {
 	textOffset := 0
 	activities := make([]agentcore.HistoricalToolActivity, 0)
 
 	for _, segment := range segments {
-		switch segment.kind {
-		case segmentAssistant:
-			textOffset += len(segment.content)
-		case segmentToolEnd:
-			if segment.toolCall != nil {
-				activities = append(activities, historicalToolActivity(segment.toolCall, textOffset, workingDir, "", retainOutput))
+		switch segment.Kind {
+		case replstream.SegmentAssistant:
+			textOffset += len(segment.Content)
+		case replstream.SegmentToolEnd:
+			if segment.ToolCall != nil {
+				activities = append(activities, historicalToolActivity(segment.ToolCall, textOffset, workingDir, "", retainOutput))
 			}
-		case segmentBash:
-			if segment.toolCall != nil {
-				activities = append(activities, historicalToolActivity(segment.toolCall, textOffset, workingDir, segment.command, retainOutput))
+		case replstream.SegmentBash:
+			if segment.ToolCall != nil {
+				activities = append(activities, historicalToolActivity(segment.ToolCall, textOffset, workingDir, segment.Command, retainOutput))
 			}
 		}
 	}
@@ -194,7 +195,7 @@ func (m *replModel) startAssistantTurnMemory() {
 	m.turnMemory = newTurnMemoryAccumulator(m.toolHistory == toolHistoryFull)
 }
 
-func (m *replModel) recordHistoricalToolActivity(segments []streamSegment) {
+func (m *replModel) recordHistoricalToolActivity(segments []replstream.Segment) {
 	if m == nil || m.turnMemory == nil {
 		return
 	}

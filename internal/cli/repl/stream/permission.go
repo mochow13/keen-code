@@ -1,4 +1,4 @@
-package repl
+package stream
 
 import (
 	"fmt"
@@ -15,20 +15,20 @@ const (
 )
 
 func (sh *StreamHandler) HandlePermissionRequest(req *replpermissions.Request) {
-	sh.segments = append(sh.segments, streamSegment{
-		kind:          segmentPermission,
-		permissionReq: req,
+	sh.segments = append(sh.segments, Segment{
+		Kind:          SegmentPermission,
+		PermissionReq: req,
 	})
 }
 
 // Scan back for pending permission; later events may follow the prompt.
-func (sh *StreamHandler) pendingPermissionSegment() *streamSegment {
+func (sh *StreamHandler) pendingPermissionSegment() *Segment {
 	for i := len(sh.segments) - 1; i >= 0; i-- {
 		seg := &sh.segments[i]
-		if seg.kind != segmentPermission || seg.permissionReq == nil {
+		if seg.Kind != SegmentPermission || seg.PermissionReq == nil {
 			continue
 		}
-		if seg.permissionReq.Status != replpermissions.StatusPending {
+		if seg.PermissionReq.Status != replpermissions.StatusPending {
 			continue
 		}
 		return seg
@@ -45,7 +45,7 @@ func (sh *StreamHandler) MovePendingCursor(delta int) {
 	if seg == nil {
 		return
 	}
-	choices := replpermissions.Choices(seg.permissionReq.IsDangerous)
+	choices := replpermissions.Choices(seg.PermissionReq.IsDangerous)
 	newCursor := seg.permissionCursor + delta
 	if newCursor < 0 {
 		newCursor = 0
@@ -61,7 +61,7 @@ func (sh *StreamHandler) GetPendingChoice() replpermissions.Choice {
 	if seg == nil {
 		return replpermissions.ChoiceDeny
 	}
-	return replpermissions.ChoiceAt(seg.permissionCursor, seg.permissionReq.IsDangerous)
+	return replpermissions.ChoiceAt(seg.permissionCursor, seg.PermissionReq.IsDangerous)
 }
 
 func (sh *StreamHandler) GetPendingPermissionRequest() *replpermissions.Request {
@@ -69,7 +69,16 @@ func (sh *StreamHandler) GetPendingPermissionRequest() *replpermissions.Request 
 	if seg == nil {
 		return nil
 	}
-	return seg.permissionReq
+	return seg.PermissionReq
+}
+
+// PendingCursor returns the cursor of the pending permission card, or -1.
+func (sh *StreamHandler) PendingCursor() int {
+	seg := sh.pendingPermissionSegment()
+	if seg == nil {
+		return -1
+	}
+	return seg.permissionCursor
 }
 
 func (sh *StreamHandler) ResolvePendingPermission(status replpermissions.Status) {
@@ -77,12 +86,12 @@ func (sh *StreamHandler) ResolvePendingPermission(status replpermissions.Status)
 	if seg == nil {
 		return
 	}
-	seg.permissionReq.Status = status
+	seg.PermissionReq.Status = status
 	seg.renderedLines = nil
 }
 
-func renderPermissionCard(seg *streamSegment, width int) []string {
-	req := seg.permissionReq
+func renderPermissionCard(seg *Segment, width int) []string {
+	req := seg.PermissionReq
 	if req == nil {
 		return nil
 	}
@@ -91,7 +100,7 @@ func renderPermissionCard(seg *streamSegment, width int) []string {
 		return renderPermissionResolved(req)
 	}
 
-	cardWidth := width - contentHorizontalPadding
+	cardWidth := width - ContentHorizontalPadding
 	if cardWidth < permissionCardMinWidth {
 		cardWidth = permissionCardMinWidth
 	}

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
@@ -24,7 +25,7 @@ import (
 )
 
 func TestHandleLLMChunk(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")
 
 	m := replModel{
@@ -87,7 +88,7 @@ func TestContextStatus_UpdatesOnUsageEvent(t *testing.T) {
 }
 
 func TestHandleLLMDoneDrainsSubagentActivity(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	sh.Start(make(chan agentcore.StreamEvent), "Loading...")
 	activity := make(chan agentcore.ToolActivity, 2)
 	activity <- agentcore.ToolActivity{RunID: "run-1", CallID: "tool-1", Agent: "worker", Event: agentcore.StreamEvent{
@@ -118,7 +119,7 @@ func TestHandleLLMDoneDrainsSubagentActivity(t *testing.T) {
 }
 
 func TestHandleLLMDone(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("response line 1\nresponse line 2")
@@ -157,7 +158,7 @@ func TestHandleLLMDone(t *testing.T) {
 }
 
 func TestHandleLLMError(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -195,7 +196,7 @@ func TestHandleKeyMsg_Enter(t *testing.T) {
 	m := replModel{
 		textarea: ta,
 		width:    80,
-		stream:   streamState{handler: NewStreamHandler(nil)},
+		stream:   streamState{handler: replstream.NewStreamHandler(nil)},
 		ctx:      &replContext{},
 		output:   reploutput.NewOutputBuilder(80, ""),
 	}
@@ -296,7 +297,7 @@ func TestHandleKeyMsg_CtrlC_WithAskUserCancelsQuestionnaireFirst(t *testing.T) {
 	m := newTestModel()
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(&m.askUser)
+	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
 	streamCanceled := false
 	m.stream.cancel = func() { streamCanceled = true }
 
@@ -723,7 +724,7 @@ func TestUpdateNormalMode_ModelSelectionPasteGoesToAPIKeyInput(t *testing.T) {
 }
 
 func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")
 
 	m := replModel{
@@ -746,7 +747,7 @@ func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
 }
 
 func TestHandleLLMDone_EmptyResponse(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -770,7 +771,7 @@ func TestHandleLLMDone_EmptyResponse(t *testing.T) {
 }
 
 func TestHandleLLMError_ResetsHandler(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("partial content")
@@ -797,7 +798,7 @@ func TestHandleLLMError_ResetsHandler(t *testing.T) {
 
 func TestHandleLLMError_MaterializesMessageAndTurnMemory(t *testing.T) {
 	workingDir := t.TempDir()
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("partial response")
@@ -837,7 +838,7 @@ func TestHandleLLMError_MaterializesMessageAndTurnMemory(t *testing.T) {
 }
 
 func TestHandleLLMError_ContextCanceled_DoesNotAddErrorLine(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 	sh.HandleChunk("partial content")
@@ -867,7 +868,7 @@ func TestHandleLLMError_ContextCanceled_DoesNotAddErrorLine(t *testing.T) {
 }
 
 func TestHandleToolStart(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -897,33 +898,34 @@ func TestHandleToolStart(t *testing.T) {
 		t.Error("expected non-nil cmd from handleToolStart")
 	}
 
-	if len(sh.segments) != 1 {
-		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.segments))
+	if len(sh.Snapshot()) != 1 {
+		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.Snapshot()))
 	}
 
-	if sh.segments[0].kind != segmentToolStart {
-		t.Errorf("expected first segment kind %q, got %q", segmentToolStart, sh.segments[0].kind)
+	if sh.Snapshot()[0].Kind != replstream.SegmentToolStart {
+		t.Errorf("expected first segment kind %q, got %q", replstream.SegmentToolStart, sh.Snapshot()[0].Kind)
 	}
 }
 
 func TestHandleAskUserToolActivityIsRecordedWithoutGenericStatus(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	sh.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m := replModel{stream: streamState{handler: sh}, width: 80, output: reploutput.NewOutputBuilder(80, "")}
 	call := &agentcore.ToolCall{Name: tools.AskUserToolName, Input: map[string]any{"questions": []any{map[string]any{"question": "Pick", "options": []any{"one", "two"}}}}}
 
 	m.handleToolStart(call)
 	m.handleToolEnd(&agentcore.ToolCall{Name: tools.AskUserToolName, Input: call.Input, Output: map[string]any{"tool": tools.AskUserToolName, "answers": []string{"one"}}})
-	if len(sh.segments) != 2 {
-		t.Fatalf("expected ask_user start and end segments, got %#v", sh.segments)
+	if len(sh.Snapshot()) != 2 {
+		t.Fatalf("expected ask_user start and end segments, got %#v", sh.Snapshot())
 	}
-	if got := sh.renderTranscriptLines(); len(got) != 0 {
-		t.Fatalf("expected no generic ask_user status, got %q", got)
+	lines := sh.TranscriptLines()
+	if len(lines) != 0 {
+		t.Fatalf("expected no generic ask_user status, got %q", lines)
 	}
 }
 
 func TestHandleToolStart_BashKeepsSpinnerActive(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -947,13 +949,13 @@ func TestHandleToolStart_BashKeepsSpinnerActive(t *testing.T) {
 	if cmd == nil {
 		t.Error("expected non-nil cmd from handleToolStart")
 	}
-	if len(sh.segments) != 1 || sh.segments[0].kind != segmentBash {
+	if len(sh.Snapshot()) != 1 || sh.Snapshot()[0].Kind != replstream.SegmentBash {
 		t.Fatalf("expected a bash segment to be added")
 	}
 }
 
 func TestHandleToolEnd(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -980,17 +982,17 @@ func TestHandleToolEnd(t *testing.T) {
 		t.Error("expected non-nil cmd from handleToolEnd")
 	}
 
-	if len(sh.segments) != 1 {
-		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.segments))
+	if len(sh.Snapshot()) != 1 {
+		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.Snapshot()))
 	}
 
-	if sh.segments[0].kind != segmentToolEnd {
-		t.Errorf("expected first segment kind %q, got %q", segmentToolEnd, sh.segments[0].kind)
+	if sh.Snapshot()[0].Kind != replstream.SegmentToolEnd {
+		t.Errorf("expected first segment kind %q, got %q", replstream.SegmentToolEnd, sh.Snapshot()[0].Kind)
 	}
 }
 
 func TestHandleToolEnd_WithError(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -1016,21 +1018,21 @@ func TestHandleToolEnd_WithError(t *testing.T) {
 		t.Error("expected non-nil cmd from handleToolEnd")
 	}
 
-	if len(sh.segments) != 1 {
-		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.segments))
+	if len(sh.Snapshot()) != 1 {
+		t.Errorf("expected 1 stream segment in handler, got %d", len(sh.Snapshot()))
 	}
 
-	if sh.segments[0].kind != segmentToolEnd {
-		t.Errorf("expected first segment kind %q, got %q", segmentToolEnd, sh.segments[0].kind)
+	if sh.Snapshot()[0].Kind != replstream.SegmentToolEnd {
+		t.Errorf("expected first segment kind %q, got %q", replstream.SegmentToolEnd, sh.Snapshot()[0].Kind)
 	}
 
-	if sh.segments[0].toolCall == nil || sh.segments[0].toolCall.Error != "connection failed" {
+	if sh.Snapshot()[0].ToolCall == nil || sh.Snapshot()[0].ToolCall.Error != "connection failed" {
 		t.Errorf("expected tool end segment with error details")
 	}
 }
 
 func TestHandleLLMStreamMsg_ToolEnd_ReturnsSpinnerTick(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -1060,7 +1062,7 @@ func TestHandleLLMStreamMsg_ToolEnd_ReturnsSpinnerTick(t *testing.T) {
 }
 
 func TestHandleBtwStreamMsg_Chunk(t *testing.T) {
-	btwSh := NewStreamHandler(nil)
+	btwSh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	btwSh.Start(eventCh, "Loading...")
 
@@ -1082,7 +1084,7 @@ func TestHandleBtwStreamMsg_Chunk(t *testing.T) {
 }
 
 func TestHandleBtwStreamMsg_Done(t *testing.T) {
-	btwSh := NewStreamHandler(nil)
+	btwSh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	btwSh.Start(eventCh, "Loading...")
 	btwSh.HandleChunk("answer text")
@@ -1109,7 +1111,7 @@ func TestHandleBtwStreamMsg_Done(t *testing.T) {
 }
 
 func TestHandleBtwStreamMsg_Error(t *testing.T) {
-	btwSh := NewStreamHandler(nil)
+	btwSh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	btwSh.Start(eventCh, "Loading...")
 
@@ -1135,7 +1137,7 @@ func TestHandleBtwStreamMsg_Error(t *testing.T) {
 }
 
 func TestHandleBtwStreamMsg_InactiveHandlerSwallowsMessages(t *testing.T) {
-	btwSh := NewStreamHandler(nil)
+	btwSh := replstream.NewStreamHandler(nil)
 
 	m := newTestModel()
 	m.btw.streamHandler = btwSh
@@ -1339,7 +1341,7 @@ func TestHandleLLMIncompleteClearsAskUser(t *testing.T) {
 	m := newTestModel()
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(&m.askUser)
+	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
 
 	updated, _ := m.handleLLMIncomplete(errors.New("response truncated"))
 	if updated.askUser.active() {
@@ -1351,7 +1353,7 @@ func TestHandleLLMErrorClearsAskUser(t *testing.T) {
 	m := newTestModel()
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(&m.askUser)
+	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
 
 	updated, _ := m.handleLLMError(errors.New("stream failed"))
 	if updated.askUser.active() {
@@ -1625,7 +1627,7 @@ func TestHandleLLMStreamMsgRoutesMainEvents(t *testing.T) {
 			}
 		}},
 		{name: "tool start", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file"}}, check: func(t *testing.T, m replModel) {
-			if len(m.stream.handler.segments) != 1 {
+			if len(m.stream.handler.Snapshot()) != 1 {
 				t.Fatal("tool start was not routed")
 			}
 		}},
@@ -1664,7 +1666,7 @@ func TestHandleLLMStreamMsgInactiveStreamSwallowsLateEvents(t *testing.T) {
 func TestHandleAdversaryStreamLifecycle(t *testing.T) {
 	m := newTestModel()
 	events := make(chan agentcore.StreamEvent)
-	m.adversary.streamHandler = NewStreamHandler(nil)
+	m.adversary.streamHandler = replstream.NewStreamHandler(nil)
 	m.adversary.streamHandler.Start(events, "Reviewing...")
 	m.adversary.showSpinner = true
 
@@ -1673,7 +1675,7 @@ func TestHandleAdversaryStreamLifecycle(t *testing.T) {
 		t.Fatal("adversary chunk was not handled")
 	}
 	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolStartMsg{toolCall: &agentcore.ToolCall{Name: "read_file"}})
-	if !handled || cmd == nil || len(updated.adversary.streamHandler.segments) < 2 {
+	if !handled || cmd == nil || len(updated.adversary.streamHandler.Snapshot()) < 2 {
 		t.Fatal("adversary tool start was not handled")
 	}
 	updated, cmd, handled = updated.handleAdversaryStreamMsg(adversaryToolEndMsg{toolCall: &agentcore.ToolCall{Name: "read_file", Output: "ok"}})
@@ -1688,7 +1690,7 @@ func TestHandleAdversaryStreamLifecycle(t *testing.T) {
 
 func TestHandleAdversaryStreamErrorAndStaleMessages(t *testing.T) {
 	m := newTestModel()
-	m.adversary.streamHandler = NewStreamHandler(nil)
+	m.adversary.streamHandler = replstream.NewStreamHandler(nil)
 	m.adversary.streamHandler.Start(make(chan agentcore.StreamEvent), "Reviewing...")
 	m.adversary.showSpinner = true
 

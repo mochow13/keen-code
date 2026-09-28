@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/mochow13/keen-code/internal/agentcore"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
@@ -122,10 +123,28 @@ func (m *replModel) appendResolvedAskUserSegment() {
 	if !m.askUser.completed || m.stream.handler == nil {
 		return
 	}
-	m.stream.handler.SetAskUser(&m.askUser)
+	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
 	m.clearAskUser()
 }
 
+// askUserCard snapshots REPL ask-user state for the stream package without
+// creating an import cycle. The snapshot is immutable; rendering closes over
+// a clone taken at call time.
+func askUserCard(s *askUserState) *replstream.AskUserCard {
+	if s == nil {
+		return nil
+	}
+	cloned := cloneAskUserState(*s)
+	if !cloned.visible() {
+		return nil
+	}
+	return &replstream.AskUserCard{
+		Active: cloned.active(),
+		Render: func(width int) string {
+			return renderAskUserCard(*cloned, width)
+		},
+	}
+}
 func renderAskUserCard(s askUserState, width int) string {
 	if !s.visible() {
 		return ""

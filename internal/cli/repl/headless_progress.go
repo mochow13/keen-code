@@ -6,6 +6,7 @@ import (
 	"io"
 
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 )
 
 // headlessProgress streams live agent text chunks and tool start lines to the
@@ -32,7 +33,7 @@ func (p *headlessProgress) writeToolEnd(toolCall *agentcore.ToolCall) {
 	if p.out == nil || toolCall == nil {
 		return
 	}
-	if isHiddenToolFailure(toolCall) {
+	if replstream.IsHiddenToolFailure(toolCall) {
 		return
 	}
 	p.newLine()
