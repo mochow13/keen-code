@@ -17,6 +17,7 @@ import (
 
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
@@ -1286,15 +1287,15 @@ func TestStartAdversaryModelSelectionRestoresPrimaryThinkingEffort(t *testing.T)
 func TestHandleShowThinkingCommand_On(t *testing.T) {
 	m := newTestModel()
 	m.showThinking = false
-	m.stream.handler.showThinking = false
+	m.stream.handler.SetShowThinking(false)
 
 	result := m.handleShowThinkingCommand("/show-thinking on")
 
 	if !result.showThinking {
 		t.Error("expected showThinking to be true after /show-thinking on")
 	}
-	if !result.stream.handler.showThinking {
-		t.Error("expected stream.handler.showThinking to be true after /show-thinking on")
+	if !result.stream.handler.ShowThinking() {
+		t.Error("expected stream.handler.ShowThinking() to be true after /show-thinking on")
 	}
 	if !strings.Contains(result.output.Join(), "Thinking tokens shown") {
 		t.Fatalf("expected confirmation message, got %q", result.output.Join())
@@ -1309,8 +1310,8 @@ func TestHandleShowThinkingCommand_Off(t *testing.T) {
 	if result.showThinking {
 		t.Error("expected showThinking to be false after /show-thinking off")
 	}
-	if result.stream.handler.showThinking {
-		t.Error("expected stream.handler.showThinking to be false after /show-thinking off")
+	if result.stream.handler.ShowThinking() {
+		t.Error("expected stream.handler.ShowThinking() to be false after /show-thinking off")
 	}
 	if !strings.Contains(result.output.Join(), "Thinking tokens hidden") {
 		t.Fatalf("expected confirmation message, got %q", result.output.Join())
@@ -1327,7 +1328,7 @@ func TestHandleShowThinkingCommand_NoArgShowsStatus(t *testing.T) {
 
 	m2 := newTestModel()
 	m2.showThinking = false
-	m2.stream.handler.showThinking = false
+	m2.stream.handler.SetShowThinking(false)
 
 	result2 := m2.handleShowThinkingCommand("/show-thinking")
 	if !strings.Contains(result2.output.Join(), "hidden") {
@@ -1383,7 +1384,7 @@ func TestHandleEnterKey_BtwCommandStartsStream(t *testing.T) {
 	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
 	m.agentCore = newAgentCore(&mockLLMClient{}, "", m.ctx.cfg)
 	m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "context message"})
-	m.btw.streamHandler = NewStreamHandler(nil)
+	m.btw.streamHandler = replstream.NewStreamHandler(nil)
 	m.textarea.SetValue("/btw what is this?")
 
 	newM, cmd := m.handleEnterKey()
@@ -1406,7 +1407,7 @@ func TestHandleEnterKey_BtwCommandDuringActiveStream(t *testing.T) {
 	m := newTestModel()
 	m.ctx.cfg = &config.ResolvedConfig{APIKey: "key", Model: "model"}
 	m.agentCore = newAgentCore(&mockLLMClient{}, "", m.ctx.cfg)
-	m.btw.streamHandler = NewStreamHandler(nil)
+	m.btw.streamHandler = replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	m.stream.handler.Start(eventCh, "Loading...")
 	m.textarea.SetValue("/btw quick question")
@@ -1423,7 +1424,7 @@ func TestHandleEnterKey_BtwCommandDuringActiveStream(t *testing.T) {
 
 func TestHandleEnterKey_BtwCommandNoQuestion(t *testing.T) {
 	m := newTestModel()
-	m.btw.streamHandler = NewStreamHandler(nil)
+	m.btw.streamHandler = replstream.NewStreamHandler(nil)
 	m.textarea.SetValue("/btw")
 
 	newM, cmd := m.handleEnterKey()
@@ -1448,7 +1449,7 @@ func TestHandleEnterKey_BtwCommandNoQuestion(t *testing.T) {
 
 func TestHandleEnterKey_BtwCommandNoQuestionShowsUsage(t *testing.T) {
 	m := newTestModel()
-	m.btw.streamHandler = NewStreamHandler(nil)
+	m.btw.streamHandler = replstream.NewStreamHandler(nil)
 	m.textarea.SetValue("/btw")
 
 	newM, cmd := m.handleEnterKey()
@@ -1524,7 +1525,7 @@ func (f *fakeMCPRuntime) CallTool(_ context.Context, _, _ string, _ map[string]a
 func TestHandleEnterKey_BtwCommandClientNotReady(t *testing.T) {
 	m := newTestModel()
 	m.ctx.cfg = &config.ResolvedConfig{}
-	m.btw.streamHandler = NewStreamHandler(nil)
+	m.btw.streamHandler = replstream.NewStreamHandler(nil)
 	m.textarea.SetValue("/btw question")
 
 	newM, cmd := m.handleEnterKey()
@@ -1550,7 +1551,7 @@ func TestHandleEnterKey_BtwCommandClientNotReady(t *testing.T) {
 func TestCancelBtwStream_ClearsState(t *testing.T) {
 	m := newTestModel()
 	m.btw.showSpinner = true
-	m.btw.streamHandler = NewStreamHandler(nil)
+	m.btw.streamHandler = replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	m.btw.streamHandler.Start(eventCh, "Loading...")
 	m.btw.lines = []string{"some lines"}
@@ -1567,7 +1568,7 @@ func TestCancelBtwStream_ClearsState(t *testing.T) {
 
 func TestCancelBtwStream_CancelsContext(t *testing.T) {
 	m := newTestModel()
-	m.btw.streamHandler = NewStreamHandler(nil)
+	m.btw.streamHandler = replstream.NewStreamHandler(nil)
 	cancelled := false
 	m.btw.streamCancel = func() {
 		cancelled = true

@@ -8,15 +8,17 @@ import (
 	"github.com/mochow13/keen-code/internal/agentcore"
 	"github.com/mochow13/keen-code/internal/llm"
 
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	"github.com/mochow13/keen-code/internal/session"
 )
 
 type sessionReplay struct {
 	output  *reploutput.OutputBuilder
-	handler *StreamHandler
+	handler *replstream.StreamHandler
 }
 
 func newSessionReplay(width int, mdRenderer *replmarkdown.Renderer, workingDir string) *sessionReplay {
@@ -25,11 +27,11 @@ func newSessionReplay(width int, mdRenderer *replmarkdown.Renderer, workingDir s
 		outputWidth = width
 	}
 
-	handler := NewStreamHandler(mdRenderer)
-	handler.lastWidth = width
-	handler.workingDir = workingDir
-	if handler.lastWidth <= 0 {
-		handler.lastWidth = defaultWidth
+	handler := replstream.NewStreamHandler(mdRenderer)
+	handler.SetLastWidth(width)
+	handler.SetWorkingDir(workingDir)
+	if handler.LastWidth() <= 0 {
+		handler.SetLastWidth(defaultWidth)
 	}
 
 	return &sessionReplay{
@@ -120,7 +122,7 @@ func (r *sessionReplay) flushError(errText string) {
 	}
 }
 
-func replayTranscript(handler *StreamHandler, transcript []session.TranscriptItem) {
+func replayTranscript(handler *replstream.StreamHandler, transcript []session.TranscriptItem) {
 	if handler == nil {
 		return
 	}
@@ -138,7 +140,7 @@ func replayTranscript(handler *StreamHandler, transcript []session.TranscriptIte
 		case session.TranscriptItemToolEnd:
 			if item.ToolEnd != nil && item.ToolEnd.Name == agentcore.ToolNameAskUser {
 				if state := askUserStateFromPayload(item.ToolEnd); state != nil {
-					handler.SetAskUser(state)
+					handler.SetAskUser(state.Card())
 				}
 			} else {
 				handler.HandleToolEnd(toolCallResultFromPayload(item.ToolEnd))
@@ -153,7 +155,7 @@ func replayTranscript(handler *StreamHandler, transcript []session.TranscriptIte
 	}
 }
 
-func askUserStateFromPayload(payload *session.ToolEndPayload) *askUserState {
+func askUserStateFromPayload(payload *session.ToolEndPayload) *replaskuser.State {
 	if payload == nil {
 		return nil
 	}
@@ -164,14 +166,7 @@ func askUserStateFromPayload(payload *session.ToolEndPayload) *askUserState {
 		return nil
 	}
 
-	state := &askUserState{completed: true, cancelled: result.Cancelled}
-	for i, answer := range result.Answers {
-		if i >= len(request.Questions) {
-			break
-		}
-		state.resolved = append(state.resolved, askUserAnswer{question: request.Questions[i].Question, answer: answer})
-	}
-	return state
+	return replaskuser.NewResolvedState(request, result)
 }
 
 func decodeSessionPayload(value any, target any) bool {
@@ -182,7 +177,7 @@ func decodeSessionPayload(value any, target any) bool {
 	return json.Unmarshal(encoded, target) == nil
 }
 
-func replayBashPayload(handler *StreamHandler, payload *session.BashPayload) {
+func replayBashPayload(handler *replstream.StreamHandler, payload *session.BashPayload) {
 	if handler == nil || payload == nil {
 		return
 	}

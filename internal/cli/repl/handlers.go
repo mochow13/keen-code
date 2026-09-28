@@ -12,6 +12,7 @@ import (
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 )
@@ -68,7 +69,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionDone()
 	}
-	segments := cloneStreamSegments(m.stream.handler.segments)
+	segments := m.stream.handler.Snapshot()
 	m.recordHistoricalToolActivity(segments)
 	m.stopLoading()
 	m.clearStreamCancel()
@@ -100,7 +101,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionError(err)
 	}
-	segments := cloneStreamSegments(m.stream.handler.segments)
+	segments := m.stream.handler.Snapshot()
 	m.recordHistoricalToolActivity(segments)
 	partialResponse := m.stream.handler.GetResponse()
 	m.stopLoading()
@@ -133,7 +134,7 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionError(err)
 	}
-	segments := cloneStreamSegments(m.stream.handler.segments)
+	segments := m.stream.handler.Snapshot()
 	m.recordHistoricalToolActivity(segments)
 	partialResponse := m.stream.handler.GetResponse()
 	m.stopLoading()
@@ -203,7 +204,7 @@ func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionE
 	}
 
 	m.flushStreamRender()
-	segments := cloneStreamSegments(m.stream.handler.segments)
+	segments := m.stream.handler.Snapshot()
 	m.recordHistoricalToolActivity(segments)
 
 	var turnMemory *agentcore.TurnMemory
@@ -246,30 +247,17 @@ func (m *replModel) handleAutoCompactionStopped() (replModel, tea.Cmd) {
 	return *m, m.waitForAsyncEvent()
 }
 
-func finalAssistantRun(segments []streamSegment) string {
-	start := len(segments)
-	for start > 0 && segments[start-1].kind == segmentAssistant {
-		start--
-	}
-	var content strings.Builder
-	for _, segment := range segments[start:] {
-		content.WriteString(segment.content)
-	}
-	return content.String()
+func finalAssistantRun(segments []replstream.Segment) string {
+	return replstream.FinalAssistantRun(segments)
 }
 
-func hasNonTextActivity(segments []streamSegment) bool {
-	for _, segment := range segments {
-		if segment.kind != segmentAssistant && segment.kind != segmentReasoning {
-			return true
-		}
-	}
-	return false
+func hasNonTextActivity(segments []replstream.Segment) bool {
+	return replstream.HasNonTextActivity(segments)
 }
 
 func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	m.flushStreamRender()
-	segments := cloneStreamSegments(m.stream.handler.segments)
+	segments := m.stream.handler.Snapshot()
 	responseLines, summary := m.stream.handler.HandleDone()
 	if hasNonTextActivity(segments) {
 		summary = finalAssistantRun(segments)
@@ -477,38 +465,38 @@ func (m *replModel) handleSuggestionKeyMsg(keyMsg tea.KeyPressMsg) (bool, replMo
 
 func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd) {
 	s := &m.askUser
-	question := s.request.Questionnaire.Questions[s.index]
+	question := s.Request.Questionnaire.Questions[s.Index]
 	var cmd tea.Cmd
 	switch msg.String() {
 	case keyCtrlC, keyEsc:
-		s.resolve(s.requester, true)
+		s.Resolve(s.Requester, true)
 	case keyUp:
-		s.move(-1)
+		s.Move(-1)
 	case keyDown:
-		s.move(1)
+		s.Move(1)
 	case keyEnter:
-		if s.selected < len(question.Options) {
-			if s.answer(question.Options[s.selected]) {
-				s.resolve(s.requester, false)
+		if s.Selected < len(question.Options) {
+			if s.Answer(question.Options[s.Selected]) {
+				s.Resolve(s.Requester, false)
 			}
-		} else if s.editing {
-			if value := s.input.Value(); strings.TrimSpace(value) != "" && s.answer(value) {
-				s.resolve(s.requester, false)
+		} else if s.Editing {
+			if value := s.Input.Value(); strings.TrimSpace(value) != "" && s.Answer(value) {
+				s.Resolve(s.Requester, false)
 			}
 		} else {
-			s.editing = true
-			s.input.Focus()
+			s.Editing = true
+			s.Input.Focus()
 		}
 	default:
-		if s.editing || msg.Text != "" {
-			s.selected = len(question.Options)
-			s.editing = true
-			s.input.Focus()
-			s.input, cmd = s.input.Update(msg)
+		if s.Editing || msg.Text != "" {
+			s.Selected = len(question.Options)
+			s.Editing = true
+			s.Input.Focus()
+			s.Input, cmd = s.Input.Update(msg)
 		}
 	}
-	if s.active() {
-		m.stream.handler.SetAskUser(s)
+	if s.Active() {
+		m.stream.handler.SetAskUser(s.Card())
 	} else {
 		m.appendResolvedAskUserSegment()
 	}
@@ -519,12 +507,12 @@ func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd
 
 func (m *replModel) handleAskUserPasteMsg(msg tea.PasteMsg) (replModel, tea.Cmd) {
 	s := &m.askUser
-	s.selected = len(s.request.Questionnaire.Questions[s.index].Options)
-	s.editing = true
-	s.input.Focus()
+	s.Selected = len(s.Request.Questionnaire.Questions[s.Index].Options)
+	s.Editing = true
+	s.Input.Focus()
 	var cmd tea.Cmd
-	s.input, cmd = s.input.Update(msg)
-	m.stream.handler.SetAskUser(s)
+	s.Input, cmd = s.Input.Update(msg)
+	m.stream.handler.SetAskUser(s.Card())
 	m.updateViewportContent()
 	m.scrollToBottomIfFollowing()
 	return *m, cmd
@@ -582,7 +570,7 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		}
 	}
 
-	if m.askUser.active() {
+	if m.askUser.Active() {
 		return m.handleAskUserKeyMsg(keyMsg)
 	}
 
@@ -803,7 +791,7 @@ func (m *replModel) interruptStream(message string) {
 
 	m.stopLoading()
 
-	segments := cloneStreamSegments(m.stream.handler.segments)
+	segments := m.stream.handler.Snapshot()
 	m.recordHistoricalToolActivity(segments)
 	partialResponse := m.stream.handler.GetResponse()
 	turnMemory := m.consumeTurnMemory()
@@ -914,7 +902,7 @@ func (m *replModel) handlePermissionKeyMsg(msg tea.KeyPressMsg) (replModel, tea.
 
 func (m replModel) handleLLMStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	if streamMsg, ok := msg.(mainStreamMsg); ok {
-		if m.stream.handler == nil || m.stream.handler.eventCh != streamMsg.eventCh {
+		if m.stream.handler == nil || m.stream.handler.EventChannel() != streamMsg.eventCh {
 			return m, nil, true
 		}
 		if streamMsg.closed {
@@ -1055,7 +1043,7 @@ func (m replModel) handleBtwStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case btwChunkMsg:
 		m.btw.streamHandler.HandleChunk(string(msg))
-		return m, tea.Batch(m.afterStreamUpdate(), waitForBtwEvent(m.btw.streamHandler.eventCh)), true
+		return m, tea.Batch(m.afterStreamUpdate(), waitForBtwEvent(m.btw.streamHandler.EventChannel())), true
 	case btwDoneMsg:
 		m.flushStreamRender()
 		responseLines, _ := m.btw.streamHandler.HandleDone()
@@ -1093,19 +1081,19 @@ func (m replModel) handleAdversaryStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bo
 	switch msg := msg.(type) {
 	case adversaryChunkMsg:
 		m.adversary.streamHandler.HandleChunk(string(msg))
-		return m, tea.Batch(m.afterStreamUpdate(), waitForAdversaryEvent(m.adversary.streamHandler.eventCh)), true
+		return m, tea.Batch(m.afterStreamUpdate(), waitForAdversaryEvent(m.adversary.streamHandler.EventChannel())), true
 	case adversaryToolStartMsg:
 		m.flushStreamRender()
 		m.adversary.streamHandler.HandleToolStart(msg.toolCall)
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
-		return m, waitForAdversaryEvent(m.adversary.streamHandler.eventCh), true
+		return m, waitForAdversaryEvent(m.adversary.streamHandler.EventChannel()), true
 	case adversaryToolEndMsg:
 		m.flushStreamRender()
 		m.adversary.streamHandler.HandleToolEnd(msg.toolCall)
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
-		return m, waitForAdversaryEvent(m.adversary.streamHandler.eventCh), true
+		return m, waitForAdversaryEvent(m.adversary.streamHandler.EventChannel()), true
 	case adversaryDoneMsg:
 		m.flushStreamRender()
 		responseLines, _ := m.adversary.streamHandler.HandleDone()

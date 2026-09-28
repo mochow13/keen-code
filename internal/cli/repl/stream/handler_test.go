@@ -1,4 +1,4 @@
-package repl
+package stream
 
 import (
 	"charm.land/lipgloss/v2"
@@ -91,11 +91,11 @@ func TestStreamHandler_HandleReasoningChunk_DoesNotAffectAssistantResponse(t *te
 	if len(sh.segments) != 2 {
 		t.Fatalf("expected 2 segments (reasoning + assistant), got %d", len(sh.segments))
 	}
-	if sh.segments[0].kind != segmentReasoning {
-		t.Fatalf("expected first segment reasoning, got %q", sh.segments[0].kind)
+	if sh.segments[0].Kind != SegmentReasoning {
+		t.Fatalf("expected first segment reasoning, got %q", sh.segments[0].Kind)
 	}
-	if sh.segments[0].content != "thinking more" {
-		t.Fatalf("unexpected reasoning content %q", sh.segments[0].content)
+	if sh.segments[0].Content != "thinking more" {
+		t.Fatalf("unexpected reasoning content %q", sh.segments[0].Content)
 	}
 }
 
@@ -174,11 +174,11 @@ func TestStreamHandler_RewindForRetry_PreservesSealedSegments(t *testing.T) {
 	if len(sh.segments) != 3 {
 		t.Fatalf("expected 3 surviving segments after rewind, got %d", len(sh.segments))
 	}
-	if sh.segments[0].kind != segmentAssistant || sh.segments[0].content != "Let me read the file. " {
+	if sh.segments[0].Kind != SegmentAssistant || sh.segments[0].Content != "Let me read the file. " {
 		t.Fatalf("expected first segment to be the iteration-1 assistant message, got %+v", sh.segments[0])
 	}
-	if sh.segments[1].kind != segmentToolStart || sh.segments[2].kind != segmentToolEnd {
-		t.Fatalf("expected tool start/end pair to remain, got %q/%q", sh.segments[1].kind, sh.segments[2].kind)
+	if sh.segments[1].Kind != SegmentToolStart || sh.segments[2].Kind != SegmentToolEnd {
+		t.Fatalf("expected tool start/end pair to remain, got %q/%q", sh.segments[1].Kind, sh.segments[2].Kind)
 	}
 
 	// currentResponse and rawResponse must be rebuilt to match what's still in the slice,
@@ -221,8 +221,8 @@ func TestStreamHandler_RewindForRetry_LeavesSealedTailUnchanged(t *testing.T) {
 	if len(sh.segments) != 2 {
 		t.Fatalf("expected sealed assistant/bash segments to remain, got %d", len(sh.segments))
 	}
-	if sh.segments[0].kind != segmentAssistant || sh.segments[1].kind != segmentBash {
-		t.Fatalf("expected assistant/bash segments to remain, got %q/%q", sh.segments[0].kind, sh.segments[1].kind)
+	if sh.segments[0].Kind != SegmentAssistant || sh.segments[1].Kind != SegmentBash {
+		t.Fatalf("expected assistant/bash segments to remain, got %q/%q", sh.segments[0].Kind, sh.segments[1].Kind)
 	}
 	if got := sh.GetResponse(); got != "Running tests. " {
 		t.Fatalf("expected response to remain %q, got %q", "Running tests. ", got)
@@ -286,24 +286,24 @@ func TestStreamHandler_HandleDone_AdjacentToolStartEnd_CollapsedToOneLine(t *tes
 }
 
 func TestFinalAssistantRun(t *testing.T) {
-	segments := []streamSegment{
-		{kind: segmentReasoning, content: "thinking"},
-		{kind: segmentAssistant, content: "Let me check the config first."},
-		{kind: segmentToolStart, toolCall: &agentcore.ToolCall{Name: "read_file"}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file"}},
-		{kind: segmentAssistant, content: "## Goal\nShip it."},
+	segments := []Segment{
+		{Kind: SegmentReasoning, Content: "thinking"},
+		{Kind: SegmentAssistant, Content: "Let me check the config first."},
+		{Kind: SegmentToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file"}},
+		{Kind: SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file"}},
+		{Kind: SegmentAssistant, Content: "## Goal\nShip it."},
 	}
-	if got := finalAssistantRun(segments); got != "## Goal\nShip it." {
-		t.Fatalf("finalAssistantRun() = %q", got)
-	}
-
-	noTools := []streamSegment{{kind: segmentAssistant, content: "whole response"}}
-	if got := finalAssistantRun(noTools); got != "whole response" {
-		t.Fatalf("finalAssistantRun() = %q", got)
+	if got := FinalAssistantRun(segments); got != "## Goal\nShip it." {
+		t.Fatalf("FinalAssistantRun() = %q", got)
 	}
 
-	noTrailingText := []streamSegment{{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "grep"}}}
-	if got := finalAssistantRun(noTrailingText); got != "" {
+	noTools := []Segment{{Kind: SegmentAssistant, Content: "whole response"}}
+	if got := FinalAssistantRun(noTools); got != "whole response" {
+		t.Fatalf("FinalAssistantRun() = %q", got)
+	}
+
+	noTrailingText := []Segment{{Kind: SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "grep"}}}
+	if got := FinalAssistantRun(noTrailingText); got != "" {
 		t.Fatalf("expected empty final run, got %q", got)
 	}
 }
@@ -311,26 +311,26 @@ func TestFinalAssistantRun(t *testing.T) {
 func TestHasNonTextActivity(t *testing.T) {
 	cases := []struct {
 		name     string
-		segments []streamSegment
+		segments []Segment
 		want     bool
 	}{
 		{name: "empty"},
-		{name: "assistant only", segments: []streamSegment{{kind: segmentAssistant, content: "text"}}},
-		{name: "reasoning only", segments: []streamSegment{{kind: segmentReasoning, content: "thinking"}}},
-		{name: "reasoning and assistant", segments: []streamSegment{{kind: segmentReasoning}, {kind: segmentAssistant, content: "text"}}},
-		{name: "tool start", segments: []streamSegment{{kind: segmentToolStart}}, want: true},
-		{name: "tool end", segments: []streamSegment{{kind: segmentToolEnd}}, want: true},
-		{name: "bash", segments: []streamSegment{{kind: segmentBash}}, want: true},
-		{name: "permission", segments: []streamSegment{{kind: segmentPermission}}, want: true},
-		{name: "diff", segments: []streamSegment{{kind: segmentDiff}}, want: true},
-		{name: "subagent", segments: []streamSegment{{kind: segmentSubagent}}, want: true},
-		{name: "ask user", segments: []streamSegment{{kind: segmentAskUser}}, want: true},
+		{name: "assistant only", segments: []Segment{{Kind: SegmentAssistant, Content: "text"}}},
+		{name: "reasoning only", segments: []Segment{{Kind: SegmentReasoning, Content: "thinking"}}},
+		{name: "reasoning and assistant", segments: []Segment{{Kind: SegmentReasoning}, {Kind: SegmentAssistant, Content: "text"}}},
+		{name: "tool start", segments: []Segment{{Kind: SegmentToolStart}}, want: true},
+		{name: "tool end", segments: []Segment{{Kind: SegmentToolEnd}}, want: true},
+		{name: "bash", segments: []Segment{{Kind: SegmentBash}}, want: true},
+		{name: "permission", segments: []Segment{{Kind: SegmentPermission}}, want: true},
+		{name: "diff", segments: []Segment{{Kind: SegmentDiff}}, want: true},
+		{name: "subagent", segments: []Segment{{Kind: SegmentSubagent}}, want: true},
+		{name: "ask user", segments: []Segment{{Kind: SegmentAskUser}}, want: true},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := hasNonTextActivity(tt.segments); got != tt.want {
-				t.Fatalf("hasNonTextActivity() = %v, want %v", got, tt.want)
+			if got := HasNonTextActivity(tt.segments); got != tt.want {
+				t.Fatalf("HasNonTextActivity() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/mochow13/keen-code/internal/agentcore"
 
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm"
@@ -109,9 +110,9 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 		return nil, fmt.Errorf("LLM client not initialized")
 	}
 
-	handler := NewStreamHandler(nil)
-	handler.workingDir = opts.WorkingDir
-	handler.showThinking = false
+	handler := replstream.NewStreamHandler(nil)
+	handler.SetWorkingDir(opts.WorkingDir)
+	handler.SetShowThinking(false)
 	handler.Start(eventCh, "")
 	turnMemory := newTurnMemoryAccumulator(false)
 	var completedText strings.Builder
@@ -185,7 +186,7 @@ func loadHeadlessSession(sessions *replSessionState, sessionID string) (*session
 	return nil, fmt.Errorf("session %q not found", sessionID)
 }
 
-func handleHeadlessToolStart(handler *StreamHandler, toolCall *agentcore.ToolCall) {
+func handleHeadlessToolStart(handler *replstream.StreamHandler, toolCall *agentcore.ToolCall) {
 	if toolCall == nil {
 		return
 	}
@@ -198,7 +199,7 @@ func handleHeadlessToolStart(handler *StreamHandler, toolCall *agentcore.ToolCal
 	handler.HandleToolStart(toolCall)
 }
 
-func handleHeadlessToolEnd(handler *StreamHandler, toolCall *agentcore.ToolCall) {
+func handleHeadlessToolEnd(handler *replstream.StreamHandler, toolCall *agentcore.ToolCall) {
 	if toolCall == nil {
 		return
 	}
@@ -212,7 +213,7 @@ func handleHeadlessToolEnd(handler *StreamHandler, toolCall *agentcore.ToolCall)
 func checkpointHeadlessAutoCompaction(
 	sessions *replSessionState,
 	agentCore agentcore.AgentCore,
-	handler *StreamHandler,
+	handler *replstream.StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText *strings.Builder,
 	compaction *agentcore.AutoCompactionEvent,
@@ -221,8 +222,8 @@ func checkpointHeadlessAutoCompaction(
 		return fmt.Errorf("automatic compaction applied without replacement history")
 	}
 
-	segments := cloneStreamSegments(handler.segments)
-	turnMemory.RecordToolActivity(segments, handler.workingDir)
+	segments := handler.Snapshot()
+	turnMemory.RecordToolActivity(segments, handler.WorkingDir())
 	response := handler.GetResponse()
 	persistedReplacement := agentCore.WithoutSystemMessages(compaction.Replacement)
 	if err := sessions.appendAutoCompaction(segments, agentcore.Message{
@@ -245,13 +246,13 @@ func finishHeadlessRun(
 	format string,
 	completionSignal string,
 	sessions *replSessionState,
-	handler *StreamHandler,
+	handler *replstream.StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText string,
 	usage *agentcore.TokenUsage,
 ) (*HeadlessRunResult, error) {
-	segments := cloneStreamSegments(handler.segments)
-	turnMemory.RecordToolActivity(segments, handler.workingDir)
+	segments := handler.Snapshot()
+	turnMemory.RecordToolActivity(segments, handler.WorkingDir())
 	_, currentResponse := handler.HandleDone()
 	assistantMessage := agentcore.Message{
 		Role:       agentcore.RoleAssistant,
@@ -281,7 +282,7 @@ func failHeadlessRun(
 	out io.Writer,
 	format string,
 	sessions *replSessionState,
-	handler *StreamHandler,
+	handler *replstream.StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText string,
 	usage *agentcore.TokenUsage,
@@ -290,8 +291,8 @@ func failHeadlessRun(
 	if err == nil {
 		err = fmt.Errorf("LLM stream incomplete")
 	}
-	segments := cloneStreamSegments(handler.segments)
-	turnMemory.RecordToolActivity(segments, handler.workingDir)
+	segments := handler.Snapshot()
+	turnMemory.RecordToolActivity(segments, handler.WorkingDir())
 	partialResponse := handler.GetResponse()
 	_, errMsg := handler.HandleError(err)
 	assistantMessage := agentcore.Message{

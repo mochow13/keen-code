@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
@@ -56,7 +57,7 @@ func newTestModel() replModel {
 		ctx:                 &replContext{cfg: cfg},
 		agentCore:           &mockAgentCore{cfg: cfg, mode: agentcore.ModeBuild},
 		output:              reploutput.NewOutputBuilder(80, ""),
-		stream:              streamState{handler: NewStreamHandler(nil)},
+		stream:              streamState{handler: replstream.NewStreamHandler(nil)},
 		permissionRequester: replpermissions.NewRequester(nil),
 		projectPerms:        config.NewProjectPermissions(),
 		diffEmitter:         repltooling.NewDiffEmitter(),
@@ -120,7 +121,7 @@ func scrollViewportAwayFromBottom(t *testing.T, m *replModel) int {
 }
 
 func TestUpdate_InlinePermission_AllowsToolStartEvent(t *testing.T) {
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
 
@@ -598,7 +599,7 @@ func TestUpdateNormalMode_DiffReadyRendersImmediately(t *testing.T) {
 
 	newM, cmd := m.updateNormalMode(diffReadyMsg{req: req})
 
-	if len(newM.stream.handler.segments) != 1 || newM.stream.handler.segments[0].kind != segmentDiff {
+	if len(newM.stream.handler.Snapshot()) != 1 || newM.stream.handler.Snapshot()[0].Kind != replstream.SegmentDiff {
 		t.Fatal("expected diff segment to be rendered immediately")
 	}
 	select {

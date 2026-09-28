@@ -2,6 +2,7 @@ package repl
 
 import (
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"strings"
 	"testing"
@@ -126,16 +127,16 @@ func TestBuildAssistantTurnEvent_MixedTranscript(t *testing.T) {
 		{Kind: agentcore.EditDiffLineAdded, Content: "added", NewLineNum: 1},
 	}
 
-	segments := []streamSegment{
-		{kind: segmentAssistant, content: "draft"},
-		{kind: segmentReasoning, content: "thinking"},
+	segments := []replstream.Segment{
+		{Kind: replstream.SegmentAssistant, Content: "draft"},
+		{Kind: replstream.SegmentReasoning, Content: "thinking"},
 		{
-			kind:     segmentToolStart,
-			toolCall: toolCallFromPayload(&session.ToolStartPayload{Name: "read_file", Input: map[string]any{"path": "go.mod"}}),
+			Kind:     replstream.SegmentToolStart,
+			ToolCall: toolCallFromPayload(&session.ToolStartPayload{Name: "read_file", Input: map[string]any{"path": "go.mod"}}),
 		},
 		{
-			kind: segmentToolEnd,
-			toolCall: toolCallResultFromPayload(&session.ToolEndPayload{
+			Kind: replstream.SegmentToolEnd,
+			ToolCall: toolCallResultFromPayload(&session.ToolEndPayload{
 				Name:       "read_file",
 				Input:      map[string]any{"path": "go.mod"},
 				Output:     map[string]any{"content": "module github.com/user/keen-code"},
@@ -143,15 +144,15 @@ func TestBuildAssistantTurnEvent_MixedTranscript(t *testing.T) {
 			}),
 		},
 		{
-			kind:    segmentBash,
-			command: "go test ./...",
-			summary: "Run unit tests",
-			output:  "ok",
-			toolCall: &agentcore.ToolCall{
+			Kind:    replstream.SegmentBash,
+			Command: "go test ./...",
+			Summary: "Run unit tests",
+			Output:  "ok",
+			ToolCall: &agentcore.ToolCall{
 				Duration: 7 * time.Millisecond,
 			},
 		},
-		{kind: segmentDiff, diffLines: diffLines},
+		{Kind: replstream.SegmentDiff, DiffLines: diffLines},
 	}
 
 	event := buildAssistantTurnEvent(segments, agentcore.Message{

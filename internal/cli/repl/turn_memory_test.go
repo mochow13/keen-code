@@ -2,6 +2,7 @@ package repl
 
 import (
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,7 +13,7 @@ import (
 
 func TestHandleLLMDone_AttachesTurnMemoryToAssistantMessage(t *testing.T) {
 	workingDir := t.TempDir()
-	sh := NewStreamHandler(nil)
+	sh := replstream.NewStreamHandler(nil)
 	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")
 	sh.HandleChunk("working")
 	sh.HandleToolStart(&agentcore.ToolCall{Name: "edit_file", Input: map[string]any{"path": "nested/a.go"}})
@@ -59,9 +60,9 @@ func TestHandleLLMDone_AttachesTurnMemoryToAssistantMessage(t *testing.T) {
 }
 
 func TestCollectHistoricalToolActivity_RetainsRawOutputsWhenEnabled(t *testing.T) {
-	activities := collectHistoricalToolActivity([]streamSegment{
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"content": "package main"}}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "bash", Error: "command failed", Output: map[string]any{"exit_code": 1}}},
+	activities := collectHistoricalToolActivity([]replstream.Segment{
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"content": "package main"}}},
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "bash", Error: "command failed", Output: map[string]any{"exit_code": 1}}},
 	}, "", true)
 
 	if !activities[0].HasRawOutput || activities[0].RawOutput.(map[string]any)["content"] != "package main" {
@@ -80,9 +81,9 @@ func TestCollectHistoricalToolActivity_RetainsLLMCompressedOutputsWhenEnabled(t 
 		"total_lines": 1,
 		"truncated":   false,
 	}
-	activities := collectHistoricalToolActivity([]streamSegment{{
-		kind:     segmentToolEnd,
-		toolCall: &agentcore.ToolCall{Name: "read_file", Output: output},
+	activities := collectHistoricalToolActivity([]replstream.Segment{{
+		Kind:     replstream.SegmentToolEnd,
+		ToolCall: &agentcore.ToolCall{Name: "read_file", Output: output},
 	}}, "", true)
 
 	if len(activities) != 1 || activities[0].RetainedOutput == nil {
@@ -104,9 +105,9 @@ func TestCollectHistoricalToolActivity_RetainsLLMCompressedOutputsWhenEnabled(t 
 }
 
 func TestCollectHistoricalToolActivity_OmitsRawOutputsByDefault(t *testing.T) {
-	activities := collectHistoricalToolActivity([]streamSegment{{
-		kind:     segmentToolEnd,
-		toolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"content": "package main"}},
+	activities := collectHistoricalToolActivity([]replstream.Segment{{
+		Kind:     replstream.SegmentToolEnd,
+		ToolCall: &agentcore.ToolCall{Name: "read_file", Output: map[string]any{"content": "package main"}},
 	}}, "", false)
 
 	if activities[0].HasRawOutput || activities[0].RawOutput != nil {
@@ -117,9 +118,9 @@ func TestCollectHistoricalToolActivity_OmitsRawOutputsByDefault(t *testing.T) {
 func TestCollectHistoricalToolActivity_RetainsAskUserResult(t *testing.T) {
 	input := map[string]any{"questions": []any{map[string]any{"question": "Pick", "options": []any{"one", "two"}}}}
 	output := map[string]any{"answers": []string{"two"}, "cancelled": false}
-	activities := collectHistoricalToolActivity([]streamSegment{{
-		kind:     segmentToolEnd,
-		toolCall: &agentcore.ToolCall{Name: "ask_user", Input: input, Output: output},
+	activities := collectHistoricalToolActivity([]replstream.Segment{{
+		Kind:     replstream.SegmentToolEnd,
+		ToolCall: &agentcore.ToolCall{Name: "ask_user", Input: input, Output: output},
 	}}, "", false)
 	if len(activities) != 1 || activities[0].Input == nil || activities[0].RetainedOutput == nil {
 		t.Fatalf("expected retained ask_user input and output, got %#v", activities)
@@ -133,9 +134,9 @@ func TestCollectHistoricalToolActivity_RetainsAskUserResult(t *testing.T) {
 func TestCollectHistoricalToolActivity_RetainsWriteInputWithoutChangedPath(t *testing.T) {
 	workingDir := t.TempDir()
 	targetPath := filepath.Join(workingDir, "dir", "file.go")
-	activities := collectHistoricalToolActivity([]streamSegment{{
-		kind: segmentToolEnd,
-		toolCall: &agentcore.ToolCall{
+	activities := collectHistoricalToolActivity([]replstream.Segment{{
+		Kind: replstream.SegmentToolEnd,
+		ToolCall: &agentcore.ToolCall{
 			Name:   "write_file",
 			Input:  map[string]any{"path": targetPath, "content": "content"},
 			Output: map[string]any{"file_changed": targetPath},
@@ -167,9 +168,9 @@ func TestCollectHistoricalToolActivity_RelativizesRetainedPathInputs(t *testing.
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			input := map[string]any{"path": test.path}
-			activities := collectHistoricalToolActivity([]streamSegment{{
-				kind:     segmentToolEnd,
-				toolCall: &agentcore.ToolCall{Name: test.tool, Input: input},
+			activities := collectHistoricalToolActivity([]replstream.Segment{{
+				Kind:     replstream.SegmentToolEnd,
+				ToolCall: &agentcore.ToolCall{Name: test.tool, Input: input},
 			}}, workingDir, false)
 
 			if len(activities) != 1 || activities[0].Input["path"] != test.expected {
@@ -185,13 +186,13 @@ func TestCollectHistoricalToolActivity_RelativizesRetainedPathInputs(t *testing.
 func TestCollectHistoricalToolActivity_RecordsOffsetsInputsAndStatus(t *testing.T) {
 	workingDir := t.TempDir()
 	readPath := filepath.Join(workingDir, "a.go")
-	segments := []streamSegment{
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "glob", Input: map[string]any{"path": workingDir, "pattern": "**/*.go"}}},
-		{kind: segmentAssistant, content: "Inspecting. "},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": readPath}}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "edit_file", Error: "failed", Input: map[string]any{"path": readPath}}},
-		{kind: segmentAssistant, content: "Done."},
-		{kind: segmentBash, command: "go test ./...", toolCall: &agentcore.ToolCall{Name: "bash"}},
+	segments := []replstream.Segment{
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "glob", Input: map[string]any{"path": workingDir, "pattern": "**/*.go"}}},
+		{Kind: replstream.SegmentAssistant, Content: "Inspecting. "},
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": readPath}}},
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "edit_file", Error: "failed", Input: map[string]any{"path": readPath}}},
+		{Kind: replstream.SegmentAssistant, Content: "Done."},
+		{Kind: replstream.SegmentBash, Command: "go test ./...", ToolCall: &agentcore.ToolCall{Name: "bash"}},
 	}
 
 	got := collectHistoricalToolActivity(segments, workingDir, false)
@@ -213,9 +214,9 @@ func TestCollectHistoricalToolActivity_RecordsOffsetsInputsAndStatus(t *testing.
 }
 
 func TestCollectHistoricalToolActivity_RetainsMCPInput(t *testing.T) {
-	segments := []streamSegment{{
-		kind: segmentToolEnd,
-		toolCall: &agentcore.ToolCall{
+	segments := []replstream.Segment{{
+		Kind: replstream.SegmentToolEnd,
+		ToolCall: &agentcore.ToolCall{
 			Name: "call_mcp_tool",
 			Input: map[string]any{
 				"server":    "context7",
@@ -237,9 +238,9 @@ func TestCollectHistoricalToolActivity_RetainsMCPInput(t *testing.T) {
 }
 
 func TestCollectHistoricalToolActivity_DoesNotInferRetainedOutcomesFromArguments(t *testing.T) {
-	activities := collectHistoricalToolActivity([]streamSegment{
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "write_file", Input: map[string]any{"path": "a.go", "content": "content"}, Output: map[string]any{"path": "a.go"}}},
-		{kind: segmentBash, command: "go test ./...", toolCall: &agentcore.ToolCall{Name: "bash", Input: map[string]any{"command": "go test ./..."}, Output: map[string]any{"exit_code": 1}}},
+	activities := collectHistoricalToolActivity([]replstream.Segment{
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "write_file", Input: map[string]any{"path": "a.go", "content": "content"}, Output: map[string]any{"path": "a.go"}}},
+		{Kind: replstream.SegmentBash, Command: "go test ./...", ToolCall: &agentcore.ToolCall{Name: "bash", Input: map[string]any{"command": "go test ./..."}, Output: map[string]any{"exit_code": 1}}},
 	}, "", false)
 
 	if activities[0].Input["path"] != "a.go" || activities[0].Input["content"] != "content" || activities[0].Status != "success" {
@@ -251,10 +252,10 @@ func TestCollectHistoricalToolActivity_DoesNotInferRetainedOutcomesFromArguments
 }
 
 func TestCollectHistoricalToolActivity_BashToolErrorSetsErrorStatus(t *testing.T) {
-	activities := collectHistoricalToolActivity([]streamSegment{{
-		kind:    segmentBash,
-		command: "go test ./...",
-		toolCall: &agentcore.ToolCall{
+	activities := collectHistoricalToolActivity([]replstream.Segment{{
+		Kind:    replstream.SegmentBash,
+		Command: "go test ./...",
+		ToolCall: &agentcore.ToolCall{
 			Name:   "bash",
 			Error:  "tool execution failed",
 			Output: map[string]any{"exit_code": 1},
@@ -268,9 +269,9 @@ func TestCollectHistoricalToolActivity_BashToolErrorSetsErrorStatus(t *testing.T
 
 func TestCollectHistoricalToolActivity_StripsOversizedMCPArguments(t *testing.T) {
 	oversized := string(make([]byte, maxHistoricalToolInputFieldBytes+1))
-	segments := []streamSegment{{
-		kind: segmentToolEnd,
-		toolCall: &agentcore.ToolCall{
+	segments := []replstream.Segment{{
+		Kind: replstream.SegmentToolEnd,
+		ToolCall: &agentcore.ToolCall{
 			Name: "call_mcp_tool",
 			Input: map[string]any{
 				"server": "context7",
@@ -293,10 +294,10 @@ func TestCollectHistoricalToolActivity_StripsOversizedMCPArguments(t *testing.T)
 }
 
 func TestCollectHistoricalToolActivity_RetainsWriteAndEditInputs(t *testing.T) {
-	segments := []streamSegment{
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "a.go"}}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "write_file", Input: map[string]any{"path": "a.go", "content": "content"}}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "edit_file", Input: map[string]any{"path": "a.go", "oldString": "old", "newString": "new", "shouldReplaceAll": true}}},
+	segments := []replstream.Segment{
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "a.go"}}},
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "write_file", Input: map[string]any{"path": "a.go", "content": "content"}}},
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "edit_file", Input: map[string]any{"path": "a.go", "oldString": "old", "newString": "new", "shouldReplaceAll": true}}},
 	}
 
 	got := collectHistoricalToolActivity(segments, "", false)
@@ -311,9 +312,9 @@ func TestCollectHistoricalToolActivity_RetainsWriteAndEditInputs(t *testing.T) {
 func TestCollectHistoricalToolActivity_TruncatesOversizedWriteAndEditStrings(t *testing.T) {
 	oversizedASCII := strings.Repeat("a", maxHistoricalToolInputFieldBytes+1)
 	oversizedUTF8 := strings.Repeat("é", maxHistoricalToolInputFieldBytes/2+1)
-	segments := []streamSegment{
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "write_file", Input: map[string]any{"path": "a.go", "content": oversizedASCII}}},
-		{kind: segmentToolEnd, toolCall: &agentcore.ToolCall{Name: "edit_file", Input: map[string]any{"path": "a.go", "oldString": oversizedASCII, "newString": oversizedUTF8}}},
+	segments := []replstream.Segment{
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "write_file", Input: map[string]any{"path": "a.go", "content": oversizedASCII}}},
+		{Kind: replstream.SegmentToolEnd, ToolCall: &agentcore.ToolCall{Name: "edit_file", Input: map[string]any{"path": "a.go", "oldString": oversizedASCII, "newString": oversizedUTF8}}},
 	}
 
 	got := collectHistoricalToolActivity(segments, "", false)

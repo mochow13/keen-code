@@ -440,12 +440,12 @@ func (m *replModel) handleShowThinkingCommand(input string) replModel {
 	switch arg {
 	case "on":
 		m.showThinking = true
-		m.stream.handler.showThinking = true
+		m.stream.handler.SetShowThinking(true)
 		m.saveShowThinking(true)
 		m.output.AddStyledLine("  ✓ Thinking tokens shown", repltheme.HighlightStyle)
 	case "off":
 		m.showThinking = false
-		m.stream.handler.showThinking = false
+		m.stream.handler.SetShowThinking(false)
 		m.saveShowThinking(false)
 		m.output.AddStyledLine("  ✓ Thinking tokens hidden", repltheme.HighlightStyle)
 	default:
