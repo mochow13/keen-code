@@ -297,7 +297,7 @@ func TestHandleKeyMsg_CtrlC_WithAskUserCancelsQuestionnaireFirst(t *testing.T) {
 	m := newTestModel()
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
+	m.stream.handler.SetAskUser(m.askUser.Card())
 	streamCanceled := false
 	m.stream.cancel = func() { streamCanceled = true }
 
@@ -306,7 +306,7 @@ func TestHandleKeyMsg_CtrlC_WithAskUserCancelsQuestionnaireFirst(t *testing.T) {
 	if streamCanceled {
 		t.Fatal("ctrl+c should cancel the questionnaire before interrupting the stream")
 	}
-	if updated.askUser.active() || !updated.stream.handler.IsActive() {
+	if updated.askUser.Active() || !updated.stream.handler.IsActive() {
 		t.Fatal("ctrl+c should resolve the questionnaire and leave the stream active")
 	}
 	if cmd != nil {
@@ -1341,10 +1341,10 @@ func TestHandleLLMIncompleteClearsAskUser(t *testing.T) {
 	m := newTestModel()
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
+	m.stream.handler.SetAskUser(m.askUser.Card())
 
 	updated, _ := m.handleLLMIncomplete(errors.New("response truncated"))
-	if updated.askUser.active() {
+	if updated.askUser.Active() {
 		t.Fatal("incomplete response left questionnaire active")
 	}
 }
@@ -1353,10 +1353,10 @@ func TestHandleLLMErrorClearsAskUser(t *testing.T) {
 	m := newTestModel()
 	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 	m.askUser = testAskUserState()
-	m.stream.handler.SetAskUser(askUserCard(&m.askUser))
+	m.stream.handler.SetAskUser(m.askUser.Card())
 
 	updated, _ := m.handleLLMError(errors.New("stream failed"))
-	if updated.askUser.active() {
+	if updated.askUser.Active() {
 		t.Fatal("stream error left questionnaire active")
 	}
 }

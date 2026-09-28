@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
 )
 
@@ -164,10 +165,10 @@ func (sh *StreamHandler) HandleToolEnd(toolCall *agentcore.ToolCall) {
 	sh.segments = append(sh.segments, Segment{Kind: SegmentToolEnd, ToolCall: toolCall})
 }
 
-func (sh *StreamHandler) SetAskUser(card *AskUserCard) {
+func (sh *StreamHandler) SetAskUser(card *replaskuser.Card) {
 	for i := len(sh.segments) - 1; i >= 0; i-- {
 		segment := &sh.segments[i]
-		if segment.Kind != SegmentAskUser || !segment.AskUser.active() {
+		if segment.Kind != SegmentAskUser || !segment.AskUser.IsActive() {
 			continue
 		}
 		if card == nil {

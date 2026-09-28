@@ -465,38 +465,38 @@ func (m *replModel) handleSuggestionKeyMsg(keyMsg tea.KeyPressMsg) (bool, replMo
 
 func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd) {
 	s := &m.askUser
-	question := s.request.Questionnaire.Questions[s.index]
+	question := s.Request.Questionnaire.Questions[s.Index]
 	var cmd tea.Cmd
 	switch msg.String() {
 	case keyCtrlC, keyEsc:
-		s.resolve(s.requester, true)
+		s.Resolve(s.Requester, true)
 	case keyUp:
-		s.move(-1)
+		s.Move(-1)
 	case keyDown:
-		s.move(1)
+		s.Move(1)
 	case keyEnter:
-		if s.selected < len(question.Options) {
-			if s.answer(question.Options[s.selected]) {
-				s.resolve(s.requester, false)
+		if s.Selected < len(question.Options) {
+			if s.Answer(question.Options[s.Selected]) {
+				s.Resolve(s.Requester, false)
 			}
-		} else if s.editing {
-			if value := s.input.Value(); strings.TrimSpace(value) != "" && s.answer(value) {
-				s.resolve(s.requester, false)
+		} else if s.Editing {
+			if value := s.Input.Value(); strings.TrimSpace(value) != "" && s.Answer(value) {
+				s.Resolve(s.Requester, false)
 			}
 		} else {
-			s.editing = true
-			s.input.Focus()
+			s.Editing = true
+			s.Input.Focus()
 		}
 	default:
-		if s.editing || msg.Text != "" {
-			s.selected = len(question.Options)
-			s.editing = true
-			s.input.Focus()
-			s.input, cmd = s.input.Update(msg)
+		if s.Editing || msg.Text != "" {
+			s.Selected = len(question.Options)
+			s.Editing = true
+			s.Input.Focus()
+			s.Input, cmd = s.Input.Update(msg)
 		}
 	}
-	if s.active() {
-		m.stream.handler.SetAskUser(askUserCard(s))
+	if s.Active() {
+		m.stream.handler.SetAskUser(s.Card())
 	} else {
 		m.appendResolvedAskUserSegment()
 	}
@@ -507,12 +507,12 @@ func (m *replModel) handleAskUserKeyMsg(msg tea.KeyPressMsg) (replModel, tea.Cmd
 
 func (m *replModel) handleAskUserPasteMsg(msg tea.PasteMsg) (replModel, tea.Cmd) {
 	s := &m.askUser
-	s.selected = len(s.request.Questionnaire.Questions[s.index].Options)
-	s.editing = true
-	s.input.Focus()
+	s.Selected = len(s.Request.Questionnaire.Questions[s.Index].Options)
+	s.Editing = true
+	s.Input.Focus()
 	var cmd tea.Cmd
-	s.input, cmd = s.input.Update(msg)
-	m.stream.handler.SetAskUser(askUserCard(s))
+	s.Input, cmd = s.Input.Update(msg)
+	m.stream.handler.SetAskUser(s.Card())
 	m.updateViewportContent()
 	m.scrollToBottomIfFollowing()
 	return *m, cmd
@@ -570,7 +570,7 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		}
 	}
 
-	if m.askUser.active() {
+	if m.askUser.Active() {
 		return m.handleAskUserKeyMsg(keyMsg)
 	}
 

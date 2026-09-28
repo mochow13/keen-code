@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 )
 
@@ -21,26 +22,6 @@ const (
 	SegmentAskUser    SegmentType = "ask_user"
 )
 
-// AskUserCard is an immutable snapshot of the ask-user REPL state for one
-// stream segment. The parent REPL owns rendering; the stream package only
-// stores the snapshot and calls Render lazily.
-type AskUserCard struct {
-	Active bool
-	Render func(width int) string
-}
-
-func (c *AskUserCard) Clone() *AskUserCard {
-	if c == nil {
-		return nil
-	}
-	cp := *c
-	return &cp
-}
-
-func (c *AskUserCard) active() bool {
-	return c != nil && c.Active
-}
-
 type Segment struct {
 	Kind          SegmentType
 	Content       string
@@ -53,7 +34,7 @@ type Segment struct {
 	Agent         string
 	ActivityKey   string
 	EndToolCall   *agentcore.ToolCall
-	AskUser       *AskUserCard
+	AskUser       *replaskuser.Card
 
 	renderedLines    []string
 	permissionCursor int

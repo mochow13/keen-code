@@ -121,7 +121,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 		case SegmentDiff:
 			lines = append(lines, renderDiffSegment(seg, width)...)
 		case SegmentAskUser:
-			if seg.AskUser != nil && seg.AskUser.Render != nil {
+			if seg.AskUser != nil {
 				if card := seg.AskUser.Render(width); card != "" {
 					lines = append(lines, strings.Split(strings.Trim(card, "\n"), "\n")...)
 				}
@@ -188,7 +188,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 		case SegmentDiff:
 			lines = append(lines, renderDiffSegment(seg, sh.lastWidth)...)
 		case SegmentAskUser:
-			if seg.AskUser != nil && seg.AskUser.Render != nil {
+			if seg.AskUser != nil {
 				width := sh.lastWidth
 				if width <= 0 {
 					width = DefaultWidth

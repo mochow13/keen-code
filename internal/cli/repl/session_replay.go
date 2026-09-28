@@ -8,6 +8,7 @@ import (
 	"github.com/mochow13/keen-code/internal/agentcore"
 	"github.com/mochow13/keen-code/internal/llm"
 
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replmarkdown "github.com/mochow13/keen-code/internal/cli/repl/markdown"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
@@ -139,7 +140,7 @@ func replayTranscript(handler *replstream.StreamHandler, transcript []session.Tr
 		case session.TranscriptItemToolEnd:
 			if item.ToolEnd != nil && item.ToolEnd.Name == agentcore.ToolNameAskUser {
 				if state := askUserStateFromPayload(item.ToolEnd); state != nil {
-					handler.SetAskUser(askUserCard(state))
+					handler.SetAskUser(state.Card())
 				}
 			} else {
 				handler.HandleToolEnd(toolCallResultFromPayload(item.ToolEnd))
@@ -154,7 +155,7 @@ func replayTranscript(handler *replstream.StreamHandler, transcript []session.Tr
 	}
 }
 
-func askUserStateFromPayload(payload *session.ToolEndPayload) *askUserState {
+func askUserStateFromPayload(payload *session.ToolEndPayload) *replaskuser.State {
 	if payload == nil {
 		return nil
 	}
@@ -165,14 +166,7 @@ func askUserStateFromPayload(payload *session.ToolEndPayload) *askUserState {
 		return nil
 	}
 
-	state := &askUserState{completed: true, cancelled: result.Cancelled}
-	for i, answer := range result.Answers {
-		if i >= len(request.Questions) {
-			break
-		}
-		state.resolved = append(state.resolved, askUserAnswer{question: request.Questions[i].Question, answer: answer})
-	}
-	return state
+	return replaskuser.NewResolvedState(request, result)
 }
 
 func decodeSessionPayload(value any, target any) bool {

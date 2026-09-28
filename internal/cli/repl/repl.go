@@ -69,7 +69,7 @@ type replModel struct {
 	output              *reploutput.OutputBuilder
 	modelSelection      *replwidgets.Model
 	permissionRequester *replpermissions.Requester
-	askUser             askUserState
+	askUser             replaskuser.State
 	projectPerms        *config.ProjectPermissions
 	diffEmitter         *repltooling.DiffEmitter
 	sessions            *replSessionState
@@ -266,7 +266,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 		stream:              streamState{handler: replstream.NewStreamHandler(mdRenderer), renderInterval: streamRenderInterval},
 		mdRenderer:          mdRenderer,
 		permissionRequester: permissionRequester,
-		askUser:             askUserState{requester: askUserRequester},
+		askUser:             replaskuser.NewState(askUserRequester),
 		projectPerms:        projectPerms,
 		diffEmitter:         diffEmitter,
 		sessions:            sessions,
@@ -549,8 +549,8 @@ func (m replModel) waitForAsyncEvent() tea.Cmd {
 		return nil
 	}
 	var askUserCh <-chan *replaskuser.Request
-	if m.askUser.requester != nil {
-		askUserCh = m.askUser.requester.GetRequestChan()
+	if m.askUser.Requester != nil {
+		askUserCh = m.askUser.Requester.GetRequestChan()
 	}
 	var permissionCh <-chan *replpermissions.Request
 	if m.permissionRequester != nil {
@@ -654,11 +654,11 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return m, m.waitForAsyncEvent()
 
 	case askUserReadyMsg:
-		if m.askUser.requester == nil || !m.askUser.requester.IsPending(msg.req) {
+		if m.askUser.Requester == nil || !m.askUser.Requester.IsPending(msg.req) {
 			return m, m.waitForAsyncEvent()
 		}
-		m.askUser.begin(msg.req)
-		m.stream.handler.SetAskUser(askUserCard(&m.askUser))
+		m.askUser.Begin(msg.req)
+		m.stream.handler.SetAskUser(m.askUser.Card())
 		m.textarea.Reset()
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
@@ -680,7 +680,7 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return m, nil
 
 	case tea.PasteMsg:
-		if m.askUser.active() {
+		if m.askUser.Active() {
 			return m.handleAskUserPasteMsg(msg)
 		}
 

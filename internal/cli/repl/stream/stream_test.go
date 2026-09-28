@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 )
 
@@ -52,7 +53,10 @@ func TestHandlerOptionsAndAccessors(t *testing.T) {
 func TestHandlerAskUserCard(t *testing.T) {
 	h := NewStreamHandler(nil)
 	h.Start(make(chan agentcore.StreamEvent), "Loading...")
-	h.SetAskUser(&AskUserCard{Active: true, Render: func(width int) string { return "card" }})
+	questionnaire := agentcore.AskUserRequest{Questions: []agentcore.AskUserQuestion{{Question: "Pick", Options: []string{"one"}}}}
+	active := replaskuser.NewState(nil)
+	active.Begin(&replaskuser.Request{Questionnaire: questionnaire})
+	h.SetAskUser(active.Card())
 	if len(h.Snapshot()) != 1 {
 		t.Fatalf("expected ask-user segment, got %#v", h.Snapshot())
 	}
@@ -60,7 +64,8 @@ func TestHandlerAskUserCard(t *testing.T) {
 	if len(h.Snapshot()) != 0 {
 		t.Fatalf("expected removal, got %#v", h.Snapshot())
 	}
-	h.SetAskUser(&AskUserCard{Active: false, Render: func(width int) string { return "done" }})
+	resolved := replaskuser.NewResolvedState(questionnaire, agentcore.AskUserResult{Answers: []string{"one"}})
+	h.SetAskUser(resolved.Card())
 	if got := h.View(80); got == "" {
 		t.Fatal("expected resolved card view")
 	}
