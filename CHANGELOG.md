@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-10-01
+
+### Added
+- Persist provider token usage to a global JSONL ledger at `~/.keen/usage/usage.jsonl`, recording one entry per response from interactive turns, compaction, `/btw`, `/adversary`, subagents, and `keen run`.
+- Add the `/usage` command with total and per-model input, output, cache read, and cache write bars for all time, 7 days, and 30 days, switchable with the arrow keys.
+- Track cache read and write tokens separately across Anthropic, Bedrock, and the OpenAI clients, keeping `CachedTokens` as their combined total.
+
+### Changed
+- Roll the usage ledger up into per-day totals at most once per UTC day, at startup (`keen` and `keen run`) and whenever `/usage` opens, so compaction no longer depends on the view being used; rollups older than one year are dropped.
+
+### Fixed
+- Create the usage directory before locking and skip compaction when no ledger exists, so startup compaction neither fails on a fresh install nor creates an empty ledger.
+
 ## [0.57.1] - 2026-09-28
 
 ### Changed
@@ -1018,7 +1031,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.57.1...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.58.0...HEAD
+[0.58.0]: https://github.com/mochow13/keen-code/compare/v0.57.1...v0.58.0
 [0.57.1]: https://github.com/mochow13/keen-code/compare/v0.57.0...v0.57.1
 [0.57.0]: https://github.com/mochow13/keen-code/compare/v0.56.2...v0.57.0
 [0.56.2]: https://github.com/mochow13/keen-code/compare/v0.56.1...v0.56.2
