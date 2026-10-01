@@ -912,3 +912,30 @@ func TestOpenAIResponsesClient_PromptCacheKey_OmittedWithoutSessionID(t *testing
 		t.Fatalf("expected PromptCacheKey to be omitted, got %q", capturedParams.PromptCacheKey.Value)
 	}
 }
+
+func TestOpenAIResponsesClient_ReportsCacheReadAndWriteTokens(t *testing.T) {
+	client := &OpenAIResponsesClient{
+		provider: providerconfig.Provider(config.ProviderOpenAI),
+		model:    "gpt-5.4",
+	}
+	client.responseStreamImpl = func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) responseStream {
+		return &fakeResponseStream{events: []responses.ResponseStreamEventUnion{
+			mustResponseEvent(t, `{"type":"response.completed","sequence_number":1,"response":{"id":"r1","created_at":0,"metadata":{},"model":"gpt-5.4","object":"response","output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":20,"cache_write_tokens":30},"output_tokens":10,"output_tokens_details":{"reasoning_tokens":1},"total_tokens":110}}}`),
+		}}
+	}
+
+	events, err := client.StreamChat(context.Background(), []core.Message{{Role: core.RoleUser, Content: "hello"}}, nil)
+	if err != nil {
+		t.Fatalf("StreamChat() failed: %v", err)
+	}
+	for event := range events {
+		if event.Type != core.StreamEventTypeUsage {
+			continue
+		}
+		if event.Usage.CacheReadTokens != 20 || event.Usage.CacheWriteTokens != 30 || event.Usage.CachedTokens != 50 {
+			t.Fatalf("unexpected cache token usage: %+v", event.Usage)
+		}
+		return
+	}
+	t.Fatal("expected usage event")
+}

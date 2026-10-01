@@ -429,7 +429,7 @@ func TestCollectResultReturnsPartialTextOnError(t *testing.T) {
 	events <- core.StreamEvent{Type: core.StreamEventTypeIncomplete}
 	close(events)
 
-	text, err := collectResult(context.Background(), events, "", "", nil)
+	text, err := collectResult(context.Background(), events, "", "", nil, "", "", nil)
 	if err == nil {
 		t.Fatal("expected incomplete stream error")
 	}

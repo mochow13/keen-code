@@ -12,6 +12,7 @@ import (
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/subagents"
 	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 type PermissionRequester interface {
@@ -63,6 +64,7 @@ func (a *adapter) SetupTools(
 	askUserRequester AskUserRequester,
 	mcpRuntime keenmcp.Runtime,
 	forwardActivity bool,
+	usageSink chan<- usage.Record,
 ) <-chan ToolActivity {
 	appState := a.appState
 	workingDir := appState.WorkingDir()
@@ -119,6 +121,7 @@ func (a *adapter) SetupTools(
 		ProjectContext:   func() string { return llm.ProjectInstructions(workingDir) },
 		GetSkillsCatalog: appState.SkillsCatalog,
 		Activity:         subagentActivity,
+		Usage:            usageSink,
 	}
 	profiles := appState.GetSubagents().Profiles
 	agentNames := make([]string, 0, len(profiles))

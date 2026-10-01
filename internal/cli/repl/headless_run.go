@@ -17,6 +17,7 @@ import (
 	"github.com/mochow13/keen-code/internal/llm"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 const (
@@ -53,11 +54,13 @@ type HeadlessRunResult struct {
 }
 
 type headlessUsage struct {
-	InputTokens     int `json:"input_tokens"`
-	OutputTokens    int `json:"output_tokens"`
-	ReasoningTokens int `json:"reasoning_tokens"`
-	TotalTokens     int `json:"total_tokens"`
-	CachedTokens    int `json:"cached_tokens"`
+	InputTokens      int `json:"input_tokens"`
+	OutputTokens     int `json:"output_tokens"`
+	ReasoningTokens  int `json:"reasoning_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	CachedTokens     int `json:"cached_tokens"`
+	CacheReadTokens  int `json:"cache_read_tokens"`
+	CacheWriteTokens int `json:"cache_write_tokens"`
 }
 
 func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResult, error) {
@@ -76,6 +79,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 		return nil, fmt.Errorf("unsupported format %q", format)
 	}
 
+	compactUsageLedger()
 	progress := newHeadlessProgress(nil, "")
 	if format == HeadlessFormatText && opts.Progress != nil {
 		progress = newHeadlessProgress(opts.Progress, opts.WorkingDir)
@@ -85,7 +89,9 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	agentCore := agentcore.New(opts.Client, opts.WorkingDir, opts.Config, opts.GlobalConfig)
 	permissionRequester := replpermissions.NewAutoApproveRequester()
 	diffEmitter := repltooling.NewDiffEmitter()
-	_ = agentCore.SetupTools(ctx, permissionRequester, diffEmitter, nil, opts.MCPRuntime, false)
+	subagentUsage := make(chan usage.Record, 64)
+	defer drainUsageRecords(subagentUsage)
+	_ = agentCore.SetupTools(ctx, permissionRequester, diffEmitter, nil, opts.MCPRuntime, false, subagentUsage)
 
 	sessions := newReplSessionState(opts.WorkingDir)
 	if sessions == nil {
@@ -123,6 +129,8 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 		case diffReq := <-diffEmitter.GetDiffChan():
 			handler.HandleDiff(diffReq.Lines)
 			close(diffReq.Done)
+		case record := <-subagentUsage:
+			appendUsageRecord(record)
 		case event, ok := <-eventCh:
 			if !ok {
 				if ctx.Err() != nil {
@@ -144,10 +152,20 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 				progress.writeToolEnd(event.ToolCall)
 			case agentcore.StreamEventTypeUsage:
 				lastUsage = event.Usage
+				if opts.Config != nil {
+					if record, ok := makeUsageRecord(opts.Config.Provider, opts.Config.Model, event.Usage); ok {
+						appendUsageRecord(record)
+					}
+				}
 			case agentcore.StreamEventTypeRetry:
 				handler.RewindForRetry()
 				progress.newLine()
 			case agentcore.StreamEventTypeAutoCompactionApplied:
+				if event.AutoCompaction != nil && opts.Config != nil {
+					if record, ok := makeUsageRecord(opts.Config.Provider, opts.Config.Model, event.AutoCompaction.Usage); ok {
+						appendUsageRecord(record)
+					}
+				}
 				progress.newLine()
 				if err := checkpointHeadlessAutoCompaction(
 					sessions,
@@ -318,11 +336,13 @@ func cloneHeadlessUsage(usage *agentcore.TokenUsage) *headlessUsage {
 		return nil
 	}
 	return &headlessUsage{
-		InputTokens:     usage.InputTokens,
-		OutputTokens:    usage.OutputTokens,
-		ReasoningTokens: usage.ReasoningTokens,
-		TotalTokens:     usage.TotalTokens,
-		CachedTokens:    usage.CachedTokens,
+		InputTokens:      usage.InputTokens,
+		OutputTokens:     usage.OutputTokens,
+		ReasoningTokens:  usage.ReasoningTokens,
+		TotalTokens:      usage.TotalTokens,
+		CachedTokens:     usage.CachedTokens,
+		CacheReadTokens:  usage.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens,
 	}
 }
 

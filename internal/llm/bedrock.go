@@ -612,13 +612,16 @@ func bedrockUsage(usage *brtypes.TokenUsage) *core.TokenUsage {
 	}
 	inputTokens := int(aws.ToInt32(usage.InputTokens))
 	outputTokens := int(aws.ToInt32(usage.OutputTokens))
-	cachedTokens := int(aws.ToInt32(usage.CacheReadInputTokens) + aws.ToInt32(usage.CacheWriteInputTokens))
-	totalInputTokens := inputTokens + cachedTokens
+	cacheReadTokens := int(aws.ToInt32(usage.CacheReadInputTokens))
+	cacheWriteTokens := int(aws.ToInt32(usage.CacheWriteInputTokens))
+	totalInputTokens := inputTokens + cacheReadTokens + cacheWriteTokens
 	return &core.TokenUsage{
-		InputTokens:  totalInputTokens,
-		OutputTokens: outputTokens,
-		TotalTokens:  totalInputTokens + outputTokens,
-		CachedTokens: cachedTokens,
+		InputTokens:      totalInputTokens,
+		OutputTokens:     outputTokens,
+		TotalTokens:      totalInputTokens + outputTokens,
+		CachedTokens:     cacheReadTokens + cacheWriteTokens,
+		CacheReadTokens:  cacheReadTokens,
+		CacheWriteTokens: cacheWriteTokens,
 	}
 }
 

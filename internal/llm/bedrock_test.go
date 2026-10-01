@@ -262,7 +262,8 @@ func TestBedrockClient_StreamChat_TextReasoningUsage(t *testing.T) {
 	if usage == nil {
 		t.Fatal("expected usage event")
 	}
-	if usage.InputTokens != 190 || usage.OutputTokens != 12 || usage.TotalTokens != 202 || usage.CachedTokens != 90 {
+	if usage.InputTokens != 190 || usage.OutputTokens != 12 || usage.TotalTokens != 202 || usage.CachedTokens != 90 ||
+		usage.CacheReadTokens != 70 || usage.CacheWriteTokens != 20 {
 		t.Fatalf("unexpected usage: %+v", usage)
 	}
 	if !done {
@@ -290,6 +291,12 @@ func TestBedrockUsage_IncludesCacheTokensInInputFootprint(t *testing.T) {
 	}
 	if usage.CachedTokens != 5000 {
 		t.Fatalf("expected cached tokens 5000, got %d", usage.CachedTokens)
+	}
+	if usage.CacheReadTokens != 2000 {
+		t.Fatalf("expected cache read tokens 2000, got %d", usage.CacheReadTokens)
+	}
+	if usage.CacheWriteTokens != 3000 {
+		t.Fatalf("expected cache write tokens 3000, got %d", usage.CacheWriteTokens)
 	}
 }
 

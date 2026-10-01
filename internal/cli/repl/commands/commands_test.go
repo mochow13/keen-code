@@ -59,3 +59,15 @@ func TestYoloCommandRemoved(t *testing.T) {
 		}
 	}
 }
+
+func TestUsageCommandRegisteredAndSuggested(t *testing.T) {
+	if !IsKnownCommand(Usage) {
+		t.Fatalf("expected %q to be a known command", Usage)
+	}
+	for _, result := range Filter("/us") {
+		if result.Name == Usage {
+			return
+		}
+	}
+	t.Fatalf("expected %q to be suggested", Usage)
+}

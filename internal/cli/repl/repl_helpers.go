@@ -25,6 +25,7 @@ import (
 	"github.com/mochow13/keen-code/internal/mcpskills"
 	"github.com/mochow13/keen-code/internal/session"
 	"github.com/mochow13/keen-code/internal/updater"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 var loadingTexts = []string{
@@ -642,6 +643,7 @@ func waitForAsyncEvent(
 	diffCh <-chan repltooling.DiffRequest,
 	subagentCh <-chan agentcore.ToolActivity,
 	askUserCh <-chan *replaskuser.Request,
+	usageCh <-chan usage.Record,
 ) tea.Cmd {
 	if llmCh == nil {
 		return nil
@@ -651,6 +653,8 @@ func waitForAsyncEvent(
 		select {
 		case activity := <-subagentCh:
 			return subagentActivityMsg{activity: activity}
+		case record := <-usageCh:
+			return subagentUsageMsg{record: record}
 		case req := <-permissionCh:
 			return permissionReadyMsg{req: req}
 		case req := <-askUserCh:
@@ -833,6 +837,8 @@ func waitForAdversaryEvent(llmCh <-chan agentcore.StreamEvent) tea.Cmd {
 			switch event.Type {
 			case agentcore.StreamEventTypeChunk:
 				return adversaryChunkMsg(event.Content)
+			case agentcore.StreamEventTypeUsage:
+				return adversaryUsageMsg{usage: event.Usage}
 			case agentcore.StreamEventTypeToolStart:
 				return adversaryToolStartMsg{toolCall: event.ToolCall}
 			case agentcore.StreamEventTypeToolEnd:
@@ -903,6 +909,8 @@ func waitForBtwEvent(llmCh <-chan agentcore.StreamEvent) tea.Cmd {
 			switch event.Type {
 			case agentcore.StreamEventTypeChunk:
 				return btwChunkMsg(event.Content)
+			case agentcore.StreamEventTypeUsage:
+				return btwUsageMsg{usage: event.Usage}
 			case agentcore.StreamEventTypeDone:
 				return btwDoneMsg{}
 			case agentcore.StreamEventTypeError:

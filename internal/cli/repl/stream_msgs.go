@@ -8,6 +8,7 @@ import (
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 type llmChunkMsg string
@@ -51,6 +52,9 @@ type mainStreamMsg struct {
 }
 type subagentActivityMsg struct {
 	activity agentcore.ToolActivity
+}
+type subagentUsageMsg struct {
+	record usage.Record
 }
 type askUserReadyMsg struct {
 	req *replaskuser.Request
@@ -103,6 +107,9 @@ type btwDoneMsg struct{}
 type btwErrorMsg struct {
 	err error
 }
+type btwUsageMsg struct {
+	usage *agentcore.TokenUsage
+}
 
 // streamRenderMsg flushes a batched stream render. It is produced by a short
 // tea.Tick so rapid chunks are coalesced into a single viewport rebuild instead
@@ -113,6 +120,9 @@ type adversaryChunkMsg string
 type adversaryDoneMsg struct{}
 type adversaryErrorMsg struct {
 	err error
+}
+type adversaryUsageMsg struct {
+	usage *agentcore.TokenUsage
 }
 type adversaryToolStartMsg struct {
 	toolCall *agentcore.ToolCall

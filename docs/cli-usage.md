@@ -21,6 +21,7 @@ Keen Code provides slash commands (prefixed with `/`) for controlling the agent.
 | `/<skill-name> [args...]` | Activate an enabled skill |
 | `/compact [prompt]` | Compact conversation context; provide a prompt to guide what to retain |
 | `/context` | Show estimated context-window usage by prompt, messages, tool definitions, and tool results |
+| `/usage` | Show input, output, and cache token usage by model |
 | `/cleanup` | Remove expired Keen data and trim input history |
 | `/memory` or `/memory show` | Show memory file locations; `show` includes their contents |
 | `/mcp [status\|connect <server>]` | Show MCP server status or connect a configured server |
@@ -31,6 +32,17 @@ Keen Code provides slash commands (prefixed with `/`) for controlling the agent.
 | `/emptyq` | Clear the input queue (works while agent is streaming) |
 | `/logout` | Sign out of the current OAuth provider |
 | `/exit` | Quit Keen Code |
+
+## `/usage`
+
+Opens a usage breakdown grouped by provider and model. The default view shows all time; use the arrow keys to switch windows. Rows are sorted by input tokens.
+
+| Key | Action |
+|-----|--------|
+| `←` / `→` | Cycle through all time, last 1 day, 7 days, 30 days, 6 months, and 1 year |
+| `Esc` | Close the usage view |
+
+Usage is recorded for provider responses in interactive turns, manual and automatic compaction, `/btw`, `/adversary`, subagents, and `keen run`. The global ledger is stored at `~/.keen/usage/usage.jsonl`. Records are rolled up into per-day totals at most once per UTC day: at startup (`keen` and `keen run`) and whenever `/usage` is opened, so compaction does not depend on the view being used. Rollups older than one year are dropped. Cache reads and writes are shown separately where providers report them.
 
 ## `/adversary [prompt]`
 

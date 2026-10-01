@@ -186,6 +186,11 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		m.handleContextCommand()
 		return *m, nil, true
 
+	case input == replcommands.Usage:
+		m.textarea.Reset()
+		m.startUsageView()
+		return *m, nil, true
+
 	default:
 		return *m, nil, false
 	}
@@ -1152,6 +1157,7 @@ func (m *replModel) handleLogoutCommand() replModel {
 }
 
 func (m *replModel) handleClearCommand() replModel {
+	m.usageView = nil
 	currentMode := m.currentMode()
 	m.agentCore.ClearMessages()
 	m.agentCore.ResetClientState()

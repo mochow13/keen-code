@@ -56,11 +56,13 @@ type ToolCall struct {
 }
 
 type TokenUsage struct {
-	InputTokens     int
-	OutputTokens    int
-	TotalTokens     int
-	ReasoningTokens int
-	CachedTokens    int
+	InputTokens      int
+	OutputTokens     int
+	TotalTokens      int
+	ReasoningTokens  int
+	CachedTokens     int
+	CacheReadTokens  int
+	CacheWriteTokens int
 }
 
 type AutoCompactionEvent struct {

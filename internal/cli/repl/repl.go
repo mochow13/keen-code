@@ -33,6 +33,7 @@ import (
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 const (
@@ -74,6 +75,7 @@ type replModel struct {
 	diffEmitter         *repltooling.DiffEmitter
 	sessions            *replSessionState
 	sessionPicker       *replwidgets.SessionPicker
+	usageView           *replwidgets.UsageView
 	suggestion          replwidgets.SuggestionModel
 	fileSearcher        *replfilesearch.FileSearcher
 	quitting            bool
@@ -101,6 +103,7 @@ type replModel struct {
 	queuedInputs        []string
 	gitBranch           string
 	subagentActivity    <-chan agentcore.ToolActivity
+	subagentUsage       <-chan usage.Record
 }
 
 type toolHistoryMode uint8
@@ -233,6 +236,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 	fileGuard := filesystem.NewGuard(ctx.workingDir, fileGitAwareness)
 	fileSearcher := replfilesearch.NewFileSearcher(ctx.workingDir, fileGuard)
 
+	subagentUsage := make(chan usage.Record, 64)
 	subagentActivity := agentCore.SetupTools(
 		lifecycleCtx,
 		permissionRequester,
@@ -240,6 +244,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 		askUserRequester,
 		ctx.mcp,
 		true,
+		subagentUsage,
 	)
 
 	mdRenderer, err := replmarkdown.New(defaultWidth)
@@ -284,6 +289,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 		lastSession:      lastSession,
 		projectPermsErr:  projectPermsErr,
 		subagentActivity: subagentActivity,
+		subagentUsage:    subagentUsage,
 	}
 	if ctx.globalCfg != nil && ctx.globalCfg.ShowThinking != nil {
 		model.showThinking = *ctx.globalCfg.ShowThinking
@@ -399,6 +405,12 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cmd) {
 	m.flushBtwToOutput()
 	m.flushAdversaryToOutput()
+	if input == replcommands.Usage {
+		m.history.Push(input)
+		if updated, cmd, handled := m.dispatchCommand(input); handled {
+			return updated, cmd
+		}
+	}
 	m.output.AddUserInput(input, repltheme.PromptStyle)
 	m.history.Push(input)
 
@@ -538,6 +550,9 @@ func (m *replModel) updateViewportContent() {
 	if m.sessionPicker != nil {
 		content.WriteString(replwidgets.FormatSessionPickerCard(m.sessionPicker, m.viewport.Width(), m.viewport.Height()))
 	}
+	if m.usageView != nil {
+		content.WriteString(replwidgets.FormatUsageCard(m.usageView, m.viewport.Width()))
+	}
 
 	viewportContent := content.String()
 	m.viewport.SetContent(viewportContent)
@@ -566,6 +581,7 @@ func (m replModel) waitForAsyncEvent() tea.Cmd {
 		diffCh,
 		m.subagentActivity,
 		askUserCh,
+		m.subagentUsage,
 	)
 }
 
@@ -644,6 +660,9 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		m.stream.handler.HandleSubagentActivity(msg.activity)
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
+		return m, m.waitForAsyncEvent()
+	case subagentUsageMsg:
+		appendUsageRecord(msg.record)
 		return m, m.waitForAsyncEvent()
 
 	case diffReadyMsg:
@@ -1043,6 +1062,9 @@ func RunREPL(
 
 	agentCore := agentcore.New(llmClient, workingDir, cfg, globalCfg)
 	m := initialModel(ctx, lifecycleCtx, agentCore, needsSetup)
+	// Roll up the shared ledger once per day so it stays compact even when
+	// /usage is never opened. Runs before the REPL starts appending.
+	compactUsageLedger()
 	p := tea.NewProgram(&m)
 	if _, err := p.Run(); err != nil {
 		return "", err

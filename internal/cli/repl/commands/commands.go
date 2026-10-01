@@ -37,6 +37,7 @@ const (
 	SubagentsList   = "/subagents list"
 	Thinking        = "/thinking"
 	ToolHistory     = "/tool-history"
+	Usage           = "/usage"
 )
 
 type SlashCommand struct {
@@ -69,6 +70,7 @@ var All = []SlashCommand{
 	{Skills, "List, show status, reload, enable, or disable skills"},
 	{Subagents, "List available subagents"},
 	{Thinking, "Change thinking effort for the current model"},
+	{Usage, "Show token usage by model"},
 	{ToolHistory, "Control tool output retention between turns (full|none)"},
 }
 
@@ -106,6 +108,7 @@ var Suggestions = []SlashCommand{
 	{Subagents, "Show subagent commands"},
 	{SubagentsList, "List available subagents"},
 	{Thinking, "Change thinking effort for the current model"},
+	{Usage, "Show token usage by model"},
 	{ToolHistory, "Control tool output retention between turns (full|none)"},
 }
 

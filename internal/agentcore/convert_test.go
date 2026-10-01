@@ -60,3 +60,19 @@ func TestModeConversionPassesThroughUnknownValues(t *testing.T) {
 		t.Fatalf("fromMode() = %q", got)
 	}
 }
+
+func TestTokenUsageCacheReadWriteRoundTrip(t *testing.T) {
+	original := &core.TokenUsage{
+		InputTokens:      100,
+		OutputTokens:     20,
+		TotalTokens:      120,
+		ReasoningTokens:  3,
+		CachedTokens:     45,
+		CacheReadTokens:  40,
+		CacheWriteTokens: 5,
+	}
+	converted := fromTokenUsage(toTokenUsage(original))
+	if *converted != *original {
+		t.Fatalf("token usage round-trip = %#v, want %#v", converted, original)
+	}
+}

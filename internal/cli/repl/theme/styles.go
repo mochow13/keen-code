@@ -189,6 +189,17 @@ var (
 	UserPromptStyle                 = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor)
 	UserPromptSelectionStyle        = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
 
+	UsageInputColor      = compat.AdaptiveColor{Light: lipgloss.Color("#00838F"), Dark: lipgloss.Color("#4DD0E1")}
+	UsageOutputColor     = compat.AdaptiveColor{Light: lipgloss.Color("#1565C0"), Dark: lipgloss.Color("#42A5F5")}
+	UsageCacheReadColor  = compat.AdaptiveColor{Light: lipgloss.Color("#EF6C00"), Dark: lipgloss.Color("#FFB74D")}
+	UsageCacheWriteColor = compat.AdaptiveColor{Light: lipgloss.Color("#AD1457"), Dark: lipgloss.Color("#F06292")}
+
+	UsageMetricValueStyle   = lipgloss.NewStyle().Bold(true)
+	UsageInputBarStyle      = lipgloss.NewStyle().Foreground(UsageInputColor)
+	UsageOutputBarStyle     = lipgloss.NewStyle().Foreground(UsageOutputColor)
+	UsageCacheReadBarStyle  = lipgloss.NewStyle().Foreground(UsageCacheReadColor)
+	UsageCacheWriteBarStyle = lipgloss.NewStyle().Foreground(UsageCacheWriteColor)
+
 	AskUserProgressStyle        = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
 	AskUserSelectedStyle        = lipgloss.NewStyle().Foreground(SecondaryColor).Bold(true)
 	AskUserCustomStyle          = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)

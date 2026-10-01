@@ -342,14 +342,18 @@ func (c *AnthropicClient) collectTurn(
 				"cache_read_input_tokens", ms.Message.Usage.CacheReadInputTokens,
 			)
 			cacheReadInputTokens = ms.Message.Usage.CacheReadInputTokens
-			if ms.Message.Usage.InputTokens > 0 {
-				totalInputTokens := int(ms.Message.Usage.InputTokens + ms.Message.Usage.CacheCreationInputTokens + ms.Message.Usage.CacheReadInputTokens)
-				cachedTokens := int(ms.Message.Usage.CacheCreationInputTokens + ms.Message.Usage.CacheReadInputTokens)
+			inputFootprint := int(ms.Message.Usage.InputTokens + ms.Message.Usage.CacheCreationInputTokens + ms.Message.Usage.CacheReadInputTokens)
+			outputTokens := int(ms.Message.Usage.OutputTokens)
+			if inputFootprint > 0 || outputTokens > 0 {
+				cacheReadTokens := int(ms.Message.Usage.CacheReadInputTokens)
+				cacheWriteTokens := int(ms.Message.Usage.CacheCreationInputTokens)
 				usage = &core.TokenUsage{
-					InputTokens:  totalInputTokens,
-					OutputTokens: int(ms.Message.Usage.OutputTokens),
-					TotalTokens:  totalInputTokens + int(ms.Message.Usage.OutputTokens),
-					CachedTokens: cachedTokens,
+					InputTokens:      inputFootprint,
+					OutputTokens:     outputTokens,
+					TotalTokens:      inputFootprint + outputTokens,
+					CachedTokens:     cacheReadTokens + cacheWriteTokens,
+					CacheReadTokens:  cacheReadTokens,
+					CacheWriteTokens: cacheWriteTokens,
 				}
 			}
 
@@ -365,16 +369,27 @@ func (c *AnthropicClient) collectTurn(
 				"cache_read_input_tokens", md.Usage.CacheReadInputTokens,
 			)
 			cacheReadInputTokens = md.Usage.CacheReadInputTokens
-			if usage == nil && md.Usage.InputTokens > 0 {
+			inputFootprint := int(md.Usage.InputTokens + md.Usage.CacheCreationInputTokens + md.Usage.CacheReadInputTokens)
+			outputTokens := int(md.Usage.OutputTokens)
+			if usage == nil && (inputFootprint > 0 || outputTokens > 0) {
 				usage = &core.TokenUsage{}
 			}
 			if usage != nil {
-				totalInputTokens := int(md.Usage.InputTokens + md.Usage.CacheCreationInputTokens + md.Usage.CacheReadInputTokens)
-				cachedTokens := int(md.Usage.CacheCreationInputTokens + md.Usage.CacheReadInputTokens)
-				usage.InputTokens = totalInputTokens
-				usage.OutputTokens = int(md.Usage.OutputTokens)
-				usage.CachedTokens = cachedTokens
-				usage.TotalTokens = totalInputTokens + usage.OutputTokens
+				// message_delta usage is cumulative, but input and cache are fixed at
+				// message_start and are omitted by some deltas. Only refresh the input
+				// footprint when the delta actually reports it; otherwise keep the values
+				// captured from message_start.
+				if inputFootprint > 0 {
+					cacheReadTokens := int(md.Usage.CacheReadInputTokens)
+					cacheWriteTokens := int(md.Usage.CacheCreationInputTokens)
+					usage.InputTokens = inputFootprint
+					usage.CachedTokens = cacheReadTokens + cacheWriteTokens
+					usage.CacheReadTokens = cacheReadTokens
+					usage.CacheWriteTokens = cacheWriteTokens
+				}
+				// output_tokens always carries the final cumulative count.
+				usage.OutputTokens = outputTokens
+				usage.TotalTokens = usage.InputTokens + usage.OutputTokens
 			}
 
 		case "content_block_start":

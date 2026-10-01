@@ -133,39 +133,39 @@ func TestBuildInitialScreenIncludesLastSession(t *testing.T) {
 }
 
 func TestWaitForAsyncEventRoutesReadyInputs(t *testing.T) {
-	if waitForAsyncEvent(nil, nil, nil, nil, nil) != nil {
+	if waitForAsyncEvent(nil, nil, nil, nil, nil, nil) != nil {
 		t.Fatal("waitForAsyncEvent returned a command without an LLM channel")
 	}
 
 	llmCh := make(chan agentcore.StreamEvent, 1)
 	llmCh <- agentcore.StreamEvent{Type: agentcore.StreamEventTypeChunk, Content: "chunk"}
-	if msg, ok := waitForAsyncEvent(llmCh, nil, nil, nil, nil)().(mainStreamMsg); !ok || msg.event.Content != "chunk" {
+	if msg, ok := waitForAsyncEvent(llmCh, nil, nil, nil, nil, nil)().(mainStreamMsg); !ok || msg.event.Content != "chunk" {
 		t.Fatalf("unexpected LLM message %#v", msg)
 	}
 
 	permissionCh := make(chan *replpermissions.Request, 1)
 	request := &replpermissions.Request{ToolName: "read_file"}
 	permissionCh <- request
-	if msg, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), permissionCh, nil, nil, nil)().(permissionReadyMsg); !ok || msg.req != request {
+	if msg, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), permissionCh, nil, nil, nil, nil)().(permissionReadyMsg); !ok || msg.req != request {
 		t.Fatalf("unexpected permission message %#v", msg)
 	}
 
 	diffCh := make(chan repltooling.DiffRequest, 1)
 	diffCh <- repltooling.DiffRequest{}
-	if _, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, diffCh, nil, nil)().(diffReadyMsg); !ok {
+	if _, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, diffCh, nil, nil, nil)().(diffReadyMsg); !ok {
 		t.Fatal("expected diffReadyMsg")
 	}
 
 	subagentCh := make(chan agentcore.ToolActivity, 1)
 	subagentCh <- agentcore.ToolActivity{}
-	if _, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, nil, subagentCh, nil)().(subagentActivityMsg); !ok {
+	if _, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, nil, subagentCh, nil, nil)().(subagentActivityMsg); !ok {
 		t.Fatal("expected subagentActivityMsg")
 	}
 
 	askUserCh := make(chan *replaskuser.Request, 1)
 	askRequest := &replaskuser.Request{}
 	askUserCh <- askRequest
-	if msg, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, nil, nil, askUserCh)().(askUserReadyMsg); !ok || msg.req != askRequest {
+	if msg, ok := waitForAsyncEvent(make(chan agentcore.StreamEvent), nil, nil, nil, askUserCh, nil)().(askUserReadyMsg); !ok || msg.req != askRequest {
 		t.Fatalf("unexpected ask_user message %#v", msg)
 	}
 }
@@ -219,6 +219,10 @@ func TestWaitForAdversaryEvent(t *testing.T) {
 		check func(tea.Msg) bool
 	}{
 		{name: "chunk", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeChunk, Content: "text"}, check: func(msg tea.Msg) bool { v, ok := msg.(adversaryChunkMsg); return ok && string(v) == "text" }},
+		{name: "usage", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeUsage, Usage: &agentcore.TokenUsage{InputTokens: 7}}, check: func(msg tea.Msg) bool {
+			v, ok := msg.(adversaryUsageMsg)
+			return ok && v.usage != nil && v.usage.InputTokens == 7
+		}},
 		{name: "tool start", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeToolStart, ToolCall: &agentcore.ToolCall{Name: "read_file"}}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryToolStartMsg); return ok }},
 		{name: "tool end", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeToolEnd, ToolCall: &agentcore.ToolCall{Name: "read_file"}}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryToolEndMsg); return ok }},
 		{name: "done", event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeDone}, check: func(msg tea.Msg) bool { _, ok := msg.(adversaryDoneMsg); return ok }},
@@ -250,6 +254,10 @@ func TestWaitForBtwEvent(t *testing.T) {
 		check func(tea.Msg) bool
 	}{
 		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeChunk, Content: "text"}, check: func(msg tea.Msg) bool { v, ok := msg.(btwChunkMsg); return ok && string(v) == "text" }},
+		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeUsage, Usage: &agentcore.TokenUsage{InputTokens: 7}}, check: func(msg tea.Msg) bool {
+			v, ok := msg.(btwUsageMsg)
+			return ok && v.usage != nil && v.usage.InputTokens == 7
+		}},
 		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeDone}, check: func(msg tea.Msg) bool { _, ok := msg.(btwDoneMsg); return ok }},
 		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeError, Error: errors.New("failed")}, check: func(msg tea.Msg) bool { _, ok := msg.(btwErrorMsg); return ok }},
 		{event: agentcore.StreamEvent{Type: agentcore.StreamEventTypeIncomplete, Error: errors.New("incomplete")}, check: func(msg tea.Msg) bool { _, ok := msg.(btwErrorMsg); return ok }},

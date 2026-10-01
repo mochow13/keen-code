@@ -3,9 +3,11 @@ package subagents
 import (
 	"context"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/llm/core"
 	"maps"
 	"strings"
+
+	"github.com/mochow13/keen-code/internal/llm/core"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 type ToolActivity struct {
@@ -15,7 +17,7 @@ type ToolActivity struct {
 	Event  core.StreamEvent
 }
 
-func collectResult(ctx context.Context, events <-chan core.StreamEvent, agent, runID string, activity chan<- ToolActivity) (string, error) {
+func collectResult(ctx context.Context, events <-chan core.StreamEvent, agent, runID string, activity chan<- ToolActivity, provider, model string, usageSink chan<- usage.Record) (string, error) {
 	var sb strings.Builder
 	var callCounter int
 	pending := make([]string, 0)
@@ -43,6 +45,10 @@ func collectResult(ctx context.Context, events <-chan core.StreamEvent, agent, r
 					callID = fmt.Sprintf("tool-%d", callCounter)
 				}
 				forwardActivity(ctx, activity, sanitizeActivity(agent, runID, callID, event))
+			case core.StreamEventTypeUsage:
+				if record, ok := usageRecord(provider, model, event.Usage); ok {
+					forwardUsage(ctx, usageSink, record)
+				}
 			case core.StreamEventTypeDone:
 				return strings.TrimSpace(sb.String()), nil
 			case core.StreamEventTypeError, core.StreamEventTypeIncomplete:
@@ -89,6 +95,25 @@ func forwardActivity(ctx context.Context, sink chan<- ToolActivity, activity Too
 	}
 	select {
 	case sink <- activity:
+	case <-ctx.Done():
+	}
+}
+
+func usageRecord(provider, model string, tokenUsage *core.TokenUsage) (usage.Record, bool) {
+	if tokenUsage == nil {
+		return usage.Record{}, false
+	}
+	return usage.NewRecord(provider, model,
+		tokenUsage.InputTokens, tokenUsage.OutputTokens,
+		tokenUsage.CacheReadTokens, tokenUsage.CacheWriteTokens, tokenUsage.ReasoningTokens)
+}
+
+func forwardUsage(ctx context.Context, sink chan<- usage.Record, record usage.Record) {
+	if sink == nil {
+		return
+	}
+	select {
+	case sink <- record:
 	case <-ctx.Done():
 	}
 }

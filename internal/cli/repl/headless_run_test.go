@@ -17,6 +17,7 @@ import (
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/session"
 	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 type recordingHeadlessClient struct {
@@ -170,7 +171,7 @@ func TestRunHeadless_CreatesSessionAndWritesText(t *testing.T) {
 	workingDir := setupHeadlessTestHome(t)
 	client := &recordingHeadlessClient{events: []core.StreamEvent{
 		{Type: core.StreamEventTypeChunk, Content: "hello"},
-		{Type: core.StreamEventTypeUsage, Usage: &core.TokenUsage{InputTokens: 3, OutputTokens: 2, TotalTokens: 5}},
+		{Type: core.StreamEventTypeUsage, Usage: &core.TokenUsage{InputTokens: 3, OutputTokens: 2, TotalTokens: 5, CachedTokens: 3, CacheReadTokens: 1, CacheWriteTokens: 2}},
 		{Type: core.StreamEventTypeDone},
 	}}
 	var out bytes.Buffer
@@ -194,8 +195,19 @@ func TestRunHeadless_CreatesSessionAndWritesText(t *testing.T) {
 	if result.Text != "hello" || out.String() != "hello\n" {
 		t.Fatalf("unexpected output result=%q out=%q", result.Text, out.String())
 	}
-	if result.Usage == nil || result.Usage.InputTokens != 3 || result.Usage.OutputTokens != 2 || result.Usage.TotalTokens != 5 {
+	if result.Usage == nil || result.Usage.InputTokens != 3 || result.Usage.OutputTokens != 2 || result.Usage.TotalTokens != 5 || result.Usage.CacheReadTokens != 1 || result.Usage.CacheWriteTokens != 2 {
 		t.Fatalf("unexpected usage: %#v", result.Usage)
+	}
+	store, err := usage.DefaultStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := store.Load()
+	if err != nil || len(records) != 1 {
+		t.Fatalf("expected one headless usage record, got records=%+v err=%v", records, err)
+	}
+	if records[0].Provider != config.ProviderOpenAI || records[0].Model != "test-model" || records[0].CacheRead != 1 || records[0].CacheWrite != 2 {
+		t.Fatalf("unexpected headless usage record: %+v", records[0])
 	}
 
 	events := loadOnlyHeadlessSessionEvents(t, workingDir)

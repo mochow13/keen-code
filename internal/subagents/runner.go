@@ -3,7 +3,6 @@ package subagents
 import (
 	"context"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/llm/core"
 	"maps"
 	"strings"
 	"sync/atomic"
@@ -11,7 +10,9 @@ import (
 
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 type ClientFactory func(*config.ResolvedConfig) (llm.LLMClient, error)
@@ -31,6 +32,7 @@ type Runner struct {
 	ProjectContext   func() string
 	GetSkillsCatalog func() string
 	Activity         chan<- ToolActivity
+	Usage            chan<- usage.Record
 	runCounter       atomic.Uint64
 }
 
@@ -101,7 +103,7 @@ func (r *Runner) run(ctx context.Context, agent, activityAgent, task string) (Re
 	if err != nil {
 		return failedResult(profile.Name, "", err.Error(), err)
 	}
-	text, err := collectResult(childCtx, events, activityAgent, runID, r.Activity)
+	text, err := collectResult(childCtx, events, activityAgent, runID, r.Activity, cfg.Provider, cfg.Model, r.Usage)
 	if err != nil {
 		return failedResult(profile.Name, text, err.Error(), err)
 	}

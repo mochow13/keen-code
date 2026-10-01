@@ -144,15 +144,18 @@ func (c *OpenAICodexClient) StreamChat(ctx context.Context, messages []core.Mess
 					"total_tokens", completed.Usage.TotalTokens,
 					"reasoning_tokens", completed.Usage.OutputTokensDetails.ReasoningTokens,
 					"cached_tokens", completed.Usage.InputTokensDetails.CachedTokens,
+					"cache_write_tokens", completed.Usage.InputTokensDetails.CacheWriteTokens,
 				)
 				sendStreamEvent(ctx, eventCh, core.StreamEvent{
 					Type: core.StreamEventTypeUsage,
 					Usage: &core.TokenUsage{
-						InputTokens:     int(completed.Usage.InputTokens),
-						OutputTokens:    int(completed.Usage.OutputTokens),
-						TotalTokens:     int(completed.Usage.TotalTokens),
-						ReasoningTokens: int(completed.Usage.OutputTokensDetails.ReasoningTokens),
-						CachedTokens:    int(completed.Usage.InputTokensDetails.CachedTokens),
+						InputTokens:      int(completed.Usage.InputTokens),
+						OutputTokens:     int(completed.Usage.OutputTokens),
+						TotalTokens:      int(completed.Usage.TotalTokens),
+						ReasoningTokens:  int(completed.Usage.OutputTokensDetails.ReasoningTokens),
+						CachedTokens:     int(completed.Usage.InputTokensDetails.CachedTokens + completed.Usage.InputTokensDetails.CacheWriteTokens),
+						CacheReadTokens:  int(completed.Usage.InputTokensDetails.CachedTokens),
+						CacheWriteTokens: int(completed.Usage.InputTokensDetails.CacheWriteTokens),
 					},
 				})
 			}

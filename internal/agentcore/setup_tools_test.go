@@ -26,6 +26,7 @@ func setupTestCore(t *testing.T, workingDir string, requester *replaskuser.Reque
 		requester,
 		nil,
 		false,
+		nil,
 	)
 	return core
 }
@@ -107,6 +108,7 @@ func TestSetupToolsWithoutActivityReturnsNil(t *testing.T) {
 		nil,
 		nil,
 		false,
+		nil,
 	)
 	if activity != nil {
 		t.Fatal("expected nil activity channel when forwarding is disabled")

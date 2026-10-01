@@ -12,7 +12,7 @@ func TestCollectResultClosedChannelNormalEOF(t *testing.T) {
 	events := make(chan core.StreamEvent)
 	close(events)
 
-	text, err := collectResult(context.Background(), events, "agent", "run", nil)
+	text, err := collectResult(context.Background(), events, "agent", "run", nil, "", "", nil)
 	if err != nil {
 		t.Fatalf("expected nil error for normal EOF, got %v", err)
 	}
@@ -26,7 +26,7 @@ func TestCollectResultClosedChannelPreservesPartialOutputOnEOF(t *testing.T) {
 	events <- core.StreamEvent{Type: core.StreamEventTypeChunk, Content: "partial output "}
 	close(events)
 
-	text, err := collectResult(context.Background(), events, "agent", "run", nil)
+	text, err := collectResult(context.Background(), events, "agent", "run", nil, "", "", nil)
 	if err != nil {
 		t.Fatalf("expected nil error for normal EOF, got %v", err)
 	}
@@ -45,7 +45,7 @@ func TestCollectResultClosedChannelCancelledContext(t *testing.T) {
 		events := make(chan core.StreamEvent)
 		close(events)
 
-		_, err := collectResult(ctx, events, "agent", "run", nil)
+		_, err := collectResult(ctx, events, "agent", "run", nil, "", "", nil)
 		if err != context.Canceled {
 			t.Fatalf("iteration %d: expected context.Canceled, got %v", i, err)
 		}
@@ -61,7 +61,7 @@ func TestCollectResultClosedChannelCancelledContextPreservesPartialOutput(t *tes
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		text, err := collectResult(ctx, events, "agent", "run", nil)
+		text, err := collectResult(ctx, events, "agent", "run", nil, "", "", nil)
 		done <- outcome{text: text, err: err}
 	}()
 	// Ensure the chunk is consumed before cancellation closes the stream.
@@ -89,7 +89,7 @@ func TestCollectResultClosedChannelDeadlineExceeded(t *testing.T) {
 		events := make(chan core.StreamEvent)
 		close(events)
 
-		_, err := collectResult(ctx, events, "agent", "run", nil)
+		_, err := collectResult(ctx, events, "agent", "run", nil, "", "", nil)
 		if err != context.DeadlineExceeded {
 			t.Fatalf("iteration %d: expected context.DeadlineExceeded, got %v", i, err)
 		}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/mochow13/keen-code/internal/config"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/usage"
 )
 
 // AgentCore is the UI-facing boundary to the backend agent.
@@ -65,5 +66,6 @@ type AgentCore interface {
 		askUserRequester AskUserRequester,
 		mcpRuntime keenmcp.Runtime,
 		forwardActivity bool,
+		usageSink chan<- usage.Record,
 	) <-chan ToolActivity
 }

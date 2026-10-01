@@ -1355,3 +1355,41 @@ func TestOpenAICompatibleClient_DisableToolCallsRejectsToolUse(t *testing.T) {
 		t.Fatalf("expected rejection message in follow-up request, got %s", string(body))
 	}
 }
+
+func TestOpenAICompatibleClient_ReportsCacheReadAndWriteTokens(t *testing.T) {
+	client := &OpenAICompatibleClient{
+		provider: providerconfig.Provider(config.ProviderDeepSeek),
+		model:    "deepseek-chat",
+	}
+	client.streamImpl = func(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) chatStream {
+		return &fakeChatStream{chunks: []openai.ChatCompletionChunk{
+			makeContentChunk("done"),
+			{
+				Usage: openai.CompletionUsage{
+					PromptTokens:     100,
+					CompletionTokens: 10,
+					TotalTokens:      110,
+					PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+						CachedTokens:     20,
+						CacheWriteTokens: 30,
+					},
+				},
+			},
+		}}
+	}
+
+	events, err := client.StreamChat(context.Background(), []core.Message{{Role: core.RoleUser, Content: "hello"}}, nil)
+	if err != nil {
+		t.Fatalf("StreamChat() failed: %v", err)
+	}
+	for event := range events {
+		if event.Type != core.StreamEventTypeUsage {
+			continue
+		}
+		if event.Usage.CacheReadTokens != 20 || event.Usage.CacheWriteTokens != 30 || event.Usage.CachedTokens != 50 {
+			t.Fatalf("unexpected cache token usage: %+v", event.Usage)
+		}
+		return
+	}
+	t.Fatal("expected usage event")
+}

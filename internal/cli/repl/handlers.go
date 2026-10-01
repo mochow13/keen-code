@@ -31,9 +31,12 @@ const (
 	keyEnd       = "end"
 	keyShiftUp   = "shift+up"
 	keyShiftDown = "shift+down"
+	keyLeft      = "left"
+	keyRight     = "right"
 )
 
 func (m *replModel) handleLLMUsage(usage *agentcore.TokenUsage) (replModel, tea.Cmd) {
+	m.recordCurrentUsage(usage)
 	if m.agentCore != nil && usage != nil {
 		m.agentCore.SetLastUsage(usage)
 		m.contextStatus.AddUsage(usage)
@@ -65,6 +68,7 @@ func (m *replModel) drainSubagentActivity() {
 
 func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.drainSubagentActivity()
+	m.drainSubagentUsage()
 	m.flushStreamRender()
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionDone()
@@ -96,6 +100,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 }
 
 func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
+	m.drainSubagentUsage()
 	m.flushStreamRender()
 	m.clearAskUser()
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
@@ -129,6 +134,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 }
 
 func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
+	m.drainSubagentUsage()
 	m.flushStreamRender()
 	m.clearAskUser()
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
@@ -199,6 +205,9 @@ func (m *replModel) handleAutoCompactionStarted(event *agentcore.AutoCompactionE
 }
 
 func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionEvent) (replModel, tea.Cmd) {
+	if event != nil {
+		m.recordCurrentUsage(event.Usage)
+	}
 	if event == nil || len(event.Replacement) == 0 {
 		return m.handleAutoCompactionStopped()
 	}
@@ -520,6 +529,14 @@ func (m *replModel) handleAskUserPasteMsg(msg tea.PasteMsg) (replModel, tea.Cmd)
 
 func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	m.flushStreamRender()
+	if m.usageView != nil {
+		keyMsg, ok := msg.(tea.KeyPressMsg)
+		if !ok {
+			return *m, nil
+		}
+		return m.handleUsageViewKeyMsg(keyMsg)
+	}
+
 	if m.sessionPicker != nil {
 		return m.handleSessionPickerKeyMsg(msg)
 	}
@@ -782,6 +799,7 @@ func (m *replModel) refreshFileSuggestions(input string) bool {
 }
 
 func (m *replModel) interruptStream(message string) {
+	m.drainSubagentUsage()
 	m.flushStreamRender()
 	m.clearAskUser()
 	if m.stream.cancel != nil {
@@ -1034,7 +1052,7 @@ func (m *replModel) handleUpdateCheckMsg(msg updateCheckMsg) {
 func (m replModel) handleBtwStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	if m.btw.streamHandler == nil || !m.btw.streamHandler.IsActive() {
 		switch msg.(type) {
-		case btwChunkMsg, btwDoneMsg, btwErrorMsg:
+		case btwChunkMsg, btwDoneMsg, btwErrorMsg, btwUsageMsg:
 			return m, nil, true
 		}
 		return m, nil, false
@@ -1044,6 +1062,9 @@ func (m replModel) handleBtwStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	case btwChunkMsg:
 		m.btw.streamHandler.HandleChunk(string(msg))
 		return m, tea.Batch(m.afterStreamUpdate(), waitForBtwEvent(m.btw.streamHandler.EventChannel())), true
+	case btwUsageMsg:
+		m.recordCurrentUsage(msg.usage)
+		return m, waitForBtwEvent(m.btw.streamHandler.EventChannel()), true
 	case btwDoneMsg:
 		m.flushStreamRender()
 		responseLines, _ := m.btw.streamHandler.HandleDone()
@@ -1072,7 +1093,7 @@ func (m replModel) handleBtwStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 func (m replModel) handleAdversaryStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 	if m.adversary.streamHandler == nil || !m.adversary.streamHandler.IsActive() {
 		switch msg.(type) {
-		case adversaryChunkMsg, adversaryDoneMsg, adversaryErrorMsg, adversaryToolStartMsg, adversaryToolEndMsg:
+		case adversaryChunkMsg, adversaryDoneMsg, adversaryErrorMsg, adversaryToolStartMsg, adversaryToolEndMsg, adversaryUsageMsg:
 			return m, nil, true
 		}
 		return m, nil, false
@@ -1082,6 +1103,11 @@ func (m replModel) handleAdversaryStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bo
 	case adversaryChunkMsg:
 		m.adversary.streamHandler.HandleChunk(string(msg))
 		return m, tea.Batch(m.afterStreamUpdate(), waitForAdversaryEvent(m.adversary.streamHandler.EventChannel())), true
+	case adversaryUsageMsg:
+		if m.ctx != nil && m.ctx.globalCfg != nil {
+			m.recordUsage(m.ctx.globalCfg.AdversaryProvider, m.ctx.globalCfg.AdversaryModel, msg.usage)
+		}
+		return m, waitForAdversaryEvent(m.adversary.streamHandler.EventChannel()), true
 	case adversaryToolStartMsg:
 		m.flushStreamRender()
 		m.adversary.streamHandler.HandleToolStart(msg.toolCall)

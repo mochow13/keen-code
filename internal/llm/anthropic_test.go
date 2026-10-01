@@ -316,8 +316,103 @@ func TestAnthropicClient_StreamChat_IncludesCacheTokensInInputFootprint(t *testi
 	if usage.CachedTokens != 500 {
 		t.Fatalf("expected cached token breakdown 500, got %d", usage.CachedTokens)
 	}
+	if usage.CacheReadTokens != 100 {
+		t.Fatalf("expected cache read tokens 100, got %d", usage.CacheReadTokens)
+	}
+	if usage.CacheWriteTokens != 400 {
+		t.Fatalf("expected cache write tokens 400, got %d", usage.CacheWriteTokens)
+	}
 	if usage.TotalTokens != 3520 {
 		t.Fatalf("expected total tokens 3520, got %d", usage.TotalTokens)
+	}
+}
+
+func collectAnthropicUsage(t *testing.T, events []anthropic.MessageStreamEventUnion) *core.TokenUsage {
+	t.Helper()
+	client := newTestAnthropicClient(events)
+	eventCh, err := client.StreamChat(context.Background(), []core.Message{{Role: core.RoleUser, Content: "hi"}}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var usage *core.TokenUsage
+	for event := range eventCh {
+		switch event.Type {
+		case core.StreamEventTypeUsage:
+			usage = event.Usage
+		case core.StreamEventTypeError:
+			t.Fatalf("unexpected error: %v", event.Error)
+		}
+	}
+	if usage == nil {
+		t.Fatal("expected usage event")
+	}
+	return usage
+}
+
+func TestAnthropicClient_StreamChat_KeepsMessageStartInputWhenDeltaOmitsInput(t *testing.T) {
+	events := []anthropic.MessageStreamEventUnion{
+		makeMessageStartEvent(25, 1, 0, 0),
+		makeMessageDeltaUsageEvent(0, 15, 0, 0),
+		makeTextDeltaEvent(0, "ok"),
+		makeContentBlockStopEvent(0),
+	}
+
+	usage := collectAnthropicUsage(t, events)
+
+	if usage.InputTokens != 25 {
+		t.Fatalf("expected input tokens 25, got %d", usage.InputTokens)
+	}
+	if usage.OutputTokens != 15 {
+		t.Fatalf("expected output tokens 15, got %d", usage.OutputTokens)
+	}
+	if usage.TotalTokens != 40 {
+		t.Fatalf("expected total tokens 40, got %d", usage.TotalTokens)
+	}
+}
+
+func TestAnthropicClient_StreamChat_KeepsCacheOnlyFootprintAcrossDelta(t *testing.T) {
+	events := []anthropic.MessageStreamEventUnion{
+		makeMessageStartEvent(0, 1, 0, 100),
+		makeMessageDeltaUsageEvent(0, 15, 0, 0),
+		makeTextDeltaEvent(0, "ok"),
+		makeContentBlockStopEvent(0),
+	}
+
+	usage := collectAnthropicUsage(t, events)
+
+	if usage.InputTokens != 100 {
+		t.Fatalf("expected input footprint 100, got %d", usage.InputTokens)
+	}
+	if usage.CacheReadTokens != 100 {
+		t.Fatalf("expected cache read tokens 100, got %d", usage.CacheReadTokens)
+	}
+	if usage.OutputTokens != 15 {
+		t.Fatalf("expected output tokens 15, got %d", usage.OutputTokens)
+	}
+	if usage.TotalTokens != 115 {
+		t.Fatalf("expected total tokens 115, got %d", usage.TotalTokens)
+	}
+}
+
+func TestAnthropicClient_StreamChat_UsageFromCacheOnlyDelta(t *testing.T) {
+	events := []anthropic.MessageStreamEventUnion{
+		makeMessageStartEvent(0, 0, 0, 0),
+		makeMessageDeltaUsageEvent(0, 15, 0, 80),
+		makeTextDeltaEvent(0, "ok"),
+		makeContentBlockStopEvent(0),
+	}
+
+	usage := collectAnthropicUsage(t, events)
+
+	if usage.InputTokens != 80 {
+		t.Fatalf("expected input footprint 80, got %d", usage.InputTokens)
+	}
+	if usage.CacheReadTokens != 80 {
+		t.Fatalf("expected cache read tokens 80, got %d", usage.CacheReadTokens)
+	}
+	if usage.TotalTokens != 95 {
+		t.Fatalf("expected total tokens 95, got %d", usage.TotalTokens)
 	}
 }
 

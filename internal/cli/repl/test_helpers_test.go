@@ -13,6 +13,7 @@ import (
 	"github.com/mochow13/keen-code/internal/llm/core"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/mochow13/keen-code/internal/usage"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -218,6 +219,6 @@ func (m *mockAgentCore) SetGlobalConfig(cfg *config.GlobalConfig) { m.globalCfg 
 
 func (m *mockAgentCore) WorkingDir() string { return "" }
 
-func (m *mockAgentCore) SetupTools(context.Context, agentcore.PermissionRequester, agentcore.DiffEmitter, agentcore.AskUserRequester, keenmcp.Runtime, bool) <-chan agentcore.ToolActivity {
+func (m *mockAgentCore) SetupTools(context.Context, agentcore.PermissionRequester, agentcore.DiffEmitter, agentcore.AskUserRequester, keenmcp.Runtime, bool, chan<- usage.Record) <-chan agentcore.ToolActivity {
 	return nil
 }

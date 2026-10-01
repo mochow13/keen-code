@@ -319,9 +319,13 @@ func (c *OpenAICompatibleClient) collectTurn(
 	var acc openai.ChatCompletionAccumulator
 	var reasoningContent strings.Builder
 	var streamedContent strings.Builder
+	var finalUsage openai.CompletionUsage
 
 	for stream.Next() {
 		chunk := stream.Current()
+		if chunk.Usage.PromptTokens > 0 || chunk.Usage.CompletionTokens > 0 {
+			finalUsage = chunk.Usage
+		}
 		if c.shouldLogRawChunks() {
 			slog.Debug("OpenCode Go Kimi stream chunk", "chunk", chunk.RawJSON())
 		}
@@ -364,7 +368,11 @@ func (c *OpenAICompatibleClient) collectTurn(
 		return openai.ChatCompletionMessage{}, "", "", false, openai.CompletionUsage{}, nil
 	}
 
-	return acc.ChatCompletion.Choices[0].Message, reasoningContent.String(), streamedContent.String(), true, acc.ChatCompletion.Usage, nil
+	usage := acc.ChatCompletion.Usage
+	if finalUsage.PromptTokens > 0 || finalUsage.CompletionTokens > 0 {
+		usage = finalUsage
+	}
+	return acc.ChatCompletion.Choices[0].Message, reasoningContent.String(), streamedContent.String(), true, usage, nil
 }
 
 func (c *OpenAICompatibleClient) collectTurnWithRetry(ctx context.Context, params openai.ChatCompletionNewParams, eventCh chan<- core.StreamEvent, requestOpts ...option.RequestOption) (openai.ChatCompletionMessage, string, string, bool, openai.CompletionUsage, error) {
@@ -542,16 +550,19 @@ func (c *OpenAICompatibleClient) StreamChat(
 					"completion_tokens", usage.CompletionTokens,
 					"total_tokens", usage.TotalTokens,
 					"cached_tokens", usage.PromptTokensDetails.CachedTokens,
+					"cache_write_tokens", usage.PromptTokensDetails.CacheWriteTokens,
 					"reasoning_tokens", usage.CompletionTokensDetails.ReasoningTokens,
 				)
 				sendStreamEvent(ctx, eventCh, core.StreamEvent{
 					Type: core.StreamEventTypeUsage,
 					Usage: &core.TokenUsage{
-						InputTokens:     int(usage.PromptTokens),
-						OutputTokens:    int(usage.CompletionTokens),
-						TotalTokens:     int(usage.TotalTokens),
-						CachedTokens:    int(usage.PromptTokensDetails.CachedTokens),
-						ReasoningTokens: int(usage.CompletionTokensDetails.ReasoningTokens),
+						InputTokens:      int(usage.PromptTokens),
+						OutputTokens:     int(usage.CompletionTokens),
+						TotalTokens:      int(usage.TotalTokens),
+						CachedTokens:     int(usage.PromptTokensDetails.CachedTokens + usage.PromptTokensDetails.CacheWriteTokens),
+						CacheReadTokens:  int(usage.PromptTokensDetails.CachedTokens),
+						CacheWriteTokens: int(usage.PromptTokensDetails.CacheWriteTokens),
+						ReasoningTokens:  int(usage.CompletionTokensDetails.ReasoningTokens),
 					},
 				})
 			}

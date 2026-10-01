@@ -211,11 +211,13 @@ func toTokenUsage(usage *core.TokenUsage) *TokenUsage {
 		return nil
 	}
 	return &TokenUsage{
-		InputTokens:     usage.InputTokens,
-		OutputTokens:    usage.OutputTokens,
-		TotalTokens:     usage.TotalTokens,
-		ReasoningTokens: usage.ReasoningTokens,
-		CachedTokens:    usage.CachedTokens,
+		InputTokens:      usage.InputTokens,
+		OutputTokens:     usage.OutputTokens,
+		TotalTokens:      usage.TotalTokens,
+		ReasoningTokens:  usage.ReasoningTokens,
+		CachedTokens:     usage.CachedTokens,
+		CacheReadTokens:  usage.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens,
 	}
 }
 
@@ -224,11 +226,13 @@ func fromTokenUsage(usage *TokenUsage) *core.TokenUsage {
 		return nil
 	}
 	return &core.TokenUsage{
-		InputTokens:     usage.InputTokens,
-		OutputTokens:    usage.OutputTokens,
-		TotalTokens:     usage.TotalTokens,
-		ReasoningTokens: usage.ReasoningTokens,
-		CachedTokens:    usage.CachedTokens,
+		InputTokens:      usage.InputTokens,
+		OutputTokens:     usage.OutputTokens,
+		TotalTokens:      usage.TotalTokens,
+		ReasoningTokens:  usage.ReasoningTokens,
+		CachedTokens:     usage.CachedTokens,
+		CacheReadTokens:  usage.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens,
 	}
 }
 
