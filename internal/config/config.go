@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mochow13/keen-code/internal/decision"
 	"github.com/mochow13/keen-code/internal/providers"
 )
 
@@ -27,6 +29,7 @@ const (
 	ProviderYoloAuto         = "yolo-auto"
 	ProviderBedrock          = "amazon-bedrock"
 	ProviderOpenAICompatible = "openai-compatible"
+	ProviderTypeSafe         = "typesafe"
 )
 
 const ConfigFixHint = "To fix configs manually, check ~/.keen/configs.json"
@@ -39,6 +42,7 @@ type GlobalConfig struct {
 	AdversaryProvider string                    `json:"adversary_provider,omitempty"`
 	AdversaryModel    string                    `json:"adversary_model,omitempty"`
 	Providers         map[string]ProviderConfig `json:"providers"`
+	Decision          *DecisionConfig           `json:"decision,omitempty"`
 }
 
 type ProviderConfig struct {
@@ -47,6 +51,19 @@ type ProviderConfig struct {
 	APIKeyHelper string            `json:"api_key_helper,omitempty"`
 	BaseURL      string            `json:"base_url,omitempty"`
 	Headers      map[string]string `json:"headers,omitempty"`
+}
+
+type DecisionConfig struct {
+	Enabled        bool                      `json:"enabled"`
+	ActiveProvider string                    `json:"active_provider,omitempty"`
+	ActiveModel    string                    `json:"active_model,omitempty"`
+	Providers      map[string]ProviderConfig `json:"providers,omitempty"`
+}
+
+type ResolvedDecisionConfig struct {
+	Provider string
+	Model    string
+	Config   json.RawMessage
 }
 
 type ResolvedConfig struct {
@@ -207,6 +224,45 @@ func ResolveAdversary(global *GlobalConfig) (*ResolvedConfig, error) {
 		return nil, fmt.Errorf("adversary model not configured")
 	}
 	return ResolveProvider(global, global.AdversaryProvider, global.AdversaryModel, "")
+}
+
+func ResolveDecision(global *GlobalConfig) (*ResolvedDecisionConfig, error) {
+	if global == nil || global.Decision == nil {
+		return nil, fmt.Errorf("decision provider not configured")
+	}
+	provider := strings.TrimSpace(global.Decision.ActiveProvider)
+	model := strings.TrimSpace(global.Decision.ActiveModel)
+	if provider == "" || model == "" {
+		return nil, fmt.Errorf("active decision provider and model are required")
+	}
+
+	registry, err := decision.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load decision registry: %w", err)
+	}
+	if _, ok := registry.GetProvider(provider); !ok {
+		return nil, fmt.Errorf("unsupported decision provider %q", provider)
+	}
+	if _, ok := registry.GetModel(provider, model); !ok {
+		return nil, fmt.Errorf("unsupported decision model %q for provider %q", model, provider)
+	}
+
+	providerCfg, ok := global.Decision.Providers[provider]
+	if !ok {
+		return nil, fmt.Errorf("decision provider %q is not configured", provider)
+	}
+	apiKey, err := ResolveProviderAPIKey(provider, providerCfg)
+	if err != nil {
+		return nil, err
+	}
+	providerCfg.APIKey = apiKey
+	providerCfg.Models = nil
+
+	raw, err := json.Marshal(providerCfg)
+	if err != nil {
+		return nil, fmt.Errorf("encode decision provider %q config: %w", provider, err)
+	}
+	return &ResolvedDecisionConfig{Provider: provider, Model: model, Config: raw}, nil
 }
 
 func cloneHeaders(headers map[string]string) map[string]string {

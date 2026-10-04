@@ -53,6 +53,10 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		m.viewport.GotoBottom()
 		return *m, tea.Batch(m.loading.spinner.Tick, cleanupCmd()), true
 
+	case input == replcommands.ModelAuto:
+		m.textarea.Reset()
+		return m.enableAutoClassification()
+
 	case input == replcommands.Model:
 		m.textarea.Reset()
 		return m.startModelSelection(), nil, true
@@ -1171,6 +1175,7 @@ func (m *replModel) handleClearCommand() replModel {
 	}
 	m.history.Reset()
 	m.loading.lastTurnElapsedMsg = ""
+	m.classifiers.Reset()
 	m.adjustTextareaHeight()
 
 	newOutput := reploutput.NewOutputBuilder(m.width, m.ctx.workingDir)
@@ -1189,6 +1194,34 @@ func (m *replModel) handleClearCommand() replModel {
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 	return *m
+}
+
+func (m *replModel) enableAutoClassification() (replModel, tea.Cmd, bool) {
+	if m.ctx == nil || m.ctx.globalCfg == nil || m.ctx.loader == nil {
+		m.output.AddError("Decision configuration is unavailable.", repltheme.ErrorStyle)
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, nil, true
+	}
+	if m.ctx.globalCfg.Decision == nil {
+		m.ctx.globalCfg.Decision = &config.DecisionConfig{}
+	}
+	m.ctx.globalCfg.Decision.Enabled = true
+	if err := m.ctx.loader.Save(m.ctx.globalCfg); err != nil {
+		m.output.AddError("Failed to save config: "+err.Error(), repltheme.ErrorStyle)
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, nil, true
+	}
+	if err := m.classifiers.Configure(m.ctx.globalCfg); err != nil {
+		m.output.AddStyledLine("  Auto classification enabled — configure an active decision provider to show task categories", repltheme.UsageHintStyle)
+	} else {
+		m.output.AddStyledLine("  ✓ Auto classification enabled — task categories will be shown each session", repltheme.HighlightStyle)
+	}
+	m.output.AddEmptyLine()
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
+	return *m, nil, true
 }
 
 func (m *replModel) helpWidth() int {

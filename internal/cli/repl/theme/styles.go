@@ -98,6 +98,7 @@ var (
 			MarginTop(1)
 	HighlightStyle   = lipgloss.NewStyle().Foreground(SecondaryColor)
 	MutedStyle       = lipgloss.NewStyle().Foreground(MutedColor)
+	FaintedStyle     = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
 	PrimaryBoldStyle = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
 	AccentStyle      = lipgloss.NewStyle().Foreground(AccentColor)
 

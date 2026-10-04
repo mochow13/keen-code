@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -203,5 +204,39 @@ func TestAPIKeyResolverReturnsCachedKey(t *testing.T) {
 	key, err := resolver.Get()
 	if err != nil || key != "cached-key" {
 		t.Fatalf("Get() = %q, %v", key, err)
+	}
+}
+
+func TestResolveDecision_ResolvesProviderKey(t *testing.T) {
+	global := &GlobalConfig{Decision: &DecisionConfig{
+		ActiveProvider: ProviderTypeSafe,
+		ActiveModel:    "jev-1.13.0",
+		Providers: map[string]ProviderConfig{
+			ProviderTypeSafe: {APIKey: "stored-key"},
+		},
+	}}
+	resolved, err := ResolveDecision(global)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var providerCfg ProviderConfig
+	if err := json.Unmarshal(resolved.Config, &providerCfg); err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Provider != ProviderTypeSafe || resolved.Model != "jev-1.13.0" || providerCfg.APIKey != "stored-key" {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+}
+
+func TestResolveDecision_RejectsUnsupportedModel(t *testing.T) {
+	global := &GlobalConfig{Decision: &DecisionConfig{
+		ActiveProvider: ProviderTypeSafe,
+		ActiveModel:    "unsupported",
+		Providers: map[string]ProviderConfig{
+			ProviderTypeSafe: {APIKey: "stored-key"},
+		},
+	}}
+	if _, err := ResolveDecision(global); err == nil {
+		t.Fatal("expected unsupported decision model error")
 	}
 }

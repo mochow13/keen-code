@@ -7,11 +7,17 @@ import (
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
+	"github.com/mochow13/keen-code/internal/decision/tasks/taskcomplexity"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/usage"
 )
 
 type llmChunkMsg string
+type classifyResultMsg struct {
+	result   taskcomplexity.Result
+	err      error
+	provider string
+}
 type llmReasoningChunkMsg string
 type llmDoneMsg struct{}
 type llmIncompleteMsg struct {

@@ -24,6 +24,7 @@ import (
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/decision/tasks/taskcomplexity"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
 )
@@ -494,6 +495,25 @@ func TestHandleLLMStreamMsg_UnknownMsg(t *testing.T) {
 
 	if handled {
 		t.Error("expected unknown msg to not be handled")
+	}
+}
+
+func TestUpdateNormalMode_ClassificationResultRendersNotice(t *testing.T) {
+	m := newTestModel()
+	updated, cmd := m.updateNormalMode(classifyResultMsg{
+		provider: "typesafe",
+		result: taskcomplexity.Result{
+			Category:      taskcomplexity.CategoryStandard,
+			Probability:   0.62,
+			Consequential: 0.81,
+			Model:         "jev-test",
+		},
+	})
+	if cmd != nil {
+		t.Fatal("expected no command")
+	}
+	if !strings.Contains(ansi.Strip(updated.output.Join()), "task: standard (p=0.62) · consequential (p=0.81)") {
+		t.Fatalf("output = %q", updated.output.Join())
 	}
 }
 
