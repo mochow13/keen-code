@@ -17,6 +17,7 @@ const (
 	Memory          = "/memory"
 	MemoryShow      = "/memory show"
 	Model           = "/model"
+	ModelAuto       = "/model auto"
 	MCP             = "/mcp"
 	MCPConnect      = "/mcp connect"
 	MCPStatus       = "/mcp status"
@@ -60,7 +61,7 @@ var All = []SlashCommand{
 	{Logout, "Sign out of the current OAuth provider"},
 	{Memory, "Show memory file paths and contents"},
 	{MCP, "Show MCP status or refresh a server"},
-	{Model, "Change provider or model stored in ~/.keen/configs.json"},
+	{Model, "Change provider or model; /model auto enables task classification"},
 	{Mode, "Switch agent mode (plan|build|yolo)"},
 	{New, "Start a new session (also /clear)"},
 	{ResetPermission, "Reset tool permissions to Keen's default mechanism"},
@@ -92,7 +93,7 @@ var Suggestions = []SlashCommand{
 	{MCP, "Show MCP commands"},
 	{MCPConnect, "Connect an MCP server"},
 	{MCPStatus, "Show MCP server status"},
-	{Model, "Change provider or model stored in ~/.keen/configs.json"},
+	{Model, "Change provider or model; /model auto enables task classification"},
 	{Mode, "Switch agent mode (plan|build|yolo)"},
 	{New, "Start a new session (also /clear)"},
 	{ResetPermission, "Reset tool permissions to Keen's default mechanism"},

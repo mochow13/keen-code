@@ -104,6 +104,7 @@ type replModel struct {
 	gitBranch           string
 	subagentActivity    <-chan agentcore.ToolActivity
 	subagentUsage       <-chan usage.Record
+	classifiers         *classificationManager
 }
 
 type toolHistoryMode uint8
@@ -297,6 +298,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 	model.stream.handler.SetWorkingDir(ctx.workingDir)
 	model.stream.handler.SetShowThinking(model.showThinking)
 	model.refreshGitBranch()
+	model.classifiers = newClassificationManager(ctx.globalCfg)
 
 	if ctx.resumeSession != nil {
 		model.sessions.setSession(ctx.resumeSession.Session)
@@ -454,6 +456,8 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 		m.viewport.GotoBottom()
 		return *m, nil
 	}
+	m.classifiers.RecordUserMessage(input)
+	classificationCmd := m.classifiers.classifyTaskCmd(m.ctx.workingDir, m.gitBranch)
 
 	m.startLoading(nextLoadingText())
 	m.startAssistantTurnMemory()
@@ -466,7 +470,7 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
-	return *m, tea.Batch(m.loading.spinner.Tick, m.waitForAsyncEvent())
+	return *m, tea.Batch(m.loading.spinner.Tick, m.waitForAsyncEvent(), classificationCmd)
 }
 
 func (m *replModel) showNotification(msg string) tea.Cmd {
@@ -624,6 +628,16 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case classifyResultMsg:
+		if msg.err != nil {
+			return m, nil
+		}
+		m.output.AddStyledLine(fmt.Sprintf("  task: %s (p=%.2f) · consequential (p=%.2f)", msg.result.Category, msg.result.Probability, msg.result.Consequential), repltheme.FaintedStyle)
+		m.output.AddEmptyLine()
+		m.recordUsage(msg.provider, msg.result.Model, &agentcore.TokenUsage{InputTokens: msg.result.Usage.InputTokens, OutputTokens: msg.result.Usage.OutputTokens})
+		m.updateViewportContent()
+		m.scrollToBottomIfFollowing()
+		return m, nil
 	case compactionDoneMsg:
 		return m.handleCompactionDone()
 	case compactionErrMsg:

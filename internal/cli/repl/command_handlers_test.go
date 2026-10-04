@@ -283,6 +283,25 @@ func TestHandleEnterKey_UnknownModelPair(t *testing.T) {
 	}
 }
 
+func TestHandleEnterKey_ModelAutoEnablesClassification(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	m.ctx.loader = config.NewLoader()
+	m.textarea.SetValue(replcommands.ModelAuto)
+
+	updated, cmd := m.handleEnterKey()
+	if cmd != nil {
+		t.Fatal("expected no command")
+	}
+	if updated.ctx.globalCfg.Decision == nil || !updated.ctx.globalCfg.Decision.Enabled {
+		t.Fatalf("decision config = %#v", updated.ctx.globalCfg.Decision)
+	}
+	if !strings.Contains(ansi.Strip(updated.output.Join()), "Auto classification enabled") {
+		t.Fatalf("output = %q", updated.output.Join())
+	}
+}
+
 func TestHandleEnterKey_SessionsCommand_EmptyState(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
