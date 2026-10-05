@@ -454,7 +454,13 @@ func renderDiffSegment(seg *Segment, width int) []string {
 
 	rendered := make([]string, 0, len(seg.DiffLines))
 	for _, dl := range seg.DiffLines {
+		if dl.Kind != agentcore.EditDiffLineAdded && dl.Kind != agentcore.EditDiffLineRemoved {
+			continue
+		}
 		rendered = append(rendered, renderDiffLines(dl, width)...)
+	}
+	if len(rendered) == 0 {
+		return nil
 	}
 
 	ruleWidth := DefaultWidth - diffLeftPadding - diffRightPadding

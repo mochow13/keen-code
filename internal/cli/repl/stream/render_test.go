@@ -148,13 +148,14 @@ func TestRenderDiffSegment_RendersRulesUsingViewportWidth(t *testing.T) {
 	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")
 	sh.HandleDiff([]agentcore.EditDiffLine{
 		{Kind: agentcore.EditDiffLineHunk, Content: "@@ -1,2 +1,3 @@"},
-		{Kind: agentcore.EditDiffLineRemoved, Content: strings.Repeat("short ", 6), OldLineNum: 1},
-		{Kind: agentcore.EditDiffLineAdded, Content: strings.Repeat("shorter ", 6), NewLineNum: 1},
+		{Kind: agentcore.EditDiffLineContext, Content: "unchanged context", OldLineNum: 1, NewLineNum: 1},
+		{Kind: agentcore.EditDiffLineRemoved, Content: strings.Repeat("short ", 6), OldLineNum: 2},
+		{Kind: agentcore.EditDiffLineAdded, Content: strings.Repeat("shorter ", 6), NewLineNum: 2},
 	})
 
 	wideView := sh.View(80)
 	wideLines := strings.Split(strings.TrimRight(wideView, "\n"), "\n")
-	if len(wideLines) < 5 {
+	if len(wideLines) < 4 {
 		t.Fatalf("expected ruled diff lines, got %v", wideLines)
 	}
 
@@ -166,6 +167,17 @@ func TestRenderDiffSegment_RendersRulesUsingViewportWidth(t *testing.T) {
 	}
 	if len(nonEmpty) < 4 {
 		t.Fatalf("expected non-empty diff lines, got %v", nonEmpty)
+	}
+	plainWideView := ansi.Strip(wideView)
+	for _, hidden := range []string{"@@ -1,2 +1,3 @@", "unchanged context"} {
+		if strings.Contains(plainWideView, hidden) {
+			t.Fatalf("diff view should omit unchanged lines and hunk headers, got %q", plainWideView)
+		}
+	}
+	for _, shown := range []string{"short ", "shorter "} {
+		if !strings.Contains(plainWideView, shown) {
+			t.Fatalf("diff view should retain changed line %q, got %q", shown, plainWideView)
+		}
 	}
 	if !strings.Contains(nonEmpty[0], "─") || !strings.Contains(nonEmpty[len(nonEmpty)-1], "─") {
 		t.Fatalf("expected top and bottom diff rules, got %q", wideView)
