@@ -667,13 +667,29 @@ func TestAnthropicClient_DisableToolCallsRejectsToolUse(t *testing.T) {
 }
 
 func TestAnthropicClient_StreamChat_PreservesThinkingBlocksForToolContinuation(t *testing.T) {
+	testAnthropicThinkingToolLoop(t, "claude-sonnet-4-6", "need a tool")
+}
+
+func TestAnthropicClient_NewModels_ThinkingToolLoop(t *testing.T) {
+	for _, model := range []string{"claude-sonnet-5-5", "MiniMax-M3.1-Flash-Preview"} {
+		for _, thinking := range []string{"need a tool", ""} {
+			t.Run(model+"/thinking="+thinking, func(t *testing.T) {
+				testAnthropicThinkingToolLoop(t, model, thinking)
+			})
+		}
+	}
+}
+
+func testAnthropicThinkingToolLoop(t *testing.T, model, thinking string) {
+	t.Helper()
 	callCount := 0
 	var seenParams []anthropic.MessageNewParams
 
 	firstEvents := []anthropic.MessageStreamEventUnion{
 		makeThinkingStartEvent(0, "", ""),
-		makeThinkingDeltaEvent(0, "need a tool"),
-		makeSignatureDeltaEvent(0, "sig-1"),
+		makeThinkingDeltaEvent(0, thinking),
+		makeSignatureDeltaEvent(0, "sig-"),
+		makeSignatureDeltaEvent(0, "1"),
 		makeContentBlockStopEvent(0),
 		makeRedactedThinkingStartEvent(1, "redacted-data"),
 		makeContentBlockStopEvent(1),
@@ -688,7 +704,7 @@ func TestAnthropicClient_StreamChat_PreservesThinkingBlocksForToolContinuation(t
 		makeContentBlockStopEvent(0),
 	}
 
-	c := &AnthropicClient{model: "claude-sonnet-4-6"}
+	c := &AnthropicClient{model: model}
 	c.streamImpl = func(ctx context.Context, params anthropic.MessageNewParams, opts ...option.RequestOption) anthropicStream {
 		callCount++
 		seenParams = append(seenParams, params)
@@ -729,7 +745,7 @@ func TestAnthropicClient_StreamChat_PreservesThinkingBlocksForToolContinuation(t
 	if assistant.Content[0].OfThinking == nil {
 		t.Fatal("expected first block to be thinking")
 	}
-	if assistant.Content[0].OfThinking.Thinking != "need a tool" {
+	if assistant.Content[0].OfThinking.Thinking != thinking {
 		t.Fatalf("expected thinking content preserved, got %q", assistant.Content[0].OfThinking.Thinking)
 	}
 	if assistant.Content[0].OfThinking.Signature != "sig-1" {
@@ -941,6 +957,34 @@ func TestAnthropicThinkingParamsForMiniMaxM27OmitsThinking(t *testing.T) {
 		}
 		if outCfg.Effort != "" {
 			t.Fatalf("provider %s: expected M2.7 to omit effort", provider)
+		}
+	}
+}
+
+func TestAnthropicThinkingParamsForMiniMaxM31(t *testing.T) {
+	for _, effort := range []string{"low", "medium", "high", "xhigh", "max"} {
+		thinking, outCfg, _ := anthropicThinkingParamsForModel(
+			providerconfig.Provider(config.ProviderMiniMax), "MiniMax-M3.1-Flash-Preview", effort,
+		)
+		body, err := json.Marshal(anthropic.MessageNewParams{
+			Thinking: thinking, OutputConfig: outCfg,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var request struct {
+			Thinking struct {
+				Type string `json:"type"`
+			} `json:"thinking"`
+			OutputConfig struct {
+				Effort string `json:"effort"`
+			} `json:"output_config"`
+		}
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatal(err)
+		}
+		if request.Thinking.Type != "adaptive" || request.OutputConfig.Effort != effort {
+			t.Fatalf("effort %q: unexpected MiniMax M3.1 request: %s", effort, body)
 		}
 	}
 }

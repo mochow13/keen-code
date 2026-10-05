@@ -898,3 +898,7 @@ func TestOpenAICodexClient_ReportsCacheReadAndWriteTokens(t *testing.T) {
 	}
 	t.Fatal("expected usage event")
 }
+
+func TestOpenAICodexClient_GPT61ReasoningToolLoop(t *testing.T) {
+	testGPT61ReasoningToolLoop(t, config.ProviderOpenAICodex)
+}

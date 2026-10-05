@@ -939,3 +939,78 @@ func TestOpenAIResponsesClient_ReportsCacheReadAndWriteTokens(t *testing.T) {
 	}
 	t.Fatal("expected usage event")
 }
+
+func TestOpenAIResponsesClient_GPT61ReasoningToolLoop(t *testing.T) {
+	testGPT61ReasoningToolLoop(t, config.ProviderOpenAI)
+}
+
+func testGPT61ReasoningToolLoop(t *testing.T, provider string) {
+	t.Helper()
+	client, err := NewClient(&config.ResolvedConfig{
+		Provider: provider, Model: "gpt-6.1-sol", APIKey: "test-key", ThinkingEffort: "max",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var secondInput []byte
+	var marshalErr error
+	calls := 0
+	stream := func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) responseStream {
+		calls++
+		if calls == 1 {
+			return &fakeResponseStream{events: []responses.ResponseStreamEventUnion{
+				mustResponseEvent(t, `{"type":"response.completed","response":{"id":"r1","object":"response","output":[{"type":"reasoning","id":"rs1","summary":[],"encrypted_content":"encrypted-reasoning"},{"type":"message","id":"msg1","role":"assistant","phase":"commentary","status":"completed","content":[{"type":"output_text","text":"Reading the file.","annotations":[]}]},{"type":"function_call","id":"fc1","call_id":"call1","name":"read_file","arguments":"{\"path\":\"go.mod\"}"}]}}`),
+			}}
+		}
+		secondInput, marshalErr = json.Marshal(params.Input)
+		return &fakeResponseStream{events: []responses.ResponseStreamEventUnion{
+			mustResponseEvent(t, `{"type":"response.completed","response":{"id":"r2","object":"response","output":[]}}`),
+		}}
+	}
+	switch c := client.(type) {
+	case *OpenAIResponsesClient:
+		c.responseStreamImpl = stream
+	case *OpenAICodexClient:
+		c.authManager = newTestCodexClient(t).authManager
+		c.responseStreamImpl = stream
+	default:
+		t.Fatalf("unexpected client %T", client)
+	}
+	registry := tools.NewRegistry()
+	if err := registry.Register(&successToolOAI{}); err != nil {
+		t.Fatal(err)
+	}
+	ch, err := client.StreamChat(context.Background(), []core.Message{{Role: core.RoleUser, Content: "read go.mod"}}, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event := range ch {
+		if event.Type == core.StreamEventTypeError {
+			t.Errorf("stream error: %v", event.Error)
+		}
+	}
+	if calls != 2 || marshalErr != nil {
+		t.Fatalf("expected two requests, calls=%d marshal error=%v", calls, marshalErr)
+	}
+	var items []struct {
+		Type             string `json:"type"`
+		EncryptedContent string `json:"encrypted_content"`
+		Phase            string `json:"phase"`
+		CallID           string `json:"call_id"`
+	}
+	if err := json.Unmarshal(secondInput, &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 5 {
+		t.Fatalf("expected user, reasoning, commentary, tool call and result; got %s", secondInput)
+	}
+	if items[1].Type != "reasoning" || items[1].EncryptedContent != "encrypted-reasoning" {
+		t.Errorf("encrypted reasoning was not preserved: %#v", items[1])
+	}
+	if items[2].Type != "message" || items[2].Phase != "commentary" {
+		t.Errorf("assistant phase was not preserved: %#v", items[2])
+	}
+	if items[3].Type != "function_call" || items[4].Type != "function_call_output" || items[3].CallID != "call1" || items[4].CallID != "call1" {
+		t.Errorf("tool call and result were not preserved: %#v", items[3:])
+	}
+}

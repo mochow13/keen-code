@@ -1,11 +1,23 @@
 package llm
 
 import (
+	"context"
+	"encoding/json"
+	"reflect"
+	"slices"
 	"testing"
 
+	anthropic "github.com/anthropics/anthropic-sdk-go"
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/llm/providerconfig"
+	"github.com/mochow13/keen-code/internal/tools"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 func TestNewClient_MissingAPIKey(t *testing.T) {
@@ -435,5 +447,172 @@ func TestNewClient_YoloAuto(t *testing.T) {
 	}
 	if oaiClient.contextWindowTokenCount != 131072 {
 		t.Fatalf("expected context window 131072, got %d", oaiClient.contextWindowTokenCount)
+	}
+}
+
+func TestNewClient_RegisteredModelsRequestParameters(t *testing.T) {
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	standardEfforts := []string{"", "low", "medium", "high", "xhigh", "max"}
+	for _, tt := range []struct {
+		provider string
+		model    string
+		protocol string
+		context  int
+		efforts  []string
+	}{
+		{config.ProviderAnthropic, "claude-sonnet-5-5", "anthropic", 1000000, standardEfforts},
+		{config.ProviderBedrock, "global.anthropic.claude-sonnet-5-5", "bedrock", 1000000, standardEfforts},
+		{config.ProviderBedrock, "global.anthropic.claude-opus-5-5", "bedrock", 1000000, standardEfforts},
+		{config.ProviderBedrock, "global.anthropic.claude-fable-5-1", "bedrock", 1000000, standardEfforts},
+		{config.ProviderBedrock, "global.anthropic.claude-opus-5", "bedrock", 1000000, standardEfforts},
+		{config.ProviderOpenAI, "gpt-6.1-sol", "responses", 1050000, standardEfforts},
+		{config.ProviderOpenAICodex, "gpt-6.1-sol", "codex", 272000, []string{"", "low", "medium", "high", "xhigh", "max", "ultra"}},
+		{config.ProviderZAI, "glm-5.3-flashx", "chat", 1000000, []string{"", "low", "high", "max"}},
+		{config.ProviderDeepSeek, "deepseek-flash", "chat", 1000000, []string{"", "low", "high", "max"}},
+		{config.ProviderMiniMax, "MiniMax-M3.1-Flash-Preview", "anthropic", 1000000, standardEfforts},
+	} {
+		t.Run(tt.provider+"/"+tt.model, func(t *testing.T) {
+			for _, effort := range tt.efforts {
+				name := effort
+				if name == "" {
+					name = "default"
+				}
+				t.Run(name, func(t *testing.T) {
+					client, err := NewClient(&config.ResolvedConfig{
+						Provider: tt.provider, Model: tt.model, APIKey: "test-key", ThinkingEffort: effort,
+					})
+					if err != nil {
+						t.Fatalf("NewClient: %v", err)
+					}
+					var body []byte
+					var marshalErr error
+					var contextWindow int
+					captureResponses := func(ctx context.Context, params responses.ResponseNewParams, opts ...option.RequestOption) responseStream {
+						body, marshalErr = json.Marshal(params)
+						return &fakeResponseStream{events: []responses.ResponseStreamEventUnion{
+							mustResponseEvent(t, `{"type":"response.completed","response":{"id":"r1","object":"response","output":[]}}`),
+						}}
+					}
+					switch c := client.(type) {
+					case *AnthropicClient:
+						if tt.protocol != "anthropic" {
+							t.Fatalf("unexpected Anthropic client for %s", tt.protocol)
+						}
+						contextWindow = c.contextWindowTokenCount
+						c.streamImpl = func(ctx context.Context, params anthropic.MessageNewParams, opts ...anthropicoption.RequestOption) anthropicStream {
+							body, marshalErr = json.Marshal(params)
+							return &mockAnthropicStream{}
+						}
+					case *BedrockClient:
+						if tt.protocol != "bedrock" {
+							t.Fatalf("unexpected Bedrock client for %s", tt.protocol)
+						}
+						contextWindow = c.contextWindowTokenCount
+						c.streamImpl = func(ctx context.Context, params *bedrockruntime.ConverseStreamInput) (bedrockStream, error) {
+							request := map[string]any{"model": aws.ToString(params.ModelId)}
+							if params.AdditionalModelRequestFields != nil {
+								body, marshalErr = params.AdditionalModelRequestFields.MarshalSmithyDocument()
+								if marshalErr == nil {
+									marshalErr = json.Unmarshal(body, &request)
+								}
+							}
+							if marshalErr == nil {
+								body, marshalErr = json.Marshal(request)
+							}
+							if params.InferenceConfig.Temperature != nil || params.InferenceConfig.TopP != nil {
+								t.Error("Bedrock request must omit sampling parameters")
+							}
+							if params.ToolConfig == nil || params.ToolConfig.ToolChoice != nil {
+								t.Error("expected tools without forced tool choice")
+							}
+							return &mockBedrockStream{}, nil
+						}
+					case *OpenAIResponsesClient:
+						if tt.protocol != "responses" {
+							t.Fatalf("unexpected Responses client for %s", tt.protocol)
+						}
+						contextWindow = c.contextWindowTokenCount
+						c.responseStreamImpl = captureResponses
+					case *OpenAICodexClient:
+						if tt.protocol != "codex" {
+							t.Fatalf("unexpected Codex client for %s", tt.protocol)
+						}
+						contextWindow = c.contextWindowTokenCount
+						c.authManager = newTestCodexClient(t).authManager
+						c.responseStreamImpl = captureResponses
+					case *OpenAICompatibleClient:
+						if tt.protocol != "chat" {
+							t.Fatalf("unexpected Chat Completions client for %s", tt.protocol)
+						}
+						contextWindow = c.contextWindowTokenCount
+						c.streamImpl = func(ctx context.Context, params openai.ChatCompletionNewParams, opts ...option.RequestOption) chatStream {
+							body, marshalErr = json.Marshal(params)
+							return &fakeChatStream{}
+						}
+					default:
+						t.Fatalf("unexpected client type %T", client)
+					}
+					if contextWindow != tt.context {
+						t.Errorf("context window = %d, want %d", contextWindow, tt.context)
+					}
+					registry := tools.NewRegistry()
+					if err := registry.Register(&successTool{}); err != nil {
+						t.Fatal(err)
+					}
+					ch, err := client.StreamChat(context.Background(), []core.Message{{Role: core.RoleUser, Content: "hi"}}, registry)
+					if err != nil {
+						t.Fatal(err)
+					}
+					for event := range ch {
+						if event.Type == core.StreamEventTypeError {
+							t.Errorf("stream error: %v", event.Error)
+						}
+					}
+					if marshalErr != nil {
+						t.Fatalf("marshal request: %v", marshalErr)
+					}
+					var request map[string]any
+					if err := json.Unmarshal(body, &request); err != nil {
+						t.Fatalf("decode request: %v", err)
+					}
+					if request["model"] != tt.model {
+						t.Errorf("model = %v, want %s", request["model"], tt.model)
+					}
+					for _, field := range []string{"temperature", "top_p", "tool_choice"} {
+						if _, exists := request[field]; exists {
+							t.Errorf("unexpected %s", field)
+						}
+					}
+					want := map[string]any{}
+					if effort != "" {
+						switch tt.protocol {
+						case "anthropic", "bedrock":
+							want["thinking"] = map[string]any{"type": "adaptive"}
+							want["output_config"] = map[string]any{"effort": effort}
+						case "responses", "codex":
+							want["reasoning"] = map[string]any{"effort": effort}
+						case "chat":
+							want["thinking"] = map[string]any{"type": "enabled"}
+							want["reasoning_effort"] = effort
+						}
+					}
+					for _, field := range []string{"thinking", "output_config", "reasoning", "reasoning_effort"} {
+						if !reflect.DeepEqual(request[field], want[field]) {
+							t.Errorf("%s = %#v, want %#v", field, request[field], want[field])
+						}
+					}
+				})
+			}
+			for _, effort := range []string{"none", "enabled", "disabled", "minimal", "medium", "xhigh", "ultra", "unsupported"} {
+				if slices.Contains(tt.efforts, effort) {
+					continue
+				}
+				if _, err := NewClient(&config.ResolvedConfig{
+					Provider: tt.provider, Model: tt.model, APIKey: "test-key", ThinkingEffort: effort,
+				}); err == nil {
+					t.Errorf("expected validation error for %q", effort)
+				}
+			}
+		})
 	}
 }

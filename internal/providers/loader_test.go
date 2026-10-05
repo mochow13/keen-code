@@ -186,8 +186,8 @@ func TestModel_ThinkingEffortsLoadFromYAML(t *testing.T) {
 	if !ok {
 		t.Fatal("expected to find minimax provider")
 	}
-	if len(minimaxProvider.Models) != 3 {
-		t.Fatalf("expected 3 minimax models, got %d", len(minimaxProvider.Models))
+	if len(minimaxProvider.Models) != 4 {
+		t.Fatalf("expected 4 minimax models, got %d", len(minimaxProvider.Models))
 	}
 	minimaxM27, ok := reg.GetModel("minimax", "MiniMax-M2.7")
 	if !ok {

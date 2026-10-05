@@ -468,7 +468,7 @@ func openAIThinkingMode(provider providerconfig.Provider, model string) openAITh
 			return openAIThinkingParamType
 		}
 	case providerconfig.Provider(config.ProviderZAI):
-		if model == "glm-5.2" || model == "glm-5.3" {
+		if model == "glm-5.2" || model == "glm-5.3" || model == "glm-5.3-flashx" {
 			return openAIThinkingParamToggleAndReasoningEffort
 		}
 		if model == "glm-5.1" {

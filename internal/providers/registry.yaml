@@ -2,6 +2,10 @@ providers:
   - id: anthropic
     name: Anthropic
     models:
+      - id: claude-sonnet-5-5
+        name: Claude Sonnet 5.5
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: claude-opus-5-5
         name: Claude Opus 5.5
         context_window: 1000000
@@ -37,6 +41,22 @@ providers:
   - id: amazon-bedrock
     name: Amazon Bedrock
     models:
+      - id: global.anthropic.claude-sonnet-5-5
+        name: Claude Sonnet 5.5
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
+      - id: global.anthropic.claude-opus-5-5
+        name: Claude Opus 5.5
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
+      - id: global.anthropic.claude-fable-5-1
+        name: Claude Fable 5.1
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
+      - id: global.anthropic.claude-opus-5
+        name: Claude Opus 5
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: global.anthropic.claude-fable-5
         name: Claude Fable 5
         context_window: 1000000
@@ -64,6 +84,10 @@ providers:
   - id: openai
     name: OpenAI
     models:
+      - id: gpt-6.1-sol
+        name: GPT-6.1 Sol
+        context_window: 1050000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: gpt-6-sol
         name: GPT-6 Sol
         context_window: 1050000
@@ -100,6 +124,10 @@ providers:
   - id: openai-codex
     name: Codex (ChatGPT OAuth)
     models:
+      - id: gpt-6.1-sol
+        name: GPT-6.1 Sol
+        context_window: 272000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]
       - id: gpt-6-sol
         name: GPT-6 Sol
         context_window: 272000
@@ -185,6 +213,10 @@ providers:
   - id: zai
     name: Z.ai (GLM)
     models:
+      - id: glm-5.3-flashx
+        name: GLM-5.3 FlashX
+        context_window: 1000000
+        thinking_efforts: ["low", "high", "max"]
       - id: glm-5.3-flash
         name: GLM-5.3 Flash
         context_window: 1000000
@@ -205,6 +237,10 @@ providers:
   - id: deepseek
     name: DeepSeek
     models:
+      - id: deepseek-flash
+        name: DeepSeek V4.1 Flash
+        context_window: 1000000
+        thinking_efforts: ["low", "high", "max"]
       - id: deepseek-v4-flash
         name: DeepSeek V4 Flash
         context_window: 1000000
@@ -217,6 +253,10 @@ providers:
   - id: minimax
     name: MiniMax
     models:
+      - id: MiniMax-M3.1-Flash-Preview
+        name: MiniMax M3.1 Flash Preview
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: MiniMax-M3
         name: MiniMax M3
         context_window: 1000000

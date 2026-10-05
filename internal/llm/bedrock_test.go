@@ -335,6 +335,26 @@ func TestBedrockClient_StreamChat_LogsPromptCacheHits(t *testing.T) {
 }
 
 func TestBedrockClient_StreamChat_ToolLoop(t *testing.T) {
+	testBedrockThinkingToolLoop(t, "global.anthropic.claude-sonnet-4-6", "think before tool")
+}
+
+func TestBedrockClient_NewModels_ThinkingToolLoop(t *testing.T) {
+	for _, model := range []string{
+		"global.anthropic.claude-sonnet-5-5",
+		"global.anthropic.claude-opus-5-5",
+		"global.anthropic.claude-fable-5-1",
+		"global.anthropic.claude-opus-5",
+	} {
+		for _, thinking := range []string{"think before tool", ""} {
+			t.Run(model+"/thinking="+thinking, func(t *testing.T) {
+				testBedrockThinkingToolLoop(t, model, thinking)
+			})
+		}
+	}
+}
+
+func testBedrockThinkingToolLoop(t *testing.T, model, thinking string) {
+	t.Helper()
 	registry := tools.NewRegistry()
 	if err := registry.Register(&successTool{}); err != nil {
 		t.Fatalf("register tool: %v", err)
@@ -342,19 +362,23 @@ func TestBedrockClient_StreamChat_ToolLoop(t *testing.T) {
 
 	var captured []*bedrockruntime.ConverseStreamInput
 	callCount := 0
-	c := &BedrockClient{model: "global.anthropic.claude-sonnet-4-6"}
+	c := &BedrockClient{model: model}
 	c.streamImpl = func(ctx context.Context, params *bedrockruntime.ConverseStreamInput) (bedrockStream, error) {
 		captured = append(captured, params)
 		callCount++
 		if callCount == 1 {
-			return &mockBedrockStream{events: []brtypes.ConverseStreamOutput{
-				makeBedrockReasoningDelta(0, "think before tool"),
-				makeBedrockReasoningSignatureDelta(0, "sig_01"),
+			events := []brtypes.ConverseStreamOutput{
+				makeBedrockReasoningSignatureDelta(0, "sig_"),
+				makeBedrockReasoningSignatureDelta(0, "01"),
 				makeBedrockContentBlockStop(0),
 				makeBedrockToolUseStart(1, "toolu_01", "success_tool"),
 				makeBedrockToolUseDelta(1, `{"message":"hi"}`),
 				makeBedrockContentBlockStop(1),
-			}}, nil
+			}
+			if thinking != "" {
+				events = append([]brtypes.ConverseStreamOutput{makeBedrockReasoningDelta(0, thinking)}, events...)
+			}
+			return &mockBedrockStream{events: events}, nil
 		}
 		return &mockBedrockStream{events: []brtypes.ConverseStreamOutput{
 			makeBedrockTextDelta(0, "done"),
@@ -425,7 +449,7 @@ func TestBedrockClient_StreamChat_ToolLoop(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected reasoning text block, got %T", reasoningBlock.Value)
 	}
-	if aws.ToString(reasoningText.Value.Text) != "think before tool" {
+	if aws.ToString(reasoningText.Value.Text) != thinking {
 		t.Fatalf("expected reasoning text preserved, got %q", aws.ToString(reasoningText.Value.Text))
 	}
 	if aws.ToString(reasoningText.Value.Signature) != "sig_01" {

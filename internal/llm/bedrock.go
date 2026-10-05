@@ -511,7 +511,7 @@ func (c *BedrockClient) collectTurn(
 					sendStreamEvent(ctx, eventCh, core.StreamEvent{Type: core.StreamEventTypeReasoningChunk, Content: reasoning.Value})
 				case *brtypes.ReasoningContentBlockDeltaMemberSignature:
 					state.blockType = "reasoning"
-					state.signature = reasoning.Value
+					state.signature += reasoning.Value
 				case *brtypes.ReasoningContentBlockDeltaMemberRedactedContent:
 					state.blockType = "redacted_reasoning"
 					state.data = append(state.data, reasoning.Value...)
@@ -533,7 +533,7 @@ func (c *BedrockClient) collectTurn(
 					assistantBlocks = append(assistantBlocks, &brtypes.ContentBlockMemberText{Value: state.text})
 				}
 			case "reasoning":
-				if state.thinking != "" {
+				if state.thinking != "" || state.signature != "" {
 					var signature *string
 					if state.signature != "" {
 						signature = aws.String(state.signature)

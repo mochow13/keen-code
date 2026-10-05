@@ -242,9 +242,25 @@ func TestOpenAICompatibleClient_StreamChat_OpenCodeGoSessionHeader(t *testing.T)
 }
 
 func TestOpenAICompatibleClient_StreamChat_InjectsReasoningContentAcrossToolTurns(t *testing.T) {
+	testOpenAIReasoningToolLoop(t, config.ProviderDeepSeek, "deepseek-reasoner")
+}
+
+func TestOpenAICompatibleClient_NewModels_ReasoningToolLoop(t *testing.T) {
+	for _, tt := range []struct{ provider, model string }{
+		{config.ProviderDeepSeek, "deepseek-flash"},
+		{config.ProviderZAI, "glm-5.3-flashx"},
+	} {
+		t.Run(tt.provider+"/"+tt.model, func(t *testing.T) {
+			testOpenAIReasoningToolLoop(t, tt.provider, tt.model)
+		})
+	}
+}
+
+func testOpenAIReasoningToolLoop(t *testing.T, provider, model string) {
+	t.Helper()
 	client := &OpenAICompatibleClient{
-		provider: providerconfig.Provider(config.ProviderDeepSeek),
-		model:    "deepseek-reasoner",
+		provider: providerconfig.Provider(provider),
+		model:    model,
 	}
 
 	var requests []string
@@ -743,7 +759,7 @@ func TestOpenAICompatibleClient_MoonshotThinkingParameters(t *testing.T) {
 }
 
 func TestOpenAICompatibleClient_ZAIGLM52AndGLM53ThinkingParameters(t *testing.T) {
-	for _, model := range []string{"glm-5.2", "glm-5.3"} {
+	for _, model := range []string{"glm-5.2", "glm-5.3", "glm-5.3-flashx"} {
 		t.Run(model, func(t *testing.T) {
 			params := (&OpenAICompatibleClient{
 				provider:       providerconfig.Provider(config.ProviderZAI),
