@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-10-08
+
+### Added
+- Add the Liquid decision provider (`d1`, `d1:free`) to the decision registry.
+- Classify task complexity with the Jev task classifier.
+- Add latest provider model entries.
+- Add a REPL widget for selecting decision provider and model.
+
+### Fixed
+- Show only changed lines in edit diffs.
+- Clean up thinking-effort metadata (`glm-5.3-flash`, hy3/hy4 efforts).
 ## [0.58.0] - 2026-10-01
 
 ### Added
@@ -1031,7 +1042,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.58.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.59.0...HEAD
+[0.59.0]: https://github.com/mochow13/keen-code/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/mochow13/keen-code/compare/v0.57.1...v0.58.0
 [0.57.1]: https://github.com/mochow13/keen-code/compare/v0.57.0...v0.57.1
 [0.57.0]: https://github.com/mochow13/keen-code/compare/v0.56.2...v0.57.0
