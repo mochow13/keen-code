@@ -40,32 +40,40 @@ func (Factory) New(rawConfig json.RawMessage) (decision.Evaluator, error) {
 }
 
 type Evaluator struct {
-	baseURL string
-	apiKey  string
-	client  *http.Client
+	providerID string
+	baseURL    string
+	apiKey     string
+	client     *http.Client
 }
 
 func New(cfg Config) (*Evaluator, error) {
+	return NewWithProvider(cfg, ProviderID, defaultURL)
+}
+
+// NewWithProvider builds an evaluator for any SystemOne-compatible provider,
+// allowing callers to override the provider ID and default base URL.
+func NewWithProvider(cfg Config, providerID, fallbackURL string) (*Evaluator, error) {
 	apiKey := strings.TrimSpace(cfg.APIKey)
 	if apiKey == "" {
-		return nil, fmt.Errorf("no API key configured for %s", ProviderID)
+		return nil, fmt.Errorf("no API key configured for %s", providerID)
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	if baseURL == "" {
-		baseURL = defaultURL
+		baseURL = fallbackURL
 	}
 	return &Evaluator{
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		client:  &http.Client{Timeout: 3 * time.Second},
+		providerID: providerID,
+		baseURL:    baseURL,
+		apiKey:     apiKey,
+		client:     &http.Client{Timeout: 3 * time.Second},
 	}, nil
 }
 
-func (e *Evaluator) ID() string { return ProviderID }
+func (e *Evaluator) ID() string { return e.providerID }
 
 func (e *Evaluator) Evaluate(ctx context.Context, req decision.Request) (decision.Response, error) {
 	if e == nil {
-		return decision.Response{}, fmt.Errorf("TypeSafe evaluator is not initialized")
+		return decision.Response{}, fmt.Errorf("decision evaluator is not initialized")
 	}
 	if !json.Valid(req.State) {
 		return decision.Response{}, fmt.Errorf("decision state must be valid JSON")
@@ -83,7 +91,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, req decision.Request) (decisio
 	if err != nil {
 		return decision.Response{}, err
 	}
-	if err := validateResponse(response, req.Questions); err != nil {
+	if err := validateResponse(e.providerID, response, req.Questions); err != nil {
 		return decision.Response{}, err
 	}
 	return response, nil
@@ -118,18 +126,18 @@ func (e *Evaluator) evaluateOnce(ctx context.Context, payload []byte) (decision.
 
 	response, err := e.client.Do(httpReq)
 	if err != nil {
-		return decision.Response{}, fmt.Errorf("call TypeSafe API: %w", err)
+		return decision.Response{}, fmt.Errorf("call %s decision API: %w", e.providerID, err)
 	}
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
-		return decision.Response{}, fmt.Errorf("read TypeSafe response: %w", err)
+		return decision.Response{}, fmt.Errorf("read %s decision response: %w", e.providerID, err)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return decision.Response{}, fmt.Errorf("TypeSafe API returned HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
+		return decision.Response{}, fmt.Errorf("%s decision API returned HTTP %d: %s", e.providerID, response.StatusCode, strings.TrimSpace(string(body)))
 	}
-	return parseResponse(body)
+	return parseResponse(e.providerID, body)
 }
 
 type apiResponse struct {
@@ -153,13 +161,13 @@ type apiAnswer struct {
 	Legend        map[string]string  `json:"legend"`
 }
 
-func parseResponse(body []byte) (decision.Response, error) {
+func parseResponse(providerID string, body []byte) (decision.Response, error) {
 	var raw apiResponse
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return decision.Response{}, fmt.Errorf("decode TypeSafe response: %w", err)
+		return decision.Response{}, fmt.Errorf("decode %s decision response: %w", providerID, err)
 	}
 	if raw.Model == "" || raw.Answers == nil {
-		return decision.Response{}, fmt.Errorf("invalid TypeSafe response")
+		return decision.Response{}, fmt.Errorf("invalid %s decision response", providerID)
 	}
 	result := decision.Response{Model: raw.Model, Usage: decision.Usage{InputTokens: raw.Usage.InputTokens, OutputTokens: raw.Usage.OutputTokens}, Answers: make(map[string]decision.Answer, len(raw.Answers))}
 	for id, answer := range raw.Answers {
@@ -178,35 +186,35 @@ func parseResponse(body []byte) (decision.Response, error) {
 	return result, nil
 }
 
-func validateResponse(response decision.Response, questions map[string]decision.Question) error {
+func validateResponse(providerID string, response decision.Response, questions map[string]decision.Question) error {
 	if len(response.Answers) != len(questions) {
-		return fmt.Errorf("TypeSafe response answer count does not match request")
+		return fmt.Errorf("%s decision response answer count does not match request", providerID)
 	}
 	for id, question := range questions {
 		answer, ok := response.Answers[id]
 		if !ok || answer.Type != question.Type {
-			return fmt.Errorf("invalid TypeSafe answer for question %q", id)
+			return fmt.Errorf("invalid %s decision answer for question %q", providerID, id)
 		}
 		switch answer.Type {
 		case decision.QuestionChoice:
 			if answer.Choice == "" || len(answer.Probabilities) == 0 || !probability(answer.Confidence) {
-				return fmt.Errorf("invalid TypeSafe choice answer for question %q", id)
+				return fmt.Errorf("invalid %s choice answer for question %q", providerID, id)
 			}
 			for _, value := range answer.Probabilities {
 				if !probability(value) {
-					return fmt.Errorf("invalid TypeSafe choice probability for question %q", id)
+					return fmt.Errorf("invalid %s choice probability for question %q", providerID, id)
 				}
 			}
 		case decision.QuestionNoul:
 			if !probability(answer.Noul) {
-				return fmt.Errorf("invalid TypeSafe noul answer for question %q", id)
+				return fmt.Errorf("invalid %s noul answer for question %q", providerID, id)
 			}
 		case decision.QuestionScore:
 			if math.IsNaN(answer.Score) || math.IsInf(answer.Score, 0) || !probability(answer.Confidence) {
-				return fmt.Errorf("invalid TypeSafe score answer for question %q", id)
+				return fmt.Errorf("invalid %s score answer for question %q", providerID, id)
 			}
 		default:
-			return fmt.Errorf("unsupported TypeSafe answer type %q", answer.Type)
+			return fmt.Errorf("unsupported %s answer type %q", providerID, answer.Type)
 		}
 	}
 	return nil

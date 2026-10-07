@@ -18,6 +18,7 @@ import (
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/decision"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/memory"
 )
@@ -53,6 +54,13 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		m.viewport.GotoBottom()
 		return *m, tea.Batch(m.loading.spinner.Tick, cleanupCmd()), true
 
+	case input == replcommands.DecisionModel:
+		m.textarea.Reset()
+		return m.startDecisionModelSelection(), nil, true
+
+	case input == replcommands.Decision:
+		m.textarea.Reset()
+		return m.handleDecisionCommand(), nil, true
 	case input == replcommands.ModelAuto:
 		m.textarea.Reset()
 		return m.enableAutoClassification()
@@ -1191,6 +1199,41 @@ func (m *replModel) handleClearCommand() replModel {
 	m.output = newOutput
 
 	m.refreshContextStatus()
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
+	return *m
+}
+
+func (m *replModel) startDecisionModelSelection() replModel {
+	registry, err := decision.Load()
+	if err != nil {
+		m.output.AddError("Failed to load decision registry: "+err.Error(), repltheme.ErrorStyle)
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m
+	}
+	onComplete := func(provider, model string) error {
+		return m.classifiers.Configure(m.ctx.globalCfg)
+	}
+	m.decision.modelSelection = replwidgets.NewDecision(registry, m.ctx.globalCfg, m.ctx.loader, onComplete)
+	m.updateViewportContent()
+	m.viewport.GotoBottom()
+	return *m
+}
+
+func (m *replModel) handleDecisionCommand() replModel {
+	decisionCfg := m.ctx.globalCfg.Decision
+	if decisionCfg == nil || decisionCfg.ActiveProvider == "" {
+		m.output.AddStyledLine("  No decision model configured. Use /decision model to configure one.", repltheme.UsageHintStyle)
+	} else {
+		status := "disabled"
+		if decisionCfg.Enabled {
+			status = "enabled"
+		}
+		m.output.AddStyledLine(fmt.Sprintf("  Decision model: %s / %s (%s)", decisionCfg.ActiveProvider, decisionCfg.ActiveModel, status), repltheme.HighlightStyle)
+		m.output.AddStyledLine("  Use /decision model to change it, /model auto to enable task classification.", repltheme.UsageHintStyle)
+	}
+	m.output.AddEmptyLine()
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 	return *m

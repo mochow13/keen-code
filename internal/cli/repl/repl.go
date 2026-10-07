@@ -96,6 +96,7 @@ type replModel struct {
 	btw                 btwState
 	bang                bangState
 	adversary           adversaryState
+	decision            decisionState
 	lastSession         *session.Summary
 	projectPermsErr     error
 	initialScreenDone   bool
@@ -135,6 +136,10 @@ type btwState struct {
 	streamCancel  context.CancelFunc
 	showSpinner   bool
 	spinner       spinner.Model
+}
+
+type decisionState struct {
+	modelSelection *replwidgets.DecisionModel
 }
 
 type adversaryState struct {
@@ -298,12 +303,16 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 	model.stream.handler.SetWorkingDir(ctx.workingDir)
 	model.stream.handler.SetShowThinking(model.showThinking)
 	model.refreshGitBranch()
-	model.classifiers = newClassificationManager(ctx.globalCfg)
+	model.classifiers, err = newClassificationManager(ctx.globalCfg)
 
 	if ctx.resumeSession != nil {
 		model.sessions.setSession(ctx.resumeSession.Session)
 		model.replayLoadedSession(ctx.resumeSession)
 		model.initialScreenDone = true
+	}
+	if err != nil {
+		model.output.AddError("Task classification initialization failed. Check your decision provider configuration with /decision model.", repltheme.ErrorStyle)
+		model.output.AddEmptyLine()
 	}
 
 	historyDir, err := os.UserHomeDir()
@@ -547,6 +556,10 @@ func (m *replModel) updateViewportContent() {
 		content.WriteString(formatModelSelectionCard(m.modelSelection, m.viewport.Width()))
 	}
 
+	if m.decision.modelSelection != nil {
+		content.WriteString(formatModelSelectionCard(m.decision.modelSelection, m.viewport.Width()))
+	}
+
 	if m.adversary.modelSelection != nil {
 		content.WriteString(formatModelSelectionCard(m.adversary.modelSelection, m.viewport.Width()))
 	}
@@ -611,15 +624,23 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return updated, cmd
 	}
 
+	if updated, cmd, handled := m.consumeDecisionModelSelectionResult(msg); handled {
+		return updated, cmd
+	}
+
 	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.applyWindowSize(sizeMsg)
-		if m.modelSelection != nil {
+		if m.modelSelection != nil || m.decision.modelSelection != nil || m.adversary.modelSelection != nil {
 			m.updateViewportContent()
 		}
 		return m, nil
 	}
 
 	if m.modelSelection != nil {
+		return m.handleKeyMsg(msg)
+	}
+
+	if m.decision.modelSelection != nil {
 		return m.handleKeyMsg(msg)
 	}
 
@@ -630,6 +651,10 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case classifyResultMsg:
 		if msg.err != nil {
+			m.output.AddError("Task classification failed (provider request or response error).", repltheme.ErrorStyle)
+			m.output.AddEmptyLine()
+			m.updateViewportContent()
+			m.scrollToBottomIfFollowing()
 			return m, nil
 		}
 		m.output.AddStyledLine(fmt.Sprintf("  task: %s (p=%.2f) · consequential (p=%.2f)", msg.result.Category, msg.result.Probability, msg.result.Consequential), repltheme.FaintedStyle)
@@ -817,6 +842,34 @@ func (m replModel) consumeAdversaryModelSelectionResult(msg tea.Msg) (replModel,
 		m.output.AddStyledLine("  Adversary model selection cancelled", cancelStyle)
 		m.output.AddEmptyLine()
 		m.adversary.modelSelection = nil
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, nil, true
+	}
+
+	return m, nil, false
+}
+
+func (m replModel) consumeDecisionModelSelectionResult(msg tea.Msg) (replModel, tea.Cmd, bool) {
+	if m.decision.modelSelection == nil {
+		return m, nil, false
+	}
+
+	if replwidgets.IsComplete(msg) {
+		successMsg := "✓ Decision model set to " + m.decision.modelSelection.SelectedProvider + " / " + m.decision.modelSelection.SelectedModel
+		m.output.AddStyledLine("  "+successMsg, repltheme.HighlightStyle)
+		m.output.AddEmptyLine()
+		m.decision.modelSelection = nil
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return m, nil, true
+	}
+
+	if replwidgets.IsCancel(msg) {
+		cancelStyle := lipgloss.NewStyle().Foreground(repltheme.MutedColor)
+		m.output.AddStyledLine("  Decision model selection cancelled", cancelStyle)
+		m.output.AddEmptyLine()
+		m.decision.modelSelection = nil
 		m.updateViewportContent()
 		m.viewport.GotoBottom()
 		return m, nil, true

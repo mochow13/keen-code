@@ -4,3 +4,10 @@ providers:
     models:
       - id: jev-1.13.0
         name: Jev 1.13
+  - id: liquid
+    name: Liquid AI
+    models:
+      - id: d1
+        name: D1
+      - id: d1:free
+        name: D1 Free

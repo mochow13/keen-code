@@ -504,7 +504,7 @@ func (m *Model) renderProviderSelection() string {
 	var view strings.Builder
 	view.WriteString(repltheme.ModelSelectionTitleStyle.Render("Select a provider:"))
 	view.WriteString("\n\n")
-	view.WriteString(m.renderList(m.ProviderCursor, func(i int) string { return m.ProviderList[i].Name }, len(m.ProviderList)))
+	view.WriteString(renderList(m.ProviderCursor, func(i int) string { return m.ProviderList[i].Name }, len(m.ProviderList)))
 	view.WriteString("\n")
 	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
 	return view.String()
@@ -515,7 +515,7 @@ func (m *Model) renderModelSelection() string {
 	providerName := m.getProviderName(m.SelectedProvider)
 	view.WriteString(repltheme.ModelSelectionTitleStyle.Render(fmt.Sprintf("Select a model for %s:", providerName)))
 	view.WriteString("\n\n")
-	view.WriteString(m.renderList(m.ModelCursor, func(i int) string { return m.ModelList[i].Name }, len(m.ModelList)))
+	view.WriteString(renderList(m.ModelCursor, func(i int) string { return m.ModelList[i].Name }, len(m.ModelList)))
 	view.WriteString("\n")
 	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
 	return view.String()
@@ -525,7 +525,7 @@ func (m *Model) renderThinkingSelection() string {
 	var view strings.Builder
 	view.WriteString(repltheme.ModelSelectionThinkingStyle.Render("Select thinking effort:"))
 	view.WriteString("\n\n")
-	view.WriteString(m.renderList(m.ThinkingCursor, func(i int) string { return m.ThinkingOptions[i] }, len(m.ThinkingOptions)))
+	view.WriteString(renderList(m.ThinkingCursor, func(i int) string { return m.ThinkingOptions[i] }, len(m.ThinkingOptions)))
 	view.WriteString("\n")
 	view.WriteString(repltheme.ModelSelectionTextStyle.Render("[↑/↓ to navigate, Enter to select, Esc to cancel]"))
 	return view.String()
@@ -535,7 +535,7 @@ func (m *Model) renderUpdateProviderConfigs() string {
 	var view strings.Builder
 	view.WriteString(repltheme.ModelSelectionTitleStyle.Render("Update provider configs?"))
 	view.WriteString("\n\n")
-	view.WriteString(m.renderList(m.UpdateProviderConfigCursor, func(i int) string {
+	view.WriteString(renderList(m.UpdateProviderConfigCursor, func(i int) string {
 		return []string{"No", "Yes"}[i]
 	}, 2))
 	view.WriteString("\n")
@@ -634,9 +634,9 @@ func (m *Model) renderOAuthStatus() string {
 	return view.String()
 }
 
-func (m *Model) renderList(cursor int, getName func(int) string, count int) string {
-	var view strings.Builder
+func renderList(cursor int, getName func(int) string, count int) string {
 	start, end := visibleListRange(cursor, count, maxVisibleListItems)
+	var view strings.Builder
 	if start > 0 {
 		view.WriteString(repltheme.ModelSelectionTextStyle.Render("  ↑"))
 		view.WriteString("\n")

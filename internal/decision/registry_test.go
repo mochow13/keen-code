@@ -25,6 +25,14 @@ func TestLoadRegistry(t *testing.T) {
 	if !ok || model.Name != "Jev 1.13" {
 		t.Fatalf("model = %#v, found = %t", model, ok)
 	}
+	provider, ok = registry.GetProvider("liquid")
+	if !ok || provider.Name != "Liquid AI" {
+		t.Fatalf("provider = %#v, found = %t", provider, ok)
+	}
+	model, ok = registry.GetModel("liquid", "d1")
+	if !ok || model.Name != "D1" {
+		t.Fatalf("model = %#v, found = %t", model, ok)
+	}
 }
 
 func TestLoadRegistryRejectsUnknownFactory(t *testing.T) {

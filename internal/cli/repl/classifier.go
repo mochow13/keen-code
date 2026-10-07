@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/decision"
+	decisionliquid "github.com/mochow13/keen-code/internal/decision/liquid"
 	"github.com/mochow13/keen-code/internal/decision/tasks/taskcomplexity"
 	decisiontypesafe "github.com/mochow13/keen-code/internal/decision/typesafe"
 )
@@ -19,12 +20,12 @@ type classificationManager struct {
 	complexityExchange []taskcomplexity.Message
 }
 
-func newClassificationManager(global *config.GlobalConfig) *classificationManager {
+func newClassificationManager(global *config.GlobalConfig) (*classificationManager, error) {
 	manager := &classificationManager{}
 	if global != nil && global.Decision != nil && global.Decision.Enabled {
-		_ = manager.Configure(global)
+		return manager, manager.Configure(global)
 	}
-	return manager
+	return manager, nil
 }
 
 func (m *classificationManager) Configure(global *config.GlobalConfig) error {
@@ -40,7 +41,7 @@ func (m *classificationManager) Configure(global *config.GlobalConfig) error {
 	if err != nil {
 		return err
 	}
-	registry, err := decision.Load(decisiontypesafe.Factory{})
+	registry, err := decision.Load(decisiontypesafe.Factory{}, decisionliquid.Factory{})
 	if err != nil {
 		return err
 	}

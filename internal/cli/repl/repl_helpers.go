@@ -19,7 +19,6 @@ import (
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
-	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
 	"github.com/mochow13/keen-code/internal/mcpskills"
@@ -559,7 +558,7 @@ func checkForUpdate(currentVersion string) tea.Cmd {
 	}
 }
 
-func formatModelSelectionCard(ms *replwidgets.Model, width int) string {
+func formatModelSelectionCard(ms interface{ ViewString() string }, width int) string {
 	ruleWidth := defaultWidth
 	if width > 0 {
 		ruleWidth = width

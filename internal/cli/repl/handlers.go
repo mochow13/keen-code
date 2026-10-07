@@ -558,6 +558,13 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return *m, cmd
 	}
 
+	if m.decision.modelSelection != nil {
+		var cmd tea.Cmd
+		m.decision.modelSelection, cmd = m.decision.modelSelection.Update(msg)
+		m.updateViewportContent()
+		return *m, cmd
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return *m, nil

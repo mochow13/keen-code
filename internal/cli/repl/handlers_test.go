@@ -723,6 +723,23 @@ func TestUpdateNormalMode_ModelSelectionPasteGoesToAPIKeyInput(t *testing.T) {
 	}
 }
 
+func TestUpdateNormalMode_DecisionModelSelectionPasteGoesToAPIKeyInput(t *testing.T) {
+	m := newTestModel()
+	m.textarea.SetValue("existing prompt")
+	m.decision.modelSelection = &replwidgets.DecisionModel{
+		Step: replwidgets.StepAPIKey,
+	}
+
+	newM, _ := m.updateNormalMode(tea.PasteMsg{Content: "liquid_test_key_123"})
+
+	if newM.decision.modelSelection.APIKeyInput != "liquid_test_key_123" {
+		t.Fatalf("expected pasted API key to go to decision model selection, got %q", newM.decision.modelSelection.APIKeyInput)
+	}
+	if newM.textarea.Value() != "existing prompt" {
+		t.Fatalf("expected textarea to remain unchanged, got %q", newM.textarea.Value())
+	}
+}
+
 func TestHandleLLMChunk_MultipleCalls(t *testing.T) {
 	sh := replstream.NewStreamHandler(nil)
 	sh.Start(make(<-chan agentcore.StreamEvent), "Loading...")

@@ -302,6 +302,49 @@ func TestHandleEnterKey_ModelAutoEnablesClassification(t *testing.T) {
 	}
 }
 
+func TestHandleEnterKey_DecisionModelOpensSelection(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	m.ctx.loader = config.NewLoader()
+	m.textarea.SetValue(replcommands.DecisionModel)
+
+	updated, cmd := m.handleEnterKey()
+	if cmd != nil {
+		t.Fatal("expected no command")
+	}
+	if updated.decision.modelSelection == nil {
+		t.Fatal("expected decision model selection to open")
+	}
+	if len(updated.decision.modelSelection.ProviderList) != 2 {
+		t.Fatalf("providers = %d, want 2", len(updated.decision.modelSelection.ProviderList))
+	}
+}
+
+func TestHandleEnterKey_DecisionShowsStatus(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	m := newTestModel()
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	m.textarea.SetValue(replcommands.Decision)
+
+	updated, cmd := m.handleEnterKey()
+	if cmd != nil {
+		t.Fatal("expected no command")
+	}
+	if !strings.Contains(ansi.Strip(updated.output.Join()), "No decision model configured") {
+		t.Fatalf("output = %q", updated.output.Join())
+	}
+
+	m = newTestModel()
+	m.ctx.globalCfg = config.DefaultGlobalConfig()
+	m.ctx.globalCfg.Decision = &config.DecisionConfig{Enabled: true, ActiveProvider: "liquid", ActiveModel: "d1"}
+	updated = m.handleDecisionCommand()
+	out := ansi.Strip(updated.output.Join())
+	if !strings.Contains(out, "liquid / d1 (enabled)") {
+		t.Fatalf("output = %q", out)
+	}
+}
+
 func TestHandleEnterKey_SessionsCommand_EmptyState(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)

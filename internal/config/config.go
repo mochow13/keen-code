@@ -30,6 +30,7 @@ const (
 	ProviderBedrock          = "amazon-bedrock"
 	ProviderOpenAICompatible = "openai-compatible"
 	ProviderTypeSafe         = "typesafe"
+	ProviderLiquid           = "liquid"
 )
 
 const ConfigFixHint = "To fix configs manually, check ~/.keen/configs.json"

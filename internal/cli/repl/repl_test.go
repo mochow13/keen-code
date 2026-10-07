@@ -24,6 +24,7 @@ import (
 	repltooling "github.com/mochow13/keen-code/internal/cli/repl/tooling"
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
+	"github.com/mochow13/keen-code/internal/decision"
 	"github.com/mochow13/keen-code/internal/decision/tasks/taskcomplexity"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
@@ -1221,4 +1222,87 @@ func TestConsumeAdversaryModelSelectionResult(t *testing.T) {
 			t.Fatalf("output = %q", updated.output.Join())
 		}
 	})
+}
+
+func TestConsumeDecisionModelSelectionResult(t *testing.T) {
+	t.Run("inactive", func(t *testing.T) {
+		m := newTestModel()
+		_, cmd, handled := m.consumeDecisionModelSelectionResult(struct{}{})
+		if handled || cmd != nil {
+			t.Fatalf("handled = %t, cmd = %v", handled, cmd)
+		}
+	})
+
+	t.Run("unrelated message", func(t *testing.T) {
+		m := newTestModel()
+		m.decision.modelSelection = &replwidgets.DecisionModel{}
+		updated, cmd, handled := m.consumeDecisionModelSelectionResult(struct{}{})
+		if handled || cmd != nil || updated.decision.modelSelection == nil {
+			t.Fatalf("handled = %t, cmd = %v, selection = %#v", handled, cmd, updated.decision.modelSelection)
+		}
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		m := newTestModel()
+		selection := &replwidgets.DecisionModel{Step: replwidgets.StepAPIKey}
+		_, cancelCmd := selection.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		m.decision.modelSelection = selection
+
+		updated, cmd, handled := m.consumeDecisionModelSelectionResult(cancelCmd())
+		if !handled || cmd != nil || updated.decision.modelSelection != nil {
+			t.Fatalf("handled = %t, cmd = %v, selection = %#v", handled, cmd, updated.decision.modelSelection)
+		}
+		if !strings.Contains(ansi.Strip(updated.output.Join()), "Decision model selection cancelled") {
+			t.Fatalf("output = %q", updated.output.Join())
+		}
+	})
+}
+
+func TestUpdateViewportContent_RendersDecisionModelSelection(t *testing.T) {
+	m := newTestModel()
+	m.decision.modelSelection = &replwidgets.DecisionModel{
+		Step: replwidgets.StepProvider,
+		ProviderList: []decision.Provider{
+			{ID: "typesafe", Name: "TypeSafe"},
+		},
+	}
+	m.updateViewportContent()
+	view := m.viewport.View()
+	if !strings.Contains(view, "Select a decision provider:") {
+		t.Fatalf("expected decision provider selection card in viewport, got %q", view)
+	}
+}
+
+func TestUpdateNormalMode_ClassificationErrorRendersNotice(t *testing.T) {
+	m := newTestModel()
+	updated, cmd := m.updateNormalMode(classifyResultMsg{
+		err: errors.New("provider response containing sensitive details"),
+	})
+	if cmd != nil {
+		t.Fatal("expected no command")
+	}
+	output := ansi.Strip(updated.output.Join())
+	if !strings.Contains(output, "Task classification failed") {
+		t.Fatalf("output = %q", output)
+	}
+	if strings.Contains(output, "sensitive details") {
+		t.Fatal("raw provider error should not be displayed")
+	}
+	if !strings.Contains(ansi.Strip(updated.viewport.View()), "Task classification failed") {
+		t.Fatal("expected classification error in viewport")
+	}
+}
+
+func TestInitialModel_ClassificationInitializationFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, enabled := range []bool{false, true} {
+		m := newInitialModelTest(&replContext{
+			version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{},
+			globalCfg: &config.GlobalConfig{Decision: &config.DecisionConfig{Enabled: enabled}},
+		})
+		output := ansi.Strip(m.output.Join())
+		if got := strings.Contains(output, "Task classification initialization failed"); got != enabled {
+			t.Fatalf("enabled = %v, output = %q", enabled, output)
+		}
+	}
 }

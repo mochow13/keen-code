@@ -179,7 +179,7 @@ func TestSuggestionRefreshWithSkills(t *testing.T) {
 	if !s.visible {
 		t.Fatal("expected suggestions visible")
 	}
-	if len(s.items) != 1 || s.items[0].Name != "/deploy" {
+	if len(s.items) != 3 || s.items[0].Name != "/decision" || s.items[1].Name != "/decision model" || s.items[2].Name != "/deploy" {
 		t.Fatalf("unexpected items: %#v", s.items)
 	}
 }

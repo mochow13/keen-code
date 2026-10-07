@@ -9,6 +9,8 @@ const (
 	Clear           = "/clear"
 	Compact         = "/compact"
 	Context         = "/context"
+	Decision        = "/decision"
+	DecisionModel   = "/decision model"
 	Cleanup         = "/cleanup"
 	EmptyQueue      = "/emptyq"
 	Exit            = "/exit"
@@ -53,6 +55,8 @@ var All = []SlashCommand{
 	{Btw, "Ask a quick side question (not added to conversation)"},
 	{Clear, "Clear the session and create a new one (also /new)"},
 	{Compact, "Compact conversation context"},
+	{Decision, "Show decision model status"},
+	{DecisionModel, "Configure the decision provider, model, and API key"},
 	{Context, "Show context window usage breakdown"},
 	{Cleanup, "Remove expired Keen data and trim input history"},
 	{EmptyQueue, "Clear all queued messages"},
@@ -82,6 +86,8 @@ var Suggestions = []SlashCommand{
 	{Btw, "Ask a quick side question (not added to conversation)"},
 	{Clear, "Clear the session and create a new one (also /new)"},
 	{Compact, "Compact conversation context"},
+	{Decision, "Show decision model status"},
+	{DecisionModel, "Configure the decision provider, model, and API key"},
 	{Context, "Show context window usage breakdown"},
 	{Cleanup, "Remove expired Keen data and trim input history"},
 	{EmptyQueue, "Clear all queued messages"},
