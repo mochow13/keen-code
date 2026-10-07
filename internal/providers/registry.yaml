@@ -372,11 +372,11 @@ providers:
       - id: hy4-preview
         name: Hy4 preview
         context_window: 1024000
-        thinking_efforts: ["no_think", "high"]
+        thinking_efforts: ["none", "high"]
       - id: hy3
         name: Hy3
         context_window: 256000
-        thinking_efforts: ["no_think", "low", "high"]
+        thinking_efforts: ["none", "low", "high"]
       - id: omen-alpha
         name: Omen Alpha
         context_window: 500000
