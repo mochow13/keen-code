@@ -93,6 +93,10 @@ func (m *replModel) handleUsageViewKeyMsg(msg tea.KeyPressMsg) (replModel, tea.C
 		m.usageView.PrevRange()
 	case keyRight:
 		m.usageView.NextRange()
+	case keyUp:
+		m.usageView.PrevPage()
+	case keyDown:
+		m.usageView.NextPage()
 	case keyEsc, keyCtrlC:
 		m.usageView = nil
 	default:

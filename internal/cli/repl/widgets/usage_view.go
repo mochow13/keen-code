@@ -9,8 +9,11 @@ import (
 	"github.com/mochow13/keen-code/internal/usage"
 )
 
+const usagePageSize = 3
+
 type UsageView struct {
 	rangeIndex int
+	pageIndex  int
 	summaries  []usage.Summary
 }
 
@@ -26,24 +29,49 @@ func (v *UsageView) RangeIndex() int {
 }
 
 func (v *UsageView) NextRange() {
-	if v == nil {
+	if v == nil || len(v.summaries) == 0 {
 		return
 	}
 	v.rangeIndex = (v.rangeIndex + 1) % len(v.summaries)
+	v.pageIndex = 0
 }
 
 func (v *UsageView) PrevRange() {
-	if v == nil {
+	if v == nil || len(v.summaries) == 0 {
 		return
 	}
 	v.rangeIndex = (v.rangeIndex + len(v.summaries) - 1) % len(v.summaries)
+	v.pageIndex = 0
 }
 
 func (v *UsageView) CurrentSummary() usage.Summary {
-	if v == nil {
+	if v == nil || len(v.summaries) == 0 {
 		return usage.Summary{}
 	}
 	return v.summaries[v.rangeIndex]
+}
+
+func (v *UsageView) PageIndex() int {
+	if v == nil {
+		return 0
+	}
+	return v.pageIndex
+}
+
+func (v *UsageView) PageCount() int {
+	return max(1, (len(v.CurrentSummary().Rows)+usagePageSize-1)/usagePageSize)
+}
+
+func (v *UsageView) NextPage() {
+	if v != nil && v.pageIndex+1 < v.PageCount() {
+		v.pageIndex++
+	}
+}
+
+func (v *UsageView) PrevPage() {
+	if v != nil && v.pageIndex > 0 {
+		v.pageIndex--
+	}
 }
 
 func FormatUsageCard(view *UsageView, width int) string {
@@ -92,13 +120,15 @@ func FormatUsageCard(view *UsageView, width int) string {
 		body.WriteString(innerRule)
 		body.WriteString("\n\n")
 		body.WriteString(repltheme.ModelSelectionTitleStyle.Render("BY MODEL"))
+		body.WriteString("\n")
+		body.WriteString(repltheme.ModelSelectionTextStyle.Render("Page " + strconv.Itoa(view.PageIndex()+1) + " of " + strconv.Itoa(view.PageCount())))
 		body.WriteString("\n\n")
-		body.WriteString(formatUsageModelRows(sum, ruleWidth-2))
+		body.WriteString(formatUsageModelRows(sum, ruleWidth-2, view.PageIndex()))
 		body.WriteString("\n")
 	}
 
 	body.WriteString("\n")
-	body.WriteString(repltheme.ModelSelectionTextStyle.Render("←/→ change window   Esc close"))
+	body.WriteString(repltheme.ModelSelectionTextStyle.Render("←/→ change window   ↑/↓ change page   Esc close"))
 
 	lines := strings.Split(strings.TrimRight(body.String(), "\n"), "\n")
 	var out strings.Builder
@@ -157,7 +187,7 @@ func formatUsageMetricRows(total usage.ModelUsage, width int) string {
 	return formatUsageTotalMetrics(labels, values, width)
 }
 
-func formatUsageModelRows(sum usage.Summary, width int) string {
+func formatUsageModelRows(sum usage.Summary, width, pageIndex int) string {
 	var body strings.Builder
 	cells := usageTableCells(sum)
 	maxValue := 0
@@ -169,7 +199,9 @@ func formatUsageModelRows(sum usage.Summary, width int) string {
 		}
 	}
 
-	for i, row := range cells {
+	start := pageIndex * usagePageSize
+	end := min(start+usagePageSize, len(cells))
+	for i, row := range cells[start:end] {
 		if i > 0 {
 			body.WriteString("\n\n")
 		}

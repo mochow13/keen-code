@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -173,7 +174,7 @@ func TestUsageModelChartBarsScaleToSelectedWindow(t *testing.T) {
 		{Provider: "test", Model: "model-a", Input: 100, Output: 50, CacheRead: 25, CacheWrite: 8},
 		{Provider: "test", Model: "model-b", Input: 25, Output: 10, CacheRead: 0},
 	}}
-	chart := formatUsageModelRows(summary, 30)
+	chart := formatUsageModelRows(summary, 30, 0)
 	for _, want := range []string{
 		"model-a", "model-b", "Input", "Output", "Cache Read", "Cache Write",
 		stylePrefix(repltheme.UsageInputBarStyle) + strings.Repeat("█", 14),
@@ -215,5 +216,105 @@ func TestUsageModelChartUsesSelectedSummary(t *testing.T) {
 	}
 	if !strings.Contains(allTime, "█") || !strings.Contains(week, "█") {
 		t.Fatalf("expected model bar charts for both windows")
+	}
+}
+
+func TestUsageViewPagination(t *testing.T) {
+	for _, count := range []int{0, 1, 3, 4, 6, 7} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			summary := usage.Summary{Total: usage.ModelUsage{Input: 987654}}
+			for i := 0; i < count; i++ {
+				summary.Rows = append(summary.Rows, usage.ModelUsage{Model: fmt.Sprintf("model-%02d", i), Input: 100 + i})
+			}
+			view := NewUsageView([]usage.Summary{summary, {}})
+			pages := max(1, (count+2)/3)
+			if got := view.PageCount(); got != pages {
+				t.Fatalf("PageCount() = %d, want %d", got, pages)
+			}
+			view.PrevPage()
+			if view.PageIndex() != 0 {
+				t.Fatal("previous page should stop at first page")
+			}
+			for page := 0; page < pages; page++ {
+				if got := view.PageIndex(); got != page {
+					t.Fatalf("PageIndex() = %d, want %d", got, page)
+				}
+				card := FormatUsageCard(view, 80)
+				if count == 0 {
+					if !strings.Contains(card, "No usage recorded yet.") {
+						t.Fatal("expected empty state")
+					}
+				} else {
+					for _, want := range []string{fmt.Sprintf("Page %d of %d", page+1, pages), "987.7k", "↑/↓ change page"} {
+						if !strings.Contains(card, want) {
+							t.Fatalf("expected %q in card, got %q", want, card)
+						}
+					}
+				}
+				for i, row := range summary.Rows {
+					wantVisible := i >= page*3 && i < (page+1)*3
+					if strings.Contains(card, row.Model) != wantVisible {
+						t.Fatalf("page %d model %q visibility should be %v", page, row.Model, wantVisible)
+					}
+				}
+				view.NextPage()
+			}
+			if view.PageIndex() != pages-1 {
+				t.Fatal("next page should stop at last page")
+			}
+			for page := pages - 2; page >= 0; page-- {
+				view.PrevPage()
+				if view.PageIndex() != page {
+					t.Fatalf("previous page = %d, want %d", view.PageIndex(), page)
+				}
+			}
+		})
+	}
+}
+
+func TestUsageViewRangeChangeResetsPage(t *testing.T) {
+	rows := make([]usage.ModelUsage, 11)
+	view := NewUsageView([]usage.Summary{{Rows: rows}, {Rows: rows}, {}})
+	view.NextPage()
+	view.NextRange()
+	if view.PageIndex() != 0 {
+		t.Fatal("next range should reset page")
+	}
+	view.NextPage()
+	view.PrevRange()
+	if view.PageIndex() != 0 {
+		t.Fatal("previous range should reset page")
+	}
+	view.NextPage()
+	view.PrevRange()
+	if view.PageIndex() != 0 || len(view.CurrentSummary().Rows) != 0 {
+		t.Fatal("switching to empty range should reset page")
+	}
+}
+
+func TestUsageViewEmptySummaries(t *testing.T) {
+	for _, view := range []*UsageView{nil, NewUsageView(nil)} {
+		view.NextRange()
+		view.PrevRange()
+		view.NextPage()
+		view.PrevPage()
+		if view.PageIndex() != 0 || view.PageCount() != 1 || len(view.CurrentSummary().Rows) != 0 {
+			t.Fatal("expected empty view at first page")
+		}
+	}
+}
+
+func TestUsageModelChartScaleIsStableAcrossPages(t *testing.T) {
+	summary := usage.Summary{Rows: []usage.ModelUsage{
+		{Model: "largest", Input: 100},
+		{}, {},
+		{Model: "smaller", Input: 50},
+	}}
+	chart := formatUsageModelRows(summary, 30, 1)
+	if !strings.Contains(chart, "smaller") || strings.Contains(chart, "largest") {
+		t.Fatalf("expected only second page models, got %q", chart)
+	}
+	if !strings.Contains(chart, stylePrefix(repltheme.UsageInputBarStyle)+strings.Repeat("█", 7)) || strings.Contains(chart, strings.Repeat("█", 14)) {
+		t.Fatalf("expected bar scale to use full window maximum, got %q", chart)
 	}
 }

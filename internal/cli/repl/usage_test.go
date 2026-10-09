@@ -47,6 +47,47 @@ func TestUsageViewKeysCycleAndClose(t *testing.T) {
 	}
 }
 
+func TestUsageViewKeysPageModels(t *testing.T) {
+	rows := make([]usage.ModelUsage, 7)
+	rows[0].Model = "first-model"
+	rows[3].Model = "second-page-model"
+	rows[6].Model = "last-page-model"
+	m := replModel{
+		viewport: viewport.New(viewport.WithWidth(80), viewport.WithHeight(80)),
+		usageView: replwidgets.NewUsageView([]usage.Summary{
+			{Rows: rows}, {}, {}, {}, {}, {},
+		}),
+	}
+	for _, step := range []struct {
+		key  rune
+		page int
+	}{
+		{tea.KeyUp, 0},
+		{tea.KeyDown, 1},
+		{tea.KeyDown, 2},
+		{tea.KeyDown, 2},
+		{tea.KeyUp, 1},
+		{tea.KeyUp, 0},
+	} {
+		updated, cmd := m.handleKeyMsg(tea.KeyPressMsg{Code: step.key})
+		if cmd != nil || updated.usageView == nil || updated.usageView.PageIndex() != step.page {
+			t.Fatalf("key %v should select page %d: view=%v cmd=%v", step.key, step.page, updated.usageView, cmd)
+		}
+		m = updated
+		content := m.viewport.View()
+		for page, name := range []string{"first-model", "second-page-model", "last-page-model"} {
+			if strings.Contains(content, name) != (page == step.page) {
+				t.Fatalf("page %d has unexpected visibility for %q: %q", step.page, name, content)
+			}
+		}
+	}
+	m.usageView.NextPage()
+	updated, _ := m.handleKeyMsg(tea.KeyPressMsg{Code: tea.KeyRight})
+	if updated.usageView.PageIndex() != 0 || updated.usageView.RangeIndex() != 1 {
+		t.Fatal("changing window should reset to first page")
+	}
+}
+
 func TestMakeUsageRecordSplitsCacheTokens(t *testing.T) {
 	record, ok := makeUsageRecord("anthropic", "claude-sonnet-4-5", &agentcore.TokenUsage{
 		InputTokens:      100,
