@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-10-09
+
+### Added
+- Add decision-powered automatic model routing with `/model router`, persisted simple, standard, and complex provider/model/thinking selections, and authenticated-provider setup.
+- Add `/router` to view routing configuration and `/router config` to reconfigure category models.
+- Paginate per-model usage summaries with keyboard navigation.
+
+### Changed
+- Replace `/model auto` with `/model router`; run classification only while routing is enabled, with standard-model fallback on errors or timeout.
+- Keep classifier conversation history across routing activation changes and display classification results alongside the chosen response model.
+- Require Go 1.26.0 for source builds and prefer the patched Go 1.26.9 toolchain; CI and release builds use Go 1.26.9.
+
+### Fixed
+- Preserve partial assistant responses across automatic and manual model switches.
+- Generate accurate line-based edit diffs for separated insertions and deletions.
+- Upgrade Go and network dependencies to address reachable security vulnerabilities.
 ## [0.59.0] - 2026-10-08
 
 ### Added
@@ -1042,7 +1058,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.59.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.60.0...HEAD
+[0.60.0]: https://github.com/mochow13/keen-code/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/mochow13/keen-code/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/mochow13/keen-code/compare/v0.57.1...v0.58.0
 [0.57.1]: https://github.com/mochow13/keen-code/compare/v0.57.0...v0.57.1
