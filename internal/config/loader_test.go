@@ -161,7 +161,6 @@ func TestLoader_SaveAndLoadDecisionConfig(t *testing.T) {
 	loader := NewLoader()
 	cfg := DefaultGlobalConfig()
 	cfg.Decision = &DecisionConfig{
-		Enabled:        true,
 		ActiveProvider: ProviderTypeSafe,
 		ActiveModel:    "jev-1.13.0",
 		Providers: map[string]ProviderConfig{
@@ -175,7 +174,7 @@ func TestLoader_SaveAndLoadDecisionConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Decision == nil || !loaded.Decision.Enabled || loaded.Decision.ActiveProvider != ProviderTypeSafe || loaded.Decision.ActiveModel != "jev-1.13.0" {
+	if loaded.Decision == nil || loaded.Decision.ActiveProvider != ProviderTypeSafe || loaded.Decision.ActiveModel != "jev-1.13.0" {
 		t.Fatalf("decision config = %#v", loaded.Decision)
 	}
 	providerCfg := loaded.Decision.Providers[ProviderTypeSafe]

@@ -152,7 +152,6 @@ func (m *DecisionModel) complete() (*DecisionModel, tea.Cmd) {
 	decisionCfg.Providers[m.SelectedProvider] = providerCfg
 	decisionCfg.ActiveProvider = m.SelectedProvider
 	decisionCfg.ActiveModel = m.SelectedModel
-	decisionCfg.Enabled = true
 
 	if err := m.loader.Save(m.globalCfg); err != nil {
 		m.ErrorMessage = fmt.Sprintf("Failed to save config: %v", err)

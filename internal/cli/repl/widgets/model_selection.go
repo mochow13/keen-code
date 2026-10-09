@@ -75,6 +75,9 @@ type Model struct {
 	loader                     *config.Loader
 	resolvedCfg                *config.ResolvedConfig
 	onComplete                 func(provider, model, apiKey string) error
+	routerCategory             string
+	routerExisting             config.RouterModel
+	routerComplete             func(config.RouterModel) error
 }
 
 func New(registry *providers.Registry, globalCfg *config.GlobalConfig, loader *config.Loader, resolvedCfg *config.ResolvedConfig, onComplete func(provider, model, apiKey string) error) *Model {
@@ -119,6 +122,9 @@ func (m *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 	switch m.Step {
 	case StepProvider:
+		if len(m.ProviderList) == 0 && msg.String() != "esc" {
+			return m, nil
+		}
 		switch msg.String() {
 		case "up":
 			m.ProviderCursor = (m.ProviderCursor - 1 + len(m.ProviderList)) % len(m.ProviderList)
@@ -133,6 +139,13 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 			provider, _ := m.registry.GetProvider(m.SelectedProvider)
 			m.ModelList = provider.Models
 			m.ModelCursor = 0
+			if m.routerComplete != nil && m.SelectedProvider == m.routerExisting.Provider {
+				for i, model := range m.ModelList {
+					if model.ID == m.routerExisting.Model {
+						m.ModelCursor = i
+					}
+				}
+			}
 			m.ErrorMessage = ""
 			if config.AuthModeForProvider(m.SelectedProvider) == config.AuthModeOAuth && !m.authManager.HasCredential(m.SelectedProvider) {
 				return m.startOAuth()
@@ -143,6 +156,9 @@ func (m *Model) handleKeyMsg(msg tea.KeyPressMsg) (*Model, tea.Cmd) {
 		}
 
 	case StepModel:
+		if len(m.ModelList) == 0 && msg.String() != "esc" {
+			return m, nil
+		}
 		switch msg.String() {
 		case "up":
 			m.ModelCursor = (m.ModelCursor - 1 + len(m.ModelList)) % len(m.ModelList)
@@ -324,6 +340,9 @@ func (m *Model) Select(providerID, modelID string) (*Model, tea.Cmd, error) {
 }
 
 func (m *Model) continueAfterModelSelection() (*Model, tea.Cmd) {
+	if m.routerComplete != nil {
+		return m.completeRouterSelection()
+	}
 	if config.AuthModeForProvider(m.SelectedProvider) == config.AuthModeOAuth && !m.authManager.HasCredential(m.SelectedProvider) {
 		return m.startOAuth()
 	}
@@ -384,6 +403,9 @@ func (m *Model) handlePasteMsg(msg tea.PasteMsg) (*Model, tea.Cmd) {
 }
 
 func (m *Model) complete() (*Model, tea.Cmd) {
+	if m.routerComplete != nil {
+		return m.completeRouterSelection()
+	}
 	existing, exists := m.globalCfg.GetProviderConfig(m.SelectedProvider)
 
 	apiKey := m.APIKeyInput
@@ -479,6 +501,9 @@ func (m *Model) handleAPIKeyHelperResult(msg modelSelectionAPIKeyHelperResultMsg
 }
 
 func (m *Model) ViewString() string {
+	if m.routerComplete != nil {
+		return m.routerSelectionView()
+	}
 	switch m.Step {
 	case StepProvider:
 		return m.renderProviderSelection()

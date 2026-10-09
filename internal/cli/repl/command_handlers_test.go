@@ -283,21 +283,21 @@ func TestHandleEnterKey_UnknownModelPair(t *testing.T) {
 	}
 }
 
-func TestHandleEnterKey_ModelAutoEnablesClassification(t *testing.T) {
+func TestHandleEnterKey_RouterRequiresDecisionModel(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	m := newTestModel()
 	m.ctx.globalCfg = config.DefaultGlobalConfig()
 	m.ctx.loader = config.NewLoader()
-	m.textarea.SetValue(replcommands.ModelAuto)
+	m.textarea.SetValue(replcommands.ModelRouter)
 
 	updated, cmd := m.handleEnterKey()
 	if cmd != nil {
 		t.Fatal("expected no command")
 	}
-	if updated.ctx.globalCfg.Decision == nil || !updated.ctx.globalCfg.Decision.Enabled {
-		t.Fatalf("decision config = %#v", updated.ctx.globalCfg.Decision)
+	if updated.routerEnabled() {
+		t.Fatal("router must not activate without decision configuration")
 	}
-	if !strings.Contains(ansi.Strip(updated.output.Join()), "Auto classification enabled") {
+	if !strings.Contains(ansi.Strip(updated.output.Join()), "Configure decision model") {
 		t.Fatalf("output = %q", updated.output.Join())
 	}
 }
@@ -337,7 +337,8 @@ func TestHandleEnterKey_DecisionShowsStatus(t *testing.T) {
 
 	m = newTestModel()
 	m.ctx.globalCfg = config.DefaultGlobalConfig()
-	m.ctx.globalCfg.Decision = &config.DecisionConfig{Enabled: true, ActiveProvider: "liquid", ActiveModel: "d1"}
+	m.ctx.globalCfg.Decision = &config.DecisionConfig{ActiveProvider: "liquid", ActiveModel: "d1"}
+	m.ctx.globalCfg.Router = &config.RouterConfig{Enabled: true}
 	updated = m.handleDecisionCommand()
 	out := ansi.Strip(updated.output.Join())
 	if !strings.Contains(out, "liquid / d1 (enabled)") {

@@ -3,9 +3,7 @@ package repl
 import (
 	"context"
 	"fmt"
-	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/decision"
 	decisionliquid "github.com/mochow13/keen-code/internal/decision/liquid"
@@ -20,12 +18,8 @@ type classificationManager struct {
 	complexityExchange []taskcomplexity.Message
 }
 
-func newClassificationManager(global *config.GlobalConfig) (*classificationManager, error) {
-	manager := &classificationManager{}
-	if global != nil && global.Decision != nil && global.Decision.Enabled {
-		return manager, manager.Configure(global)
-	}
-	return manager, nil
+func newClassificationManager(_ *config.GlobalConfig) (*classificationManager, error) {
+	return &classificationManager{}, nil
 }
 
 func (m *classificationManager) Configure(global *config.GlobalConfig) error {
@@ -88,16 +82,4 @@ func (m *classificationManager) ClassifyTask(ctx context.Context, cwd, gitBranch
 		GitBranch: gitBranch,
 	})
 	return result, m.complexity.EvaluatorID(), err
-}
-
-func (m *classificationManager) classifyTaskCmd(cwd, gitBranch string) tea.Cmd {
-	if m == nil || m.complexity == nil {
-		return nil
-	}
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		result, provider, err := m.ClassifyTask(ctx, cwd, gitBranch)
-		return classifyResultMsg{result: result, err: err, provider: provider}
-	}
 }

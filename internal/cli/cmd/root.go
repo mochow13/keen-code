@@ -190,6 +190,14 @@ func loadRootRuntime() (*providers.Registry, *config.Loader, *config.GlobalConfi
 		return nil, nil, nil, nil, false, fmt.Errorf("failed to load config: %w", err)
 	}
 
+	if globalCfg.Router != nil && globalCfg.Router.Enabled && globalCfg.Router.Configured() {
+		model := globalCfg.Router.Standard
+		resolved, err := config.ResolveProvider(globalCfg, model.Provider, model.Model, model.ThinkingEffort)
+		if err != nil {
+			return nil, nil, nil, nil, false, err
+		}
+		return registry, loader, globalCfg, resolved, false, nil
+	}
 	if globalCfg.ActiveProvider == "" {
 		return registry, loader, globalCfg, &config.ResolvedConfig{}, true, nil
 	}

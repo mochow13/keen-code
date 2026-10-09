@@ -955,7 +955,11 @@ func (m *replModel) updateLLMClient() error {
 		m.agentCore.SetConfig(m.ctx.cfg)
 		m.agentCore.SetGlobalConfig(m.ctx.globalCfg)
 	}
-	return m.agentCore.UpdateClient()
+	if err := m.agentCore.UpdateClient(); err != nil {
+		return err
+	}
+	m.restorePendingRouterTurns()
+	return nil
 }
 
 func (m *replModel) handleSessionPersistenceError(err error) {

@@ -44,6 +44,7 @@ type GlobalConfig struct {
 	AdversaryModel    string                    `json:"adversary_model,omitempty"`
 	Providers         map[string]ProviderConfig `json:"providers"`
 	Decision          *DecisionConfig           `json:"decision,omitempty"`
+	Router            *RouterConfig             `json:"router,omitempty"`
 }
 
 type ProviderConfig struct {
@@ -55,7 +56,6 @@ type ProviderConfig struct {
 }
 
 type DecisionConfig struct {
-	Enabled        bool                      `json:"enabled"`
 	ActiveProvider string                    `json:"active_provider,omitempty"`
 	ActiveModel    string                    `json:"active_model,omitempty"`
 	Providers      map[string]ProviderConfig `json:"providers,omitempty"`

@@ -60,7 +60,7 @@ func TestDecisionSelectionConfiguresProviderModelAndKey(t *testing.T) {
 	}
 
 	decisionCfg := globalCfg.Decision
-	if decisionCfg == nil || !decisionCfg.Enabled {
+	if decisionCfg == nil {
 		t.Fatalf("decision config = %#v", decisionCfg)
 	}
 	if decisionCfg.ActiveProvider != "liquid" || decisionCfg.ActiveModel != "d1" {
