@@ -230,7 +230,7 @@ func (t *EditFileTool) Execute(ctx context.Context, input any) (any, error) {
 }
 
 func computeEditDiff(oldContent, newContent string) []EditDiffLine {
-	edits := udiff.Strings(oldContent, newContent)
+	edits := udiff.Lines(oldContent, newContent)
 	unified, err := udiff.ToUnifiedDiff("old", "new", oldContent, edits, 3)
 	if err != nil {
 		return nil

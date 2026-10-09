@@ -529,6 +529,74 @@ func TestComputeEditDiff_SingleLineChange(t *testing.T) {
 	}
 }
 
+func TestComputeEditDiff_SeparatedLongInsertions(t *testing.T) {
+	old := `type Event struct {
+	Seq uint64
+	Kind EventKind
+}
+
+type SessionStartedPayload struct {
+	SessionID string
+	CreatedAt time.Time
+	CWD string
+}
+
+type MessagePayload struct {
+	Content string
+}
+`
+	firstInsertion := "\tTaskClassification *TaskClassificationPayload `json:\"task_classification,omitempty\"`\n"
+	lastInsertion := `
+// TaskClassificationPayload is display metadata, not part of the LLM conversation.
+type TaskClassificationPayload struct {
+	Category string
+	Probability float64
+	Consequential float64
+	Provider string
+	Model string
+	Error string
+}
+`
+	new := strings.Replace(old, "\tKind EventKind\n", "\tKind EventKind\n"+firstInsertion, 1) + lastInsertion
+	inserted := strings.Split(strings.TrimSuffix(firstInsertion+lastInsertion, "\n"), "\n")
+
+	for _, tc := range []struct {
+		name     string
+		old, new string
+		kind     EditDiffLineKind
+	}{
+		{name: "insertions", old: old, new: new, kind: DiffLineAdded},
+		{name: "deletions", old: new, new: old, kind: DiffLineRemoved},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var changed []EditDiffLine
+			for _, line := range computeEditDiff(tc.old, tc.new) {
+				if line.Kind == DiffLineAdded || line.Kind == DiffLineRemoved {
+					changed = append(changed, line)
+				}
+			}
+			if len(changed) != len(inserted) {
+				t.Fatalf("expected %d changed lines, got %d: %+v", len(inserted), len(changed), changed)
+			}
+			for i, line := range changed {
+				if line.Kind != tc.kind || line.Content != inserted[i] {
+					t.Errorf("change %d: expected kind %d and content %q, got %+v", i, tc.kind, inserted[i], line)
+				}
+				wantLineNum := 4
+				if i > 0 {
+					wantLineNum = 15 + i
+				}
+				if tc.kind == DiffLineAdded && (line.NewLineNum != wantLineNum || line.OldLineNum != 0) {
+					t.Errorf("change %d: expected new line %d and no old line, got %+v", i, wantLineNum, line)
+				}
+				if tc.kind == DiffLineRemoved && (line.OldLineNum != wantLineNum || line.NewLineNum != 0) {
+					t.Errorf("change %d: expected old line %d and no new line, got %+v", i, wantLineNum, line)
+				}
+			}
+		})
+	}
+}
+
 func TestEditFileTool_Execute_ProjectMemoryPathRejectsSecret(t *testing.T) {
 	tmpDir := t.TempDir()
 	memFile := filepath.Join(tmpDir, ".keen", "MEMORY.md")
