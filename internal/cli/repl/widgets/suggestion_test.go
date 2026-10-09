@@ -31,8 +31,8 @@ func TestFilterCommandsH(t *testing.T) {
 
 func TestFilterCommandsM(t *testing.T) {
 	got := replcommands.Filter("/m")
-	if len(got) != 7 || got[0].Name != "/memory" || got[1].Name != "/memory show" || got[2].Name != "/mcp" || got[3].Name != "/mcp connect" || got[4].Name != "/mcp status" || got[5].Name != "/model" || got[6].Name != "/mode" {
-		t.Errorf("expected /memory, /memory show, /mcp, /mcp connect, /mcp status, /model and /mode, got %v", got)
+	if len(got) != 8 || got[0].Name != "/memory" || got[1].Name != "/memory show" || got[2].Name != "/mcp" || got[3].Name != "/mcp connect" || got[4].Name != "/mcp status" || got[5].Name != "/model" || got[6].Name != "/model router" || got[7].Name != "/mode" {
+		t.Errorf("expected memory, mcp, model, model router, and mode suggestions, got %v", got)
 	}
 }
 

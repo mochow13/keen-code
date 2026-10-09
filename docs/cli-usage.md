@@ -11,6 +11,10 @@ Keen Code provides slash commands (prefixed with `/`) for controlling the agent.
 | `/btw <question>` | Ask a quick side question without adding it to the main conversation |
 | `/help` | Show available commands |
 | `/model` | Change provider or model |
+| `/model router` | Configure and enable per-prompt model routing |
+| `/router` | Show router configuration and activation status |
+| `/router config` | Reconfigure simple, standard, and complex models |
+| `/decision model` | Select the decision provider and model used for classification |
 | `/allow-permission <tool_names...>` | Always allow these tools without prompting |
 | `/reset-permission <tool_names...>` | Reset tool permissions to Keen's default mechanism |
 | `/thinking <effort>` | Set thinking effort for the current model |
@@ -124,6 +128,25 @@ Navigation:
 API keys are masked while typed. If an API key already exists for the provider, press `Enter` on an empty API-key prompt to keep it.
 
 Custom HTTP headers for a provider can be configured by editing `~/.keen/configs.json` directly. See [`docs/ai-providers.md`](ai-providers.md#custom-headers).
+
+## `/model router`
+
+Use `/decision model` to configure the classifier, then `/model router` to enable per-prompt model routing. On first use, select a provider, model, and supported thinking effort for **simple**, **standard**, and **complex** tasks. Router setup lists only providers with stored API-key or OAuth credentials.
+
+- `/model router` skips setup when all categories are already configured. `router` also appears in `/model` suggestions.
+- Selecting a regular model disables routing.
+- Without a decision model, Keen shows: Configure decision model with `/decision model` command to use router.
+
+Router selections and activation persist in `~/.keen/configs.json`. Each prompt is classified before its response starts; classification errors or the five-second timeout fall back to the standard model. While enabled, the input metadata shows `<decision-provider>/<decision-model> (router)`.
+
+## `/router`
+
+Shows the saved provider, model, and thinking effort for each category, along with the router's activation status.
+
+## `/router config`
+
+Reruns router setup with existing choices preselected. Cancelling preserves the previous configuration; changes are saved only after all three categories are completed. Reconfiguration preserves the router's activation status.
+
 ## `/mode [plan|build|yolo]`
 
 Shows or switches the agent mode. Bare `/mode` prints the current mode; `/mode <name>` switches to `plan`, `build`, or `yolo` and prints a `Mode:` status line. An invalid name prints `Usage: /mode plan|build|yolo` and keeps the current mode.

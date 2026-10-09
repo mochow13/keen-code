@@ -27,8 +27,7 @@ func TestNewClassificationManagerInitialization(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "unconfigured"},
-		{name: "disabled", global: &config.GlobalConfig{Decision: &config.DecisionConfig{}}},
-		{name: "enabled without provider", global: &config.GlobalConfig{Decision: &config.DecisionConfig{Enabled: true}}, wantErr: true},
+		{name: "router enabled without decision provider", global: &config.GlobalConfig{Router: &config.RouterConfig{Enabled: true}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			manager, err := newClassificationManager(tc.global)

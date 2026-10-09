@@ -106,6 +106,7 @@ type replModel struct {
 	subagentActivity    <-chan agentcore.ToolActivity
 	subagentUsage       <-chan usage.Record
 	classifiers         *classificationManager
+	router              routerState
 }
 
 type toolHistoryMode uint8
@@ -325,7 +326,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 
 	model.refreshContextStatus()
 
-	if needsSetup {
+	if needsSetup && !model.routerEnabled() {
 		welcomeStyle := lipgloss.NewStyle().Foreground(repltheme.PrimaryColor).Bold(true)
 		model.output.AddEmptyLine()
 		model.output.AddStyledLine(welcomeStyle.Render("👋 Welcome to Keen!"), lipgloss.NewStyle())
@@ -393,7 +394,7 @@ func (m *replModel) handleEnterKey() (replModel, tea.Cmd) {
 		return *m, m.showNotification("Queue cleared")
 	}
 
-	if m.stream.handler.IsActive() || m.compaction.active {
+	if m.stream.handler.IsActive() || m.compaction.active || m.router.pending {
 		if m.isQueueable(input) {
 			if len(m.queuedInputs) < maxQueuedInputs {
 				m.queuedInputs = append(m.queuedInputs, input)
@@ -433,6 +434,16 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 		input = activated
 	}
 
+	if m.routerEnabled() {
+		return m.beginRouterPrompt(input, fromQueue)
+	}
+	return m.submitPrompt(input, fromQueue, false)
+}
+
+func (m *replModel) submitPrompt(input string, fromQueue, routed bool) (replModel, tea.Cmd) {
+	if routed {
+		m.stopLoading()
+	}
 	if !m.agentCore.IsReady() {
 		m.output.AddError("LLM client not initialized. Use /model to configure.", repltheme.ErrorStyle)
 		if !fromQueue {
@@ -465,9 +476,10 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 		m.viewport.GotoBottom()
 		return *m, nil
 	}
-	m.classifiers.RecordUserMessage(input)
-	classificationCmd := m.classifiers.classifyTaskCmd(m.ctx.workingDir, m.gitBranch)
 
+	if !routed {
+		m.classifiers.RecordUserMessage(input)
+	}
 	m.startLoading(nextLoadingText())
 	m.startAssistantTurnMemory()
 	m.stream.handler.Start(eventCh, m.loading.text)
@@ -479,7 +491,7 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
-	return *m, tea.Batch(m.loading.spinner.Tick, m.waitForAsyncEvent(), classificationCmd)
+	return *m, tea.Batch(m.loading.spinner.Tick, m.waitForAsyncEvent())
 }
 
 func (m *replModel) showNotification(msg string) tea.Cmd {
@@ -616,6 +628,12 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return updated, cmd
 	}
 
+	if routerMsg, ok := msg.(routerResultMsg); ok {
+		return m.handleRouterResult(routerMsg)
+	}
+	if updated, cmd, handled := m.consumeRouterSelection(msg); handled {
+		return updated, cmd
+	}
 	if updated, cmd, handled := m.consumeModelSelectionResult(msg); handled {
 		return updated, cmd
 	}
@@ -649,20 +667,6 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case classifyResultMsg:
-		if msg.err != nil {
-			m.output.AddError("Task classification failed (provider request or response error).", repltheme.ErrorStyle)
-			m.output.AddEmptyLine()
-			m.updateViewportContent()
-			m.scrollToBottomIfFollowing()
-			return m, nil
-		}
-		m.output.AddStyledLine(fmt.Sprintf("  task: %s (p=%.2f) · consequential (p=%.2f)", msg.result.Category, msg.result.Probability, msg.result.Consequential), repltheme.FaintedStyle)
-		m.output.AddEmptyLine()
-		m.recordUsage(msg.provider, msg.result.Model, &agentcore.TokenUsage{InputTokens: msg.result.Usage.InputTokens, OutputTokens: msg.result.Usage.OutputTokens})
-		m.updateViewportContent()
-		m.scrollToBottomIfFollowing()
-		return m, nil
 	case compactionDoneMsg:
 		return m.handleCompactionDone()
 	case compactionErrMsg:
@@ -1012,6 +1016,10 @@ func (m replModel) inputMetaLocationLine() string {
 }
 
 func (m replModel) inputMetaModel() string {
+	if m.routerEnabled() && m.ctx.globalCfg.Decision != nil {
+		d := m.ctx.globalCfg.Decision
+		return d.ActiveProvider + "/" + d.ActiveModel + " (router)"
+	}
 	if m.ctx == nil || m.ctx.cfg == nil || m.ctx.cfg.Model == "" {
 		return "-"
 	}
@@ -1085,6 +1093,7 @@ func (m *replModel) replayLoadedSession(loaded *session.LoadedSession) {
 
 	m.output = replay.output
 	m.agentCore.ReplaceMessages(agentcore.FromCoreMessages(session.BuildConversation(loaded.Events)))
+	m.router.pendingTurns = nil
 	m.history.Reset()
 	m.sessionPicker = nil
 	m.contextStatus.ResetTotals()

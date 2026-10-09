@@ -86,6 +86,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 		TurnMemory: m.consumeTurnMemory(),
 	}
 	m.agentCore.AppendMessage(assistantMessage)
+	m.router.pendingTurns = nil
 	if err := m.sessions.appendAssistantTurn(segments, assistantMessage, false, ""); err != nil {
 		m.handleSessionPersistenceError(err)
 	}
@@ -123,6 +124,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 	if persistErr := m.sessions.appendAssistantTurn(segments, assistantMessage, false, errMsg); persistErr != nil {
 		m.handleSessionPersistenceError(persistErr)
 	}
+	m.rememberPendingRouterTurn(assistantMessage)
 	m.classifiers.RecordAssistantMessage(partialResponse)
 	for _, line := range pendingLines {
 		m.output.AddLine(line)
@@ -238,6 +240,7 @@ func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionE
 	m.clearTurnMemory()
 	lines, _, _ := m.stream.handler.Checkpoint()
 	m.agentCore.ReplaceMessages(persistedReplacement)
+	m.router.pendingTurns = nil
 	m.startAssistantTurnMemory()
 	m.agentCore.ClearContextMetrics()
 	m.refreshContextStatus()
@@ -282,6 +285,7 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	if err := m.agentCore.ApplyCompaction(summary); err != nil {
 		return m.handleCompactionError(err)
 	}
+	m.router.pendingTurns = nil
 	m.refreshContextStatus()
 	for _, line := range responseLines {
 		m.output.AddLine(line)
@@ -569,6 +573,17 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 	if !ok {
 		return *m, nil
 	}
+	if m.router.pending && (keyMsg.String() == keyEsc || keyMsg.String() == keyCtrlC || keyMsg.String() == keyCtrlD) {
+		if m.router.cancel != nil {
+			m.router.cancel()
+		}
+		m.router.pending, m.router.cancel = false, nil
+		m.stopLoading()
+		m.output.AddStyledLine("  Routing cancelled", repltheme.UsageHintStyle)
+		m.output.AddEmptyLine()
+		m.updateViewportContent()
+		return m.drainQueuedInput()
+	}
 
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		switch keyMsg.String() {
@@ -767,7 +782,7 @@ func (m *replModel) modelPairs() []string {
 	if m.ctx == nil || m.ctx.registry == nil {
 		return nil
 	}
-	pairs := make([]string, 0)
+	pairs := []string{"router"}
 	for _, provider := range m.ctx.registry.Providers {
 		for _, model := range provider.Models {
 			pairs = append(pairs, provider.ID+"/"+model.ID)
@@ -838,6 +853,7 @@ func (m *replModel) interruptStream(message string) {
 	if persistErr := m.sessions.appendAssistantTurn(segments, assistantMessage, true, ""); persistErr != nil {
 		m.handleSessionPersistenceError(persistErr)
 	}
+	m.rememberPendingRouterTurn(assistantMessage)
 	m.classifiers.RecordAssistantMessage(partialResponse)
 
 	m.adjustTextareaHeight()

@@ -92,13 +92,14 @@ type mockAgentCore struct {
 	ready               bool
 	lastUsage           *agentcore.TokenUsage
 	resetCount          int
+	updateCount         int
 	registeredToolNames []string
 	cfg                 *config.ResolvedConfig
 	globalCfg           *config.GlobalConfig
 }
 
 func (m *mockAgentCore) IsReady() bool             { return m.ready }
-func (m *mockAgentCore) UpdateClient() error       { return nil }
+func (m *mockAgentCore) UpdateClient() error       { m.updateCount++; return nil }
 func (m *mockAgentCore) ClearClient()              { m.ready = false }
 func (m *mockAgentCore) ResetClientState()         { m.resetCount++ }
 func (m *mockAgentCore) IsAdversaryReady() bool    { return false }

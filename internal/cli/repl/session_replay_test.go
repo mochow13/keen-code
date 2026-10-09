@@ -197,3 +197,11 @@ func TestBuildAssistantTurnEvent_MixedTranscript(t *testing.T) {
 		t.Fatal("expected diff payload")
 	}
 }
+
+func TestSessionReplayIgnoresLegacyClassification(t *testing.T) {
+	replay := newSessionReplay(120, nil, "")
+	replay.applyEvent(session.Event{Kind: session.EventKind("task_classification")})
+	if got := replay.output.Join(); got != "" {
+		t.Fatalf("legacy classification rendered: %q", got)
+	}
+}

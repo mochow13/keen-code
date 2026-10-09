@@ -25,7 +25,6 @@ import (
 	replwidgets "github.com/mochow13/keen-code/internal/cli/repl/widgets"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/decision"
-	"github.com/mochow13/keen-code/internal/decision/tasks/taskcomplexity"
 	"github.com/mochow13/keen-code/internal/providers"
 	"github.com/mochow13/keen-code/internal/session"
 )
@@ -496,25 +495,6 @@ func TestHandleLLMStreamMsg_UnknownMsg(t *testing.T) {
 
 	if handled {
 		t.Error("expected unknown msg to not be handled")
-	}
-}
-
-func TestUpdateNormalMode_ClassificationResultRendersNotice(t *testing.T) {
-	m := newTestModel()
-	updated, cmd := m.updateNormalMode(classifyResultMsg{
-		provider: "typesafe",
-		result: taskcomplexity.Result{
-			Category:      taskcomplexity.CategoryStandard,
-			Probability:   0.62,
-			Consequential: 0.81,
-			Model:         "jev-test",
-		},
-	})
-	if cmd != nil {
-		t.Fatal("expected no command")
-	}
-	if !strings.Contains(ansi.Strip(updated.output.Join()), "task: standard (p=0.62) · consequential (p=0.81)") {
-		t.Fatalf("output = %q", updated.output.Join())
 	}
 }
 
@@ -1273,36 +1253,14 @@ func TestUpdateViewportContent_RendersDecisionModelSelection(t *testing.T) {
 	}
 }
 
-func TestUpdateNormalMode_ClassificationErrorRendersNotice(t *testing.T) {
-	m := newTestModel()
-	updated, cmd := m.updateNormalMode(classifyResultMsg{
-		err: errors.New("provider response containing sensitive details"),
-	})
-	if cmd != nil {
-		t.Fatal("expected no command")
-	}
-	output := ansi.Strip(updated.output.Join())
-	if !strings.Contains(output, "Task classification failed") {
-		t.Fatalf("output = %q", output)
-	}
-	if strings.Contains(output, "sensitive details") {
-		t.Fatal("raw provider error should not be displayed")
-	}
-	if !strings.Contains(ansi.Strip(updated.viewport.View()), "Task classification failed") {
-		t.Fatal("expected classification error in viewport")
-	}
-}
-
 func TestInitialModel_ClassificationInitializationFailure(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	for _, enabled := range []bool{false, true} {
-		m := newInitialModelTest(&replContext{
-			version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{},
-			globalCfg: &config.GlobalConfig{Decision: &config.DecisionConfig{Enabled: enabled}},
-		})
-		output := ansi.Strip(m.output.Join())
-		if got := strings.Contains(output, "Task classification initialization failed"); got != enabled {
-			t.Fatalf("enabled = %v, output = %q", enabled, output)
-		}
+	m := newInitialModelTest(&replContext{
+		version: "test", workingDir: t.TempDir(), cfg: &config.ResolvedConfig{},
+		globalCfg: &config.GlobalConfig{Router: &config.RouterConfig{Enabled: true}},
+	})
+	output := ansi.Strip(m.output.Join())
+	if strings.Contains(output, "Task classification initialization failed") {
+		t.Fatalf("classification must not initialize at startup: %q", output)
 	}
 }

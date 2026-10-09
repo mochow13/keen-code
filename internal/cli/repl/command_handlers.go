@@ -61,9 +61,15 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 	case input == replcommands.Decision:
 		m.textarea.Reset()
 		return m.handleDecisionCommand(), nil, true
-	case input == replcommands.ModelAuto:
+	case input == replcommands.ModelRouter:
 		m.textarea.Reset()
-		return m.enableAutoClassification()
+		return m.enableRouter(false), nil, true
+	case input == replcommands.RouterConfig:
+		m.textarea.Reset()
+		return m.enableRouter(true), nil, true
+	case input == replcommands.Router:
+		m.textarea.Reset()
+		return m.showRouter(), nil, true
 
 	case input == replcommands.Model:
 		m.textarea.Reset()
@@ -210,7 +216,13 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 
 func (m *replModel) startModelSelection() replModel {
 	onComplete := func(provider, model, apiKey string) error {
-		return m.updateLLMClient()
+		if err := m.updateLLMClient(); err != nil {
+			return err
+		}
+		if m.ctx.globalCfg.Router != nil {
+			m.ctx.globalCfg.Router.Enabled = false
+		}
+		return m.ctx.loader.Save(m.ctx.globalCfg)
 	}
 	m.modelSelection = replwidgets.New(
 		m.ctx.registry,
@@ -285,6 +297,13 @@ func (m *replModel) startCompaction(extraPrompt string) (replModel, tea.Cmd) {
 }
 
 func (m *replModel) handleThinkingCommand(input string) (replModel, tea.Cmd) {
+	if m.routerEnabled() {
+		m.output.AddStyledLine("  Thinking effort cannot be set while routing is enabled because each router category has its own thinking setting. Use /router config to change those settings, or select a model with /model to disable routing.", repltheme.UsageHintStyle)
+		m.output.AddEmptyLine()
+		m.updateViewportContent()
+		m.viewport.GotoBottom()
+		return *m, nil
+	}
 	effort := strings.TrimSpace(strings.TrimPrefix(input, replcommands.Thinking))
 
 	modelMeta, ok := m.ctx.registry.GetModel(m.ctx.cfg.Provider, m.ctx.cfg.Model)
@@ -1173,6 +1192,7 @@ func (m *replModel) handleClearCommand() replModel {
 	currentMode := m.currentMode()
 	m.agentCore.ClearMessages()
 	m.agentCore.ResetClientState()
+	m.router.pendingTurns = nil
 	m.agentCore.ClearContextMetrics()
 	m.contextStatus.ResetTotals()
 	m.agentCore.SetMode(currentMode)
@@ -1227,44 +1247,16 @@ func (m *replModel) handleDecisionCommand() replModel {
 		m.output.AddStyledLine("  No decision model configured. Use /decision model to configure one.", repltheme.UsageHintStyle)
 	} else {
 		status := "disabled"
-		if decisionCfg.Enabled {
+		if m.routerEnabled() {
 			status = "enabled"
 		}
 		m.output.AddStyledLine(fmt.Sprintf("  Decision model: %s / %s (%s)", decisionCfg.ActiveProvider, decisionCfg.ActiveModel, status), repltheme.HighlightStyle)
-		m.output.AddStyledLine("  Use /decision model to change it, /model auto to enable task classification.", repltheme.UsageHintStyle)
+		m.output.AddStyledLine("  Use /decision model to change it, /model router to enable model routing.", repltheme.UsageHintStyle)
 	}
 	m.output.AddEmptyLine()
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 	return *m
-}
-
-func (m *replModel) enableAutoClassification() (replModel, tea.Cmd, bool) {
-	if m.ctx == nil || m.ctx.globalCfg == nil || m.ctx.loader == nil {
-		m.output.AddError("Decision configuration is unavailable.", repltheme.ErrorStyle)
-		m.updateViewportContent()
-		m.viewport.GotoBottom()
-		return *m, nil, true
-	}
-	if m.ctx.globalCfg.Decision == nil {
-		m.ctx.globalCfg.Decision = &config.DecisionConfig{}
-	}
-	m.ctx.globalCfg.Decision.Enabled = true
-	if err := m.ctx.loader.Save(m.ctx.globalCfg); err != nil {
-		m.output.AddError("Failed to save config: "+err.Error(), repltheme.ErrorStyle)
-		m.updateViewportContent()
-		m.viewport.GotoBottom()
-		return *m, nil, true
-	}
-	if err := m.classifiers.Configure(m.ctx.globalCfg); err != nil {
-		m.output.AddStyledLine("  Auto classification enabled — configure an active decision provider to show task categories", repltheme.UsageHintStyle)
-	} else {
-		m.output.AddStyledLine("  ✓ Auto classification enabled — task categories will be shown each session", repltheme.HighlightStyle)
-	}
-	m.output.AddEmptyLine()
-	m.updateViewportContent()
-	m.viewport.GotoBottom()
-	return *m, nil, true
 }
 
 func (m *replModel) helpWidth() int {

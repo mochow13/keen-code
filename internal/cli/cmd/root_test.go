@@ -442,3 +442,22 @@ func writeRootConfig(t *testing.T, home, content string) {
 		t.Fatalf("write config: %v", err)
 	}
 }
+
+func TestLoadRootRuntimeRestoresRouterStandardModel(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cfg := config.DefaultGlobalConfig()
+	cfg.ActiveProvider = "obsolete-provider"
+	cfg.Providers[config.ProviderOpenAI] = config.ProviderConfig{APIKey: "test-key"}
+	choice := config.RouterModel{Provider: config.ProviderOpenAI, Model: "gpt-5.4", ThinkingEffort: "high"}
+	cfg.Router = &config.RouterConfig{Enabled: true, Simple: choice, Standard: choice, Complex: choice}
+	if err := config.NewLoader().Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	_, _, loaded, resolved, needsSetup, err := loadRootRuntime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if needsSetup || !loaded.Router.Enabled || resolved.Provider != choice.Provider || resolved.Model != choice.Model || resolved.ThinkingEffort != choice.ThinkingEffort {
+		t.Fatalf("router runtime not restored: %#v", resolved)
+	}
+}
