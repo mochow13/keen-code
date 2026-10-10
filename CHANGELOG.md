@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-10-10
+
+### Added
+- Add independent `--model-config` and `--mcp-config` flags for selecting model/provider and MCP server configuration files in interactive and headless runs, while preserving the default paths.
+
+### Changed
+- Remove the OpenCode Go `qwen3.7-max` and `omen-alpha` model entries and Omen Alpha reasoning-effort support.
+
+### Fixed
+- Reject empty custom configuration paths and report errors for missing or invalid explicitly selected configuration files instead of silently using defaults or continuing without MCP.
+- Save model configuration changes to the selected file and enforce owner-only (`0600`) permissions on existing configuration files.
+
 ## [0.60.0] - 2026-10-09
 
 ### Added
@@ -1058,7 +1070,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.60.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.61.0...HEAD
+[0.61.0]: https://github.com/mochow13/keen-code/compare/v0.60.0...v0.61.0
 [0.60.0]: https://github.com/mochow13/keen-code/compare/v0.59.0...v0.60.0
 [0.59.0]: https://github.com/mochow13/keen-code/compare/v0.58.0...v0.59.0
 [0.58.0]: https://github.com/mochow13/keen-code/compare/v0.57.1...v0.58.0
