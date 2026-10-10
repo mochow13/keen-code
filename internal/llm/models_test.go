@@ -206,7 +206,6 @@ func TestNewClient_OpenCodeGoAnthropicModel(t *testing.T) {
 	}{
 		{name: "minimax", model: "minimax-m2.7"},
 		{name: "minimax m3", model: "minimax-m3", thinkingEffort: "adaptive"},
-		{name: "qwen max", model: "qwen3.7-max", thinkingEffort: "enabled"},
 		{name: "qwen3.8 flash", model: "qwen3.8-flash", thinkingEffort: "enabled"},
 	}
 

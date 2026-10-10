@@ -195,8 +195,7 @@ func isOpenCodeGoReasoningEffortModel(model string) bool {
 	return model == "grok-4.5" ||
 		model == "glm-5.2" || model == "glm-5.3" || model == "glm-5.3-flash" ||
 		model == "kimi-k3" ||
-		model == "hy3" || model == "hy4-preview" ||
-		model == "omen-alpha"
+		model == "hy3" || model == "hy4-preview"
 }
 
 func isOpenCodeGoResponsesModel(model string) bool {

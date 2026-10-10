@@ -15,13 +15,13 @@ Keen Code supports multiple AI providers through a plugin-like architecture. The
 | DeepSeek | `deepseek` | API Key | DeepSeek V4 Flash, V4 Pro |
 | MiniMax | `minimax` | API Key | MiniMax M3, M2.7, M2.7 High-Speed |
 | Amazon Bedrock | `amazon-bedrock` | AWS credentials | Claude Fable 5, Sonnet 5, Opus 4.8, Opus 4.6, Sonnet 4.6, Haiku 4.5 |
-| OpenCode Go | `opencode-go` | API Key | Grok 4.6, Grok 4.5, GPT-5.6 Luna, GLM-5.3 Flash, GLM-5.3, GLM-5.2, GLM-5.1, Kimi K3, Kimi K2.7 Code, Kimi K2.6, LongCat-2.0, MiMo V2.5 Pro, MiMo V2.5, Muse Spark 1.3 Contributor, Muse Spark 1.2 Contributor, Qwen3.8 Flash, Qwen3.8 Max, Qwen3.7 Max, Qwen3.7 Plus, Qwen3.6 Plus, MiniMax M3, MiniMax M2.7, DeepSeek V4 Pro, DeepSeek V4 Flash, Hy4 preview, Hy3, Omen Alpha |
+| OpenCode Go | `opencode-go` | API Key | Grok 4.6, Grok 4.5, GPT-5.6 Luna, GLM-5.3 Flash, GLM-5.3, GLM-5.2, GLM-5.1, Kimi K3, Kimi K2.7 Code, Kimi K2.6, LongCat-2.0, MiMo V2.5 Pro, MiMo V2.5, Muse Spark 1.3 Contributor, Muse Spark 1.2 Contributor, Qwen3.8 Flash, Qwen3.8 Max, Qwen3.7 Plus, Qwen3.6 Plus, MiniMax M3, MiniMax M2.7, DeepSeek V4 Pro, DeepSeek V4 Flash, Hy4 preview, Hy3 |
 | Yolo-Auto | `yolo-auto` | API Key | `yolo`, `yolo-small` (catalog discoverable at `/v1/models`) |
 | OpenAI Compatible | `openai-compatible` | API Key | Any OpenAI-compatible model |
 
 ## OpenAI-Compatible Providers
 
-Keen supports arbitrary OpenAI-compatible endpoints through the `openai-compatible` provider. This is config-file only: set `active_provider`, `active_model`, and the provider entry in `~/.keen/configs.json`, then restart Keen.
+Keen supports arbitrary OpenAI-compatible endpoints through the `openai-compatible` provider. This is config-file only: set `active_provider`, `active_model`, and the provider entry in the selected model configuration file (`~/.keen/configs.json` by default, or the file passed to `--model-config`), then restart Keen.
 
 ### OpenRouter Example
 
@@ -82,6 +82,8 @@ type Model struct {
 
 ### Global Config (`~/.keen/configs.json`)
 
+Use `--model-config <file_path>` to select another model/provider configuration file for `keen` or `keen run`. The former `--config` flag is no longer accepted. The selected file replaces the default; configuration changes in the interactive CLI are saved to that file. This flag does not select MCP servers: use `--mcp-config <file_path>` for those. See [CLI usage](cli-usage.md#custom-model-configuration-file).
+
 ```json
 {
   "active_provider": "opencode-go",
@@ -103,7 +105,7 @@ type Model struct {
 
 ### Custom Headers
 
-You can attach custom HTTP headers to a provider by adding a `headers` object to that provider's config in `~/.keen/configs.json`. These headers are sent with every request to that provider.
+You can attach custom HTTP headers to a provider by adding a `headers` object to that provider's config in the selected model configuration file. These headers are sent with every request to that provider.
 
 ```json
 {
@@ -131,7 +133,7 @@ Notes:
 
 ### Config Resolution
 
-Keen loads `~/.keen/configs.json` through `internal/config.Loader`, then builds the runtime `ResolvedConfig` in `internal/cli/cmd/root.go`.
+Keen loads the file selected with `--model-config` (or `~/.keen/configs.json` by default) through `internal/config.Loader`, then builds the runtime `ResolvedConfig` in `internal/cli/cmd/root.go`.
 
 Resolution order for the default interactive and headless paths:
 1. Provider: `global.active_provider`
@@ -146,7 +148,7 @@ For `keen run --provider`, the selected provider's config replaces the active pr
 
 Most providers use API key authentication. Keys are stored in the global config under `providers.{provider}.api_key`.
 
-Instead of storing a key, a provider can define `api_key_helper`. Keen executes the helper locally when resolving the provider config, trims stdout, and uses that value as the in-memory API key for the current run/session. When `api_key_helper` is set, it always wins over `api_key`; `api_key` can be empty and Keen does not write the helper output back to `~/.keen/configs.json`.
+Instead of storing a key, a provider can define `api_key_helper`. Keen executes the helper locally when resolving the provider config, trims stdout, and uses that value as the in-memory API key for the current run/session. When `api_key_helper` is set, it always wins over `api_key`; `api_key` can be empty and Keen does not write the helper output back to the selected model configuration file.
 
 ```json
 {
@@ -249,7 +251,7 @@ OpenAI-compatible API for:
 - DeepSeek
 - Moonshot AI (Kimi)
 - Z.ai (GLM)
-- OpenCode Go Grok 4.5, GLM, Kimi, DeepSeek, MiMo, Hy3, Hy4 preview, and Omen Alpha models
+- OpenCode Go Grok 4.5, GLM, Kimi, DeepSeek, MiMo, Hy3, and Hy4 preview models
 - Yolo-Auto (`yolo`, `yolo-small`)
 
 OpenCode Go Qwen and MiniMax models use the Anthropic-compatible client.
@@ -305,7 +307,7 @@ Models expose their provider-specific thinking values without normalizing them t
 The selected effort is stored in `thinking_effort` and passed to the provider without changing its meaning.
 
 OpenCode Go thinking controls are model-family specific:
-- GPT-5.6 Luna, Grok 4.6, and Muse Spark contributor models use the Responses API and send `reasoning.effort`. Hy4 preview and Omen Alpha send their documented `reasoning_effort` values on chat completions.
+- GPT-5.6 Luna, Grok 4.6, and Muse Spark contributor models use the Responses API and send `reasoning.effort`. Hy4 preview sends its documented `reasoning_effort` values on chat completions.
 - DeepSeek sends `thinking.type` plus `reasoning_effort`.
 - Qwen uses the Anthropic-compatible endpoint with an enabled/disabled thinking toggle.
 - MiniMax M3 sends `thinking.type` as enabled, adaptive, or disabled.

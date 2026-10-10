@@ -1,14 +1,16 @@
 # MCP Servers via OAuth
 
-Keen supports OAuth-authenticated MCP servers for streamable HTTP MCP transports. OAuth is used when an MCP server entry in `~/.keen/mcp/configs.json` has `auth.type` set to `oauth`.
+Keen supports OAuth-authenticated MCP servers for streamable HTTP MCP transports. OAuth is used when an MCP server entry in the selected MCP configuration file has `auth.type` set to `oauth`.
 
 ## Configuration
 
-OAuth MCP servers are configured in the user-level MCP config file:
+OAuth MCP servers are configured in the MCP config file, which defaults to:
 
 ```text
 ~/.keen/mcp/configs.json
 ```
+
+Use `--mcp-config <file_path>` to select a different MCP configuration file for `keen` or `keen run`. It replaces the default file without merging servers and does not change OAuth token storage. Use `--model-config` separately for model/provider settings. See [MCP configuration location](mcp-servers.md#configuration-location).
 
 Example:
 
@@ -92,7 +94,7 @@ If the callback address is unavailable, OAuth fails and `/mcp connect` reports t
 
 At process startup, Keen creates and starts the MCP manager:
 
-1. `internal/mcp/config.go` loads `~/.keen/mcp/configs.json`.
+1. `internal/mcp/config.go` loads the file selected with `--mcp-config`, or `~/.keen/mcp/configs.json` by default.
 2. `internal/mcp/manager.go` creates one runtime entry per configured server.
 3. `internal/mcp/oauth.go` loads persisted OAuth tokens from Keen's auth store.
 4. The manager connects to all configured MCP servers concurrently.
@@ -108,7 +110,7 @@ Startup outcomes:
 | No stored token exists | Server usually becomes `auth_required`. |
 | Stored token exists but is invalid/rejected | Server usually becomes `auth_failed`. |
 | Server cannot be reached | Server becomes `disconnected`. |
-| Config is invalid | MCP startup is skipped for the whole config. |
+| Config is invalid | MCP startup is skipped for the default config; the command fails if `--mcp-config` is supplied. |
 
 This lets Keen start normally even when an OAuth MCP server needs user login. The user can authenticate later with `/mcp connect <server>`.
 

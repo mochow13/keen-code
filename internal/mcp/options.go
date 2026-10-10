@@ -12,6 +12,7 @@ type Option func(*managerOptions)
 type RefreshOption func(*managerOptions)
 
 type managerOptions struct {
+	configPath               string
 	httpClient               *http.Client
 	authStore                *keenauth.Store
 	oauthRedirectURL         string
@@ -47,6 +48,12 @@ func WithHTTPClient(client *http.Client) Option {
 		if client != nil {
 			o.httpClient = client
 		}
+	}
+}
+
+func WithConfigPath(path string) Option {
+	return func(o *managerOptions) {
+		o.configPath = path
 	}
 }
 

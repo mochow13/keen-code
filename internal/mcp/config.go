@@ -49,17 +49,19 @@ func DefaultConfigPath() string {
 	return filepath.Join(home, ".keen", "mcp", "configs.json")
 }
 
-func LoadConfig() (*Config, error) {
-	path := DefaultConfigPath()
 
+func LoadConfigWithPath(path string) (*Config, error) {
+	useDefault := path == ""
+	if useDefault {
+		path = DefaultConfigPath()
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if useDefault && errors.Is(err, os.ErrNotExist) {
 			return &Config{Servers: map[string]ServerConfig{}}, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("load MCP config %q: %w", path, err)
 	}
-
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse MCP config: %w", err)

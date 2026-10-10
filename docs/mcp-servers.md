@@ -1,6 +1,6 @@
 # MCP Servers in Keen
 
-Keen supports MCP (Model Context Protocol) servers as external tool providers. MCP servers are loaded from a user-level JSON config, connected at startup, and exposed to the LLM through Keen's `call_mcp_tool` tool.
+Keen supports MCP (Model Context Protocol) servers as external tool providers. MCP servers are loaded from a JSON config (`~/.keen/mcp/configs.json` by default, or a file selected with `--mcp-config`), connected at startup, and exposed to the LLM through Keen's `call_mcp_tool` tool.
 
 ## What is supported
 
@@ -22,8 +22,8 @@ Keen's current MCP integration is intentionally tool-focused:
 
 - MCP resources and prompts are not exposed to the LLM.
 - Server-initiated tool-list changes are logged, but they do not automatically regenerate skills until refresh/connect or restart.
-- There is no project-local MCP config file; MCP config is read from the user home directory.
-- There is no live reload of `~/.keen/mcp/configs.json`; restart Keen after adding or removing servers.
+- There is no automatic project-local MCP config discovery; use `--mcp-config <file_path>` to select a project-local file.
+- There is no live reload of MCP configuration; restart Keen after adding or removing servers.
 - There is no explicit `transport` field in config. Keen infers transport from the presence of `command`.
 - Legacy SSE is not a first-class config transport. Keen uses the SDK's streamable HTTP client for HTTP MCP servers.
 - WebSocket, raw TCP, and Unix socket transports are not configured by Keen.
@@ -33,13 +33,24 @@ Keen's current MCP integration is intentionally tool-focused:
 
 ## Configuration location
 
-Put MCP server configuration in:
+By default, Keen reads MCP server configuration from:
 
 ```text
 ~/.keen/mcp/configs.json
 ```
 
-If the file does not exist, Keen starts with no configured MCP servers.
+If the default file does not exist, Keen starts with no configured MCP servers.
+
+Use `--mcp-config <file_path>` to load a different file instead:
+
+```bash
+keen --mcp-config ./mcp-config.json
+keen run --mcp-config ./mcp-config.json "Explain this project"
+```
+
+Relative paths are resolved against the current working directory; absolute paths are also supported. The selected file replaces the default configuration entirely, without merging servers. It must exist, be readable, and contain valid MCP configuration; otherwise startup fails without falling back to the default. OAuth credentials and other Keen data keep their normal locations.
+
+`--mcp-config` selects only MCP server configuration. Use `--model-config <file_path>` for model and provider settings; both flags can be used together. See [CLI usage](cli-usage.md#custom-model-configuration-file).
 
 The top-level format is:
 
@@ -209,7 +220,7 @@ Stdio behavior:
 
 When Keen starts:
 
-1. It reads `~/.keen/mcp/configs.json`.
+1. It reads the file selected with `--mcp-config`, or `~/.keen/mcp/configs.json` when the flag is omitted.
 2. It creates one runtime entry per configured server.
 3. It connects to all configured servers concurrently.
 4. It lists each connected server's tools.
@@ -262,9 +273,10 @@ Before execution, Keen asks the user to approve the remote tool call.
 
 | Scenario | Behavior |
 | --- | --- |
-| Missing `configs.json` | Keen starts with no configured MCP servers. |
-| Invalid JSON or invalid server config | MCP startup is skipped; `call_mcp_tool` is not registered. |
-| One invalid server entry | Config validation fails, so MCP startup is skipped for the whole config. |
+| Missing default `~/.keen/mcp/configs.json` (no `--mcp-config`) | Keen starts with no configured MCP servers. |
+| Default config is unreadable or contains invalid JSON or server config | MCP startup is skipped; `call_mcp_tool` is not registered. Keen continues with a warning. |
+| File selected with `--mcp-config` is missing, unreadable, or invalid | The command fails without falling back to the default config. |
+| One invalid server entry | Validation fails for the whole config: MCP startup is skipped for the default file; the command fails when `--mcp-config` is supplied. |
 | HTTP connection fails | Server state becomes `disconnected`; `/mcp status` shows the error. |
 | API key is missing in config | Config validation fails. |
 | API key is rejected by server | Server usually becomes `auth_failed`. API key values are redacted from errors/logs. |

@@ -50,7 +50,7 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 - **Multi-provider** — Anthropic, OpenAI, Codex (via OAuth), Gemini, DeepSeek, Kimi, GLM, MiniMax, OpenCode Go, Yolo-Auto, and Amazon Bedrock. Switch with `/model`. More providers will be added in the future.
 - **10 built-in tools** — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_fetch`, `ask_user`, `delegate_task`, and `call_mcp_tool`. Core coding tools stay deliberately lean.
 - **Hashline editing** — `read_file` prefixes every line with an `N:HASH|` anchor (line number + 3-character FNV-1a hash of the line), and `edit_file` applies a multi-op `ops[]` array validated against one file snapshot, atomically — stale anchors are rejected instead of editing drifted content. Inspired by [pi-hashline-edit](https://pi.dev/packages/pi-hashline-edit).
-- **MCP (Model Context Protocol)** — Connect external tool providers from `~/.keen/mcp/configs.json` over streamable HTTP or stdio, with `none`, `api_key`, or browser-based `oauth` auth. Connect and inspect servers with `/mcp`. See [docs/mcp-servers.md](docs/mcp-servers.md).
+- **MCP (Model Context Protocol)** — Connect external tool providers from `~/.keen/mcp/configs.json` (or a file selected with `--mcp-config <file_path>`) over streamable HTTP or stdio, with `none`, `api_key`, or browser-based `oauth` auth. Connect and inspect servers with `/mcp`. See [docs/mcp-servers.md](docs/mcp-servers.md).
 - **Skill-driven MCP servers** — Each connected MCP server generates an ordinary skill (`mcp:<server>`) with a tool table and JSON schemas, so tool discovery stays prompt-efficient and detailed schemas load on demand. No tool-search-tool needed to discover MCP tools. See [docs/mcp-skills.md](docs/mcp-skills.md).
 - **Skills system** — User-defined skills discovered from project and home directories (`.agents/skills`, `.keen/skills`, `.claude/skills`), activated as slash commands and managed with `/skills`. Bundled `commit` and `review` utility skills ship out of the box. See [docs/skills-system.md](docs/skills-system.md).
 - **Subagents** — Define focused profiles as markdown files in `.agents/agents/` (project or home) with their own provider, model, thinking effort, and permissions. The main agent delegates up to 10 bounded tasks in parallel with `delegate_task`. See [docs/subagents.md](docs/subagents.md).
@@ -215,6 +215,15 @@ Start Keen in your current directory:
 ```bash
 keen
 ```
+
+To use custom configuration files, select model/provider settings with `--model-config` and MCP servers with `--mcp-config`:
+
+```bash
+keen --model-config ./model-config.json --mcp-config ./mcp-config.json
+keen run --model-config ./model-config.json --mcp-config ./mcp-config.json "Explain this project"
+```
+
+Both flags accept relative or absolute paths and work independently. They replace their respective defaults (`~/.keen/configs.json` and `~/.keen/mcp/configs.json`); missing, unreadable, or invalid custom files cause startup to fail without falling back. The former `--config` flag is now `--model-config`. See [CLI usage](docs/cli-usage.md#custom-model-configuration-file) for details.
 
 ## Supported Providers
 

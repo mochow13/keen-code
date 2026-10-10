@@ -9,9 +9,9 @@ import (
 
 func TestLoadConfigMissingFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	cfg, err := LoadConfig()
+	cfg, err := LoadConfigWithPath("")
 	if err != nil {
-		t.Fatalf("LoadConfig() error = %v", err)
+		t.Fatalf("LoadConfigWithPath() error = %v", err)
 	}
 	if len(cfg.Servers) != 0 {
 		t.Fatalf("Servers length = %d, want 0", len(cfg.Servers))
@@ -78,9 +78,9 @@ func TestLoadConfigValidation(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tt.config), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			_, err := LoadConfig()
+			_, err := LoadConfigWithPath("")
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-				t.Fatalf("LoadConfig() error = %v, want containing %q", err, tt.wantErr)
+				t.Fatalf("LoadConfigWithPath() error = %v, want containing %q", err, tt.wantErr)
 			}
 		})
 	}
@@ -102,9 +102,9 @@ func TestLoadConfigInfersTransport(t *testing.T) {
 	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := LoadConfig()
+	cfg, err := LoadConfigWithPath("")
 	if err != nil {
-		t.Fatalf("LoadConfig() error = %v", err)
+		t.Fatalf("LoadConfigWithPath() error = %v", err)
 	}
 	if len(cfg.Servers) != 2 {
 		t.Fatalf("Servers length = %d, want 2", len(cfg.Servers))

@@ -26,6 +26,7 @@ var newMCPManager = func(opts ...keenmcp.Option) (keenmcp.Runtime, error) {
 func NewRootCommand(version string) *cobra.Command {
 	var resumeSessionID string
 	var configPath string
+	var mcpConfigPath string
 
 	cmd := &cobra.Command{
 		Use:   "keen",
@@ -49,9 +50,12 @@ func NewRootCommand(version string) *cobra.Command {
 				}
 			}
 
-			mcpManager, closeMCP, mcpErr := startMCPRuntime(context.Background())
+			mcpManager, closeMCP, mcpErr := startMCPRuntime(context.Background(), keenmcp.WithConfigPath(mcpConfigPath))
 			defer closeMCP()
 			if mcpErr != nil {
+				if mcpConfigPath != "" {
+					return fmt.Errorf("MCP unavailable: %w", mcpErr)
+				}
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "MCP unavailable: %v\n", mcpErr)
 			}
 
@@ -68,10 +72,14 @@ func NewRootCommand(version string) *cobra.Command {
 
 	cmd.Version = version
 	cmd.Flags().StringVar(&resumeSessionID, "resume", "", "resume a specific Keen session by ID")
-	cmd.PersistentFlags().StringVar(&configPath, "config", "", "load configuration from a JSON file (default ~/.keen/configs.json)")
+	cmd.PersistentFlags().StringVar(&configPath, "model-config", "", "load model configuration from a JSON file (default ~/.keen/configs.json)")
+	cmd.PersistentFlags().StringVar(&mcpConfigPath, "mcp-config", "", "load MCP servers from a JSON file (default ~/.keen/mcp/configs.json)")
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if cmd.Flags().Changed("config") && configPath == "" {
-			return fmt.Errorf("--config requires a non-empty file path")
+		if cmd.Flags().Changed("model-config") && configPath == "" {
+			return fmt.Errorf("--model-config requires a non-empty file path")
+		}
+		if cmd.Flags().Changed("mcp-config") && mcpConfigPath == "" {
+			return fmt.Errorf("--mcp-config requires a non-empty file path")
 		}
 		return nil
 	}
@@ -79,8 +87,8 @@ func NewRootCommand(version string) *cobra.Command {
 	return cmd
 }
 
-func startMCPRuntime(ctx context.Context) (keenmcp.Runtime, func(), error) {
-	manager, err := newMCPManager()
+func startMCPRuntime(ctx context.Context, opts ...keenmcp.Option) (keenmcp.Runtime, func(), error) {
+	manager, err := newMCPManager(opts...)
 	if err != nil {
 		return nil, func() {}, err
 	}
@@ -110,7 +118,11 @@ func newRunCommand() *cobra.Command {
 		Short: "Run one non-interactive Keen turn",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configPath, err := cmd.Flags().GetString("config")
+			configPath, err := cmd.Flags().GetString("model-config")
+			if err != nil {
+				return err
+			}
+			mcpConfigPath, err := cmd.Flags().GetString("mcp-config")
 			if err != nil {
 				return err
 			}
@@ -149,9 +161,12 @@ func newRunCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			mcpRuntime, closeMCP, mcpErr := startMCPRuntime(context.Background())
+			mcpRuntime, closeMCP, mcpErr := startMCPRuntime(context.Background(), keenmcp.WithConfigPath(mcpConfigPath))
 			defer closeMCP()
 			if mcpErr != nil {
+				if mcpConfigPath != "" {
+					return fmt.Errorf("MCP unavailable: %w", mcpErr)
+				}
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "MCP unavailable: %v\n", mcpErr)
 			}
 

@@ -464,9 +464,9 @@ func TestLoadRootRuntimeRestoresRouterStandardModel(t *testing.T) {
 
 func TestNewRootCommand_ConfigFlag(t *testing.T) {
 	cmd := NewRootCommand("test")
-	flag := cmd.PersistentFlags().Lookup("config")
+	flag := cmd.PersistentFlags().Lookup("model-config")
 	if flag == nil || flag.DefValue != "" {
-		t.Fatal("expected persistent --config flag with default path behavior")
+		t.Fatal("expected persistent --model-config flag with default path behavior")
 	}
 }
 
@@ -480,9 +480,9 @@ func TestRootCommands_CustomConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{
-		{"--config", path},
-		{"--config", path, "run", "hello"},
-		{"run", "--config", path, "hello"},
+		{"--model-config", path},
+		{"--model-config", path, "run", "hello"},
+		{"run", "--model-config", path, "hello"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			cmd := NewRootCommand("test")
@@ -506,10 +506,10 @@ func TestRootCommands_CustomConfigErrors(t *testing.T) {
 			args []string
 			want string
 		}{
-			{args: []string{"--config", path}, want: "failed to unmarshal config"},
-			{args: []string{"--config", path + ".missing"}, want: "failed to read config"},
-			{args: []string{"--config", ""}, want: "non-empty file path"},
-			{args: []string{"--config"}, want: "flag needs an argument"},
+			{args: []string{"--model-config", path}, want: "failed to unmarshal config"},
+			{args: []string{"--model-config", path + ".missing"}, want: "failed to read config"},
+			{args: []string{"--model-config", ""}, want: "non-empty file path"},
+			{args: []string{"--model-config"}, want: "flag needs an argument"},
 		} {
 			args := append(append([]string{}, prefix...), tc.args...)
 			t.Run(strings.Join(args, " "), func(t *testing.T) {

@@ -47,7 +47,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		opt(&options)
 	}
 
-	cfg, err := LoadConfig()
+	cfg, err := LoadConfigWithPath(options.configPath)
 	if err != nil {
 		return nil, err
 	}

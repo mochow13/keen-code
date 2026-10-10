@@ -342,10 +342,6 @@ providers:
         name: Qwen3.8 Max
         context_window: 1000000
         thinking_efforts: ["enabled", "disabled"]
-      - id: qwen3.7-max
-        name: Qwen3.7 Max
-        context_window: 1000000
-        thinking_efforts: ["enabled", "disabled"]
       - id: qwen3.7-plus
         name: Qwen3.7 Plus
         context_window: 1000000
@@ -377,10 +373,6 @@ providers:
         name: Hy3
         context_window: 256000
         thinking_efforts: ["none", "low", "high"]
-      - id: omen-alpha
-        name: Omen Alpha
-        context_window: 500000
-        thinking_efforts: ["low", "high"]
 
   - id: yolo-auto
     name: Yolo-Auto

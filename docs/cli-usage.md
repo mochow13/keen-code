@@ -2,16 +2,37 @@
 
 Keen Code provides slash commands (prefixed with `/`) for controlling the agent. Type `/` and press `Tab` to see command suggestions.
 
-## Custom configuration file
+## Custom model configuration file
 
-By default, Keen loads `~/.keen/configs.json`. Use `--config <config-file-path>` to load a different JSON configuration file instead:
+By default, Keen loads model and provider settings from `~/.keen/configs.json`. Use `--model-config <file_path>` to load a different JSON configuration file instead:
 
 ```bash
-keen --config my-special-configs.json
-keen --config my-special-configs.json run "Explain this project"
+keen --model-config my-special-configs.json
+keen --model-config my-special-configs.json run "Explain this project"
+keen run --model-config my-special-configs.json "Explain this project"
 ```
 
-The flag accepts relative or absolute paths and also works after `run`. The specified file must exist, be readable, and contain valid JSON matching Keen's configuration format; invalid files cause startup to fail rather than fall back to the default config. Configuration changes made in the interactive CLI are saved to the selected file, leaving `~/.keen/configs.json` untouched. Other Keen data, including MCP configuration, OAuth credentials, and sessions, still uses its normal locations.
+The flag accepts relative or absolute paths and also works after `run`. The specified file must exist, be readable, and contain valid JSON matching Keen's model configuration format; invalid files cause startup to fail rather than fall back to the default config. Configuration changes made in the interactive CLI are saved to the selected file, leaving `~/.keen/configs.json` untouched. Other Keen data, including MCP configuration (unless overridden separately with `--mcp-config`), OAuth credentials, and sessions, still uses its normal locations.
+
+The former `--config` flag has been renamed to `--model-config` and is no longer accepted. Use `--mcp-config` separately for MCP server configuration.
+
+## Custom MCP configuration file
+
+By default, Keen loads MCP servers from `~/.keen/mcp/configs.json`. Use `--mcp-config <file_path>` to select another MCP configuration file:
+
+```bash
+keen --mcp-config ./mcp-config.json
+keen --mcp-config ./mcp-config.json run "Explain this project"
+keen run --mcp-config ./mcp-config.json "Explain this project"
+```
+
+The flag accepts relative or absolute paths and replaces the default MCP configuration, without merging servers. A missing, unreadable, or invalid custom file causes startup to fail rather than fall back to the default. It does not change OAuth credential locations or the model configuration file selected by `--model-config`. See [MCP server configuration](mcp-servers.md#configuration-location) for the JSON format.
+
+Both flags can be used together:
+
+```bash
+keen --model-config ./model-config.json --mcp-config ./mcp-config.json
+```
 
 ## Command Reference
 
@@ -138,7 +159,7 @@ Navigation:
 
 API keys are masked while typed. If an API key already exists for the provider, press `Enter` on an empty API-key prompt to keep it.
 
-Custom HTTP headers for a provider can be configured by editing `~/.keen/configs.json` directly. See [`docs/ai-providers.md`](ai-providers.md#custom-headers).
+Custom HTTP headers for a provider can be configured by editing the selected model configuration file (`~/.keen/configs.json` by default, or the file passed to `--model-config`) directly. See [`docs/ai-providers.md`](ai-providers.md#custom-headers).
 
 ## `/model router`
 
@@ -148,7 +169,7 @@ Use `/decision model` to configure the classifier, then `/model router` to enabl
 - Selecting a regular model disables routing.
 - Without a decision model, Keen shows: Configure decision model with `/decision model` command to use router.
 
-Router selections and activation persist in `~/.keen/configs.json`. Each prompt is classified before its response starts; classification errors or the five-second timeout fall back to the standard model. While enabled, the input metadata shows `<decision-provider>/<decision-model> (router)`.
+Router selections and activation persist in the selected model configuration file (`~/.keen/configs.json` by default, or the file passed to `--model-config`). Each prompt is classified before its response starts; classification errors or the five-second timeout fall back to the standard model. While enabled, the input metadata shows `<decision-provider>/<decision-model> (router)`.
 
 ## `/router`
 
@@ -473,6 +494,8 @@ cat error.log | keen run "Explain this error"
 
 | Flag | Description |
 |------|-------------|
+| `--model-config <file_path>` | Load model and provider settings from this file instead of `~/.keen/configs.json` |
+| `--mcp-config <file_path>` | Load MCP servers from this file instead of `~/.keen/mcp/configs.json`, without merging |
 | `--format <text\|json>` | Output format. `text` (default) prints the final response to stdout; `json` prints a JSON object with the response, session ID, and token usage |
 | `--session <id>` | Resume an existing Keen session instead of starting a new one |
 | `--provider <id>` | Override the configured provider for this run |
@@ -481,7 +504,7 @@ cat error.log | keen run "Explain this error"
 
 ### Progress and errors
 
-While the turn is in flight, live text chunks and tool completion lines stream to **stderr**, so stdout stays clean for piping in both formats. MCP startup failures are reported to stderr as warnings and the run continues without MCP tools.
+While the turn is in flight, live text chunks and tool completion lines stream to **stderr**, so stdout stays clean for piping in both formats. Without `--mcp-config`, MCP startup failures are reported to stderr as warnings and the run continues without MCP tools. With `--mcp-config`, a missing, unreadable, or invalid selected file, or another MCP runtime startup error, causes the command to fail without falling back to the default configuration. Individual server connection or authentication failures are recorded in server status and do not abort the run.
 
 ### Completion signals
 

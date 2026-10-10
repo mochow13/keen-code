@@ -204,8 +204,8 @@ func TestModel_ThinkingEffortsLoadFromYAML(t *testing.T) {
 	if !ok {
 		t.Fatal("expected to find opencode-go provider")
 	}
-	if len(opencode.Models) != 29 {
-		t.Fatalf("expected 29 opencode-go models, got %d", len(opencode.Models))
+	if len(opencode.Models) != 27 {
+		t.Fatalf("expected 27 opencode-go models, got %d", len(opencode.Models))
 	}
 
 	grok47, ok := reg.GetModel("opencode-go", "grok-4.7")

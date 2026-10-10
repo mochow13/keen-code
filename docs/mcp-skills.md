@@ -6,7 +6,7 @@ Keen integrates MCP servers through the existing Skills system. Connected MCP se
 
 The flow is:
 
-1. User configures MCP servers in `~/.keen/mcp/configs.json`.
+1. User configures MCP servers in `~/.keen/mcp/configs.json`, or a file selected with `--mcp-config <file_path>` (see [configuration location](mcp-servers.md#configuration-location)).
 2. Keen starts the MCP manager and connects to configured servers.
 3. For each connected server, Keen lists MCP tools.
 4. Keen generates a skill named `mcp:<server>`.
@@ -229,9 +229,9 @@ Important behavior:
 - Running `/mcp connect <server>` successfully refreshes the generated skill files and enables the skill.
 - A failed MCP server is automatically disabled during MCP sync.
 - A stale MCP skill whose server was removed from MCP config is removed from skills config and its generated skill directory is deleted during MCP sync.
-- Disabling a generated MCP skill hides it from the skills catalog, but it does not remove the MCP server from `~/.keen/mcp/configs.json` and does not stop an already-running MCP session.
+- Disabling a generated MCP skill hides it from the skills catalog, but it does not remove the MCP server from the selected MCP configuration file and does not stop an already-running MCP session.
 
-To fully remove a server from Keen's MCP runtime, remove it from `~/.keen/mcp/configs.json` and restart Keen.
+To fully remove a server from Keen's MCP runtime, remove it from the selected MCP configuration file (`~/.keen/mcp/configs.json` by default, or the file passed to `--mcp-config`) and restart Keen.
 
 ## What happens when MCP fails
 
