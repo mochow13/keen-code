@@ -49,7 +49,6 @@ func DefaultConfigPath() string {
 	return filepath.Join(home, ".keen", "mcp", "configs.json")
 }
 
-
 func LoadConfigWithPath(path string) (*Config, error) {
 	useDefault := path == ""
 	if useDefault {
