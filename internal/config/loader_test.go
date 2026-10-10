@@ -264,7 +264,6 @@ func TestLoader_CustomPathErrors(t *testing.T) {
 	}
 }
 
-
 func TestLoader_SaveRestrictsExistingFilePermissions(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	path := filepath.Join(t.TempDir(), "existing-config.json")
