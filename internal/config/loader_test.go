@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -180,5 +181,105 @@ func TestLoader_SaveAndLoadDecisionConfig(t *testing.T) {
 	providerCfg := loaded.Decision.Providers[ProviderTypeSafe]
 	if providerCfg.APIKey != "test-key" {
 		t.Fatalf("provider config = %#v", providerCfg)
+	}
+}
+
+func TestLoader_CustomPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	defaultLoader := NewLoader()
+	defaultCfg := DefaultGlobalConfig()
+	defaultCfg.ActiveModel = "default-model"
+	if err := defaultLoader.Save(defaultCfg); err != nil {
+		t.Fatal(err)
+	}
+	defaultData, err := os.ReadFile(ConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	for _, path := range []string{"special configs.json", filepath.Join(dir, "nested", "configs.json")} {
+		t.Run(path, func(t *testing.T) {
+			loader := NewLoaderWithPath(path)
+			if loader.Exists() {
+				t.Fatal("custom config should not exist yet")
+			}
+			if _, err := loader.Load(); err == nil {
+				t.Fatal("missing custom config should fail instead of using defaults")
+			}
+			cfg := DefaultGlobalConfig()
+			cfg.ActiveModel = "custom-model"
+			if err := loader.Save(cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !loader.Exists() {
+				t.Fatal("saved custom config should exist")
+			}
+			loaded, err := loader.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if loaded.ActiveModel != "custom-model" {
+				t.Fatalf("model = %q, want custom-model", loaded.ActiveModel)
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != 0600 {
+				t.Fatalf("config permissions = %o, want 600", info.Mode().Perm())
+			}
+		})
+	}
+	data, err := os.ReadFile(ConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != string(defaultData) {
+		t.Fatal("custom config changed the default config")
+	}
+}
+
+func TestLoader_CustomPathErrors(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, content := range []string{"", "{", "{} {}", "[]", `{"providers": "invalid"}`} {
+		t.Run(content, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "invalid.json")
+			if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := NewLoaderWithPath(path).Load()
+			if err == nil || !strings.Contains(err.Error(), path) {
+				t.Fatalf("Load() error = %v, want error with custom path", err)
+			}
+			if strings.Contains(err.Error(), "~/.keen/configs.json") {
+				t.Fatal("error should not direct users to the default config")
+			}
+		})
+	}
+	path := t.TempDir()
+	if _, err := NewLoaderWithPath(path).Load(); err == nil {
+		t.Fatal("loading a directory should fail")
+	}
+}
+
+
+func TestLoader_SaveRestrictsExistingFilePermissions(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "existing-config.json")
+	if err := os.WriteFile(path, []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewLoaderWithPath(path).Save(DefaultGlobalConfig()); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("config permissions = %o, want 600", got)
 	}
 }

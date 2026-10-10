@@ -25,13 +25,14 @@ var newMCPManager = func(opts ...keenmcp.Option) (keenmcp.Runtime, error) {
 
 func NewRootCommand(version string) *cobra.Command {
 	var resumeSessionID string
+	var configPath string
 
 	cmd := &cobra.Command{
 		Use:   "keen",
 		Short: "Keen - A coding agent CLI",
 		Long:  `Keen is a terminal-based coding agent that provides AI-assisted code editing.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			registry, loader, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime()
+			registry, loader, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime(configPath)
 			if err != nil {
 				return err
 			}
@@ -67,6 +68,13 @@ func NewRootCommand(version string) *cobra.Command {
 
 	cmd.Version = version
 	cmd.Flags().StringVar(&resumeSessionID, "resume", "", "resume a specific Keen session by ID")
+	cmd.PersistentFlags().StringVar(&configPath, "config", "", "load configuration from a JSON file (default ~/.keen/configs.json)")
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if cmd.Flags().Changed("config") && configPath == "" {
+			return fmt.Errorf("--config requires a non-empty file path")
+		}
+		return nil
+	}
 	cmd.AddCommand(newRunCommand())
 	return cmd
 }
@@ -102,7 +110,11 @@ func newRunCommand() *cobra.Command {
 		Short: "Run one non-interactive Keen turn",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _, globalCfg, resolvedCfg, _, err := loadRootRuntime()
+			configPath, err := cmd.Flags().GetString("config")
+			if err != nil {
+				return err
+			}
+			_, _, globalCfg, resolvedCfg, _, err := loadRootRuntime(configPath)
 			if err != nil {
 				return err
 			}
@@ -179,12 +191,12 @@ func (e *runExitError) Error() string { return e.err.Error() }
 
 func (e *runExitError) ExitCode() int { return e.exitCode }
 
-func loadRootRuntime() (*providers.Registry, *config.Loader, *config.GlobalConfig, *config.ResolvedConfig, bool, error) {
+func loadRootRuntime(configPath string) (*providers.Registry, *config.Loader, *config.GlobalConfig, *config.ResolvedConfig, bool, error) {
 	registry, err := providers.Load()
 	if err != nil {
 		return nil, nil, nil, nil, false, fmt.Errorf("failed to load provider registry: %w", err)
 	}
-	loader := config.NewLoader()
+	loader := config.NewLoaderWithPath(configPath)
 	globalCfg, err := loader.Load()
 	if err != nil {
 		return nil, nil, nil, nil, false, fmt.Errorf("failed to load config: %w", err)

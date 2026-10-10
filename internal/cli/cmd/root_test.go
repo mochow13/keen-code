@@ -299,7 +299,7 @@ func TestApplyRunOverridesChangesOnlyModel(t *testing.T) {
 func TestLoadRootRuntimeWithoutConfigNeedsSetup(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	registry, loader, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime()
+	registry, loader, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime("")
 	if err != nil {
 		t.Fatalf("loadRootRuntime() error = %v", err)
 	}
@@ -330,7 +330,7 @@ func TestLoadRootRuntimeResolvesConfiguredProvider(t *testing.T) {
 		}
 	}`)
 
-	_, _, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime()
+	_, _, globalCfg, resolvedCfg, needsSetup, err := loadRootRuntime("")
 	if err != nil {
 		t.Fatalf("loadRootRuntime() error = %v", err)
 	}
@@ -379,7 +379,7 @@ func TestLoadRootRuntimeConfigErrors(t *testing.T) {
 			t.Setenv("HOME", home)
 			writeRootConfig(t, home, tt.content)
 
-			_, _, _, _, _, err := loadRootRuntime()
+			_, _, _, _, _, err := loadRootRuntime("")
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("loadRootRuntime() error = %v, want containing %q", err, tt.want)
 			}
@@ -389,8 +389,8 @@ func TestLoadRootRuntimeConfigErrors(t *testing.T) {
 
 func TestRunCommandRejectsMissingConfiguration(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	cmd := newRunCommand()
-	cmd.SetArgs([]string{"hello"})
+	cmd := NewRootCommand("test")
+	cmd.SetArgs([]string{"run", "hello"})
 
 	err := cmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "LLM client not initialized") {
@@ -400,8 +400,8 @@ func TestRunCommandRejectsMissingConfiguration(t *testing.T) {
 
 func TestRunCommandRejectsUnknownProviderOverride(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	cmd := newRunCommand()
-	cmd.SetArgs([]string{"--provider", "unknown", "hello"})
+	cmd := NewRootCommand("test")
+	cmd.SetArgs([]string{"run", "--provider", "unknown", "hello"})
 
 	err := cmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), `provider "unknown" is not configured`) {
@@ -453,11 +453,106 @@ func TestLoadRootRuntimeRestoresRouterStandardModel(t *testing.T) {
 	if err := config.NewLoader().Save(cfg); err != nil {
 		t.Fatal(err)
 	}
-	_, _, loaded, resolved, needsSetup, err := loadRootRuntime()
+	_, _, loaded, resolved, needsSetup, err := loadRootRuntime("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if needsSetup || !loaded.Router.Enabled || resolved.Provider != choice.Provider || resolved.Model != choice.Model || resolved.ThinkingEffort != choice.ThinkingEffort {
 		t.Fatalf("router runtime not restored: %#v", resolved)
+	}
+}
+
+func TestNewRootCommand_ConfigFlag(t *testing.T) {
+	cmd := NewRootCommand("test")
+	flag := cmd.PersistentFlags().Lookup("config")
+	if flag == nil || flag.DefValue != "" {
+		t.Fatal("expected persistent --config flag with default path behavior")
+	}
+}
+
+func TestRootCommands_CustomConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	// Invalid default configuration must not affect commands using a custom file.
+	writeRootConfig(t, home, `{`)
+	path := filepath.Join(t.TempDir(), "special configs.json")
+	if err := os.WriteFile(path, []byte(`{"active_provider":"custom-only-provider"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"--config", path},
+		{"--config", path, "run", "hello"},
+		{"run", "--config", path, "hello"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			cmd := NewRootCommand("test")
+			cmd.SetArgs(args)
+			err := cmd.Execute()
+			if err == nil || !strings.Contains(err.Error(), `configured provider "custom-only-provider" not found`) {
+				t.Fatalf("Execute() error = %v, want custom provider error", err)
+			}
+		})
+	}
+}
+
+func TestRootCommands_CustomConfigErrors(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "invalid.json")
+	if err := os.WriteFile(path, []byte(`{`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, prefix := range [][]string{nil, {"run"}} {
+		for _, tc := range []struct {
+			args []string
+			want string
+		}{
+			{args: []string{"--config", path}, want: "failed to unmarshal config"},
+			{args: []string{"--config", path + ".missing"}, want: "failed to read config"},
+			{args: []string{"--config", ""}, want: "non-empty file path"},
+			{args: []string{"--config"}, want: "flag needs an argument"},
+		} {
+			args := append(append([]string{}, prefix...), tc.args...)
+			t.Run(strings.Join(args, " "), func(t *testing.T) {
+				cmd := NewRootCommand("test")
+				cmd.SetArgs(args)
+				err := cmd.Execute()
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("Execute() error = %v, want containing %q", err, tc.want)
+				}
+			})
+		}
+	}
+}
+
+func TestLoadRootRuntimeCustomConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "custom.json")
+	cfg := config.DefaultGlobalConfig()
+	cfg.ActiveProvider = config.ProviderAnthropic
+	cfg.ActiveModel = "claude-sonnet-4-5"
+	cfg.Providers[config.ProviderAnthropic] = config.ProviderConfig{APIKey: "test-key"}
+	if err := config.NewLoaderWithPath(path).Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	_, loader, loaded, resolved, needsSetup, err := loadRootRuntime(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if needsSetup || resolved.Provider != cfg.ActiveProvider || resolved.Model != cfg.ActiveModel {
+		t.Fatal("custom configuration was not resolved")
+	}
+	loaded.ActiveModel = "changed-model"
+	if err := loader.Save(loaded); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := config.NewLoaderWithPath(path).Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.ActiveModel != "changed-model" {
+		t.Fatal("runtime loader did not save to custom configuration")
+	}
+	if config.NewLoader().Exists() {
+		t.Fatal("runtime loader created default configuration")
 	}
 }

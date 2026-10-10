@@ -2,6 +2,17 @@
 
 Keen Code provides slash commands (prefixed with `/`) for controlling the agent. Type `/` and press `Tab` to see command suggestions.
 
+## Custom configuration file
+
+By default, Keen loads `~/.keen/configs.json`. Use `--config <config-file-path>` to load a different JSON configuration file instead:
+
+```bash
+keen --config my-special-configs.json
+keen --config my-special-configs.json run "Explain this project"
+```
+
+The flag accepts relative or absolute paths and also works after `run`. The specified file must exist, be readable, and contain valid JSON matching Keen's configuration format; invalid files cause startup to fail rather than fall back to the default config. Configuration changes made in the interactive CLI are saved to the selected file, leaving `~/.keen/configs.json` untouched. Other Keen data, including MCP configuration, OAuth credentials, and sessions, still uses its normal locations.
+
 ## Command Reference
 
 | Command | Description |
