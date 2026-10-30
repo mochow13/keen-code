@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-10-30
+
+### Added
+- Add GPT-6.1 Terra model support to the OpenAI provider.
+- Display per-turn usage metadata in the REPL.
+- Generate social media preview cards for the documentation site.
+
+### Changed
+- Refresh the README banner and badges, and restore the screencast preview.
+
+### Fixed
+- Detect incomplete Genkit streams and reconcile streamed vs. final response output.
+- Upgrade `golang.org/x/net` to v0.62.0 to address `GO-2026-6866` and `GO-2026-6860` in `golang.org/x/net/html`.
+
 ## [0.65.0] - 2026-10-25
 
 ### Added
@@ -1144,7 +1158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.65.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.66.0...HEAD
+[0.66.0]: https://github.com/mochow13/keen-code/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/mochow13/keen-code/compare/v0.64.2...v0.65.0
 [0.64.2]: https://github.com/mochow13/keen-code/compare/v0.64.1...v0.64.2
 [0.64.1]: https://github.com/mochow13/keen-code/compare/v0.64.0...v0.64.1
