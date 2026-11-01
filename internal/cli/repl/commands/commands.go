@@ -43,6 +43,7 @@ const (
 	Thinking        = "/thinking"
 	ToolHistory     = "/tool-history"
 	Usage           = "/usage"
+	Theme           = "/theme"
 )
 
 type SlashCommand struct {
@@ -81,6 +82,7 @@ var All = []SlashCommand{
 	{Thinking, "Change thinking effort for the current model"},
 	{Usage, "Show token usage by model"},
 	{ToolHistory, "Control tool output retention between turns (full|none)"},
+	{Theme, "Change the UI theme (primary and secondary colors)"},
 }
 
 var Suggestions = []SlashCommand{
@@ -124,6 +126,7 @@ var Suggestions = []SlashCommand{
 	{Thinking, "Change thinking effort for the current model"},
 	{Usage, "Show token usage by model"},
 	{ToolHistory, "Control tool output retention between turns (full|none)"},
+	{Theme, "Change the UI theme"},
 }
 
 func IsKnownCommand(input string) bool {

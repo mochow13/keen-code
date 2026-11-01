@@ -69,6 +69,7 @@ type replModel struct {
 	agentCore           agentcore.AgentCore
 	output              *reploutput.OutputBuilder
 	modelSelection      *replwidgets.Model
+	themeSelection      *replwidgets.ThemeSelection
 	permissionRequester *replpermissions.Requester
 	askUser             replaskuser.State
 	projectPerms        *config.ProjectPermissions
@@ -305,6 +306,12 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 	}
 	if ctx.globalCfg != nil && ctx.globalCfg.ShowThinking != nil {
 		model.showThinking = *ctx.globalCfg.ShowThinking
+	}
+	if ctx.globalCfg != nil {
+		if theme := strings.TrimSpace(ctx.globalCfg.Theme); theme != "" {
+			repltheme.ApplyTheme(strings.ToLower(theme))
+			model.syncSpinnerStyles()
+		}
 	}
 	model.stream.handler.SetWorkingDir(ctx.workingDir)
 	model.stream.handler.SetShowThinking(model.showThinking)
@@ -578,6 +585,10 @@ func (m *replModel) updateViewportContent() {
 		content.WriteString(formatModelSelectionCard(m.adversary.modelSelection, m.viewport.Width()))
 	}
 
+	if m.themeSelection != nil {
+		content.WriteString(m.themeSelection.View(m.viewport.Width()))
+	}
+
 	if m.sessionPicker != nil {
 		content.WriteString(replwidgets.FormatSessionPickerCard(m.sessionPicker, m.viewport.Width(), m.viewport.Height()))
 	}
@@ -648,12 +659,20 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 		return updated, cmd
 	}
 
+	if updated, cmd, handled := m.consumeThemeSelectionResult(msg); handled {
+		return updated, cmd
+	}
+
 	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.applyWindowSize(sizeMsg)
-		if m.modelSelection != nil || m.decision.modelSelection != nil || m.adversary.modelSelection != nil {
+		if m.modelSelection != nil || m.decision.modelSelection != nil || m.adversary.modelSelection != nil || m.themeSelection != nil {
 			m.updateViewportContent()
 		}
 		return m, nil
+	}
+
+	if m.themeSelection != nil {
+		return m.handleKeyMsg(msg)
 	}
 
 	if m.modelSelection != nil {

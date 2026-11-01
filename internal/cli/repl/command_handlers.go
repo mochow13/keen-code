@@ -209,6 +209,11 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		m.startUsageView()
 		return *m, nil, true
 
+	case input == replcommands.Theme || strings.HasPrefix(input, replcommands.Theme+" "):
+		m.textarea.Reset()
+		result := m.handleThemeCommand(input)
+		return result, nil, true
+
 	default:
 		return *m, nil, false
 	}

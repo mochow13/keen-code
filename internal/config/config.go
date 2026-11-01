@@ -40,6 +40,7 @@ type GlobalConfig struct {
 	ActiveModel       string                    `json:"active_model"`
 	ThinkingEffort    string                    `json:"thinking_effort,omitempty"`
 	ShowThinking      *bool                     `json:"show_thinking,omitempty"`
+	Theme             string                    `json:"theme,omitempty"`
 	AdversaryProvider string                    `json:"adversary_provider,omitempty"`
 	AdversaryModel    string                    `json:"adversary_model,omitempty"`
 	Providers         map[string]ProviderConfig `json:"providers"`

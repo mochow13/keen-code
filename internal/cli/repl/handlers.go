@@ -597,6 +597,13 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return *m, cmd
 	}
 
+	if m.themeSelection != nil {
+		var cmd tea.Cmd
+		m.themeSelection, cmd = m.themeSelection.Update(msg)
+		m.updateViewportContent()
+		return *m, cmd
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return *m, nil

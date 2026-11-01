@@ -18,7 +18,8 @@ var (
 		Light: lipgloss.Color("#287A8A"),
 		Dark:  lipgloss.Color("#649FA9"),
 	}
-	MutedColor = compat.AdaptiveColor{
+	OnPrimaryColor = compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#FFFFFF")}
+	MutedColor     = compat.AdaptiveColor{
 		Light: lipgloss.Color("#757575"),
 		Dark:  lipgloss.Color("#BDBDBD"),
 	}
