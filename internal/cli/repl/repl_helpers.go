@@ -80,11 +80,6 @@ var keenSparkleSpinner = spinner.Spinner{
 	FPS:    time.Second / 8,
 }
 
-var keenWandTrailSpinner = spinner.Spinner{
-	Frames: []string{"~", "⌒", "∼", "≈", "∼", "⌒"},
-	FPS:    time.Second / 8,
-}
-
 var keenBrailleDriftSpinner = spinner.Spinner{
 	Frames: []string{"⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"},
 	FPS:    time.Second / 10,
@@ -92,16 +87,6 @@ var keenBrailleDriftSpinner = spinner.Spinner{
 
 var keenStarTwinkleSpinner = spinner.Spinner{
 	Frames: []string{"⋆", "✧", "✦", "✷", "✦", "✧"},
-	FPS:    time.Second / 8,
-}
-
-var keenStarBlinkSpinner = spinner.Spinner{
-	Frames: []string{"*", "+", "×", "+"},
-	FPS:    time.Second / 8,
-}
-
-var keenPotionBubblesSpinner = spinner.Spinner{
-	Frames: []string{"·", "°", "∘", "○", "∘", "°"},
 	FPS:    time.Second / 8,
 }
 
@@ -121,13 +106,10 @@ var loadingSpinners = []spinner.Spinner{
 	spinner.Jump,
 	spinner.Pulse,
 	keenSparkleSpinner,
-	keenWandTrailSpinner,
 	keenBrailleDriftSpinner,
 	keenStarTwinkleSpinner,
-	keenPotionBubblesSpinner,
 	keenCrystalBallSpinner,
 	keenBeepingPointerSpinner,
-	keenStarBlinkSpinner,
 }
 
 func nextLoadingText() string {
