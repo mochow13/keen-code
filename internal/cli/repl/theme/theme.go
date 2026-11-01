@@ -58,6 +58,14 @@ var Themes = []Theme{
 		OnPrimary:    WhiteColor,
 	},
 	{
+		Name:         "github",
+		Label:        "GitHub",
+		Primary:      compat.AdaptiveColor{Light: lipgloss.Color("#0969DA"), Dark: lipgloss.Color("#58A6FF")},
+		PrimaryLight: compat.AdaptiveColor{Light: lipgloss.Color("#0550AE"), Dark: lipgloss.Color("#79C0FF")},
+		Secondary:    compat.AdaptiveColor{Light: lipgloss.Color("#8250DF"), Dark: lipgloss.Color("#BC8CFF")},
+		OnPrimary:    compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#0D1117")},
+	},
+	{
 		Name:         "nord",
 		Label:        "Nord",
 		Primary:      compat.AdaptiveColor{Light: lipgloss.Color("#356879"), Dark: lipgloss.Color("#88C0D0")},
