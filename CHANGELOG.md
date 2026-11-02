@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-11-02
+
+### Added
+- Add adaptive UI themes with `/theme`, including Claude Code, Dracula, Tokyo Night, Catppuccin, GitHub, Nord, and Monochrome palettes.
+- Prompt to start a new session, compact the current context, or skip when a prompt looks like a new task, showing the classifier's new-task probability when the router is off.
+
 ## [0.66.0] - 2026-10-30
 
 ### Added
@@ -1158,7 +1164,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.66.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.67.0...HEAD
+[0.67.0]: https://github.com/mochow13/keen-code/compare/v0.66.0...v0.67.0
 [0.66.0]: https://github.com/mochow13/keen-code/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/mochow13/keen-code/compare/v0.64.2...v0.65.0
 [0.64.2]: https://github.com/mochow13/keen-code/compare/v0.64.1...v0.64.2
