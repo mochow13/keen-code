@@ -208,18 +208,23 @@ func (m *replModel) validateRouterConfig(router *config.RouterConfig) error {
 	return nil
 }
 
-func (m *replModel) beginRouterPrompt(input string, fromQueue bool) (replModel, tea.Cmd) {
+func (m *replModel) configureClassifiers() error {
 	if m.classifiers == nil {
 		m.classifiers = &classificationManager{}
 	}
-	if m.classifiers.complexity == nil {
-		if err := m.classifiers.Configure(m.ctx.globalCfg); err != nil {
-			m.output.AddStyledLine("  Configure decision model with `/decision model` command to use router", repltheme.UsageHintStyle)
-			m.output.AddEmptyLine()
-			m.textarea.Reset()
-			m.updateViewportContent()
-			return *m, nil
-		}
+	if m.classifiers.complexity != nil {
+		return nil
+	}
+	return m.classifiers.Configure(m.ctx.globalCfg)
+}
+
+func (m *replModel) beginRouterPrompt(input string, fromQueue bool) (replModel, tea.Cmd) {
+	if err := m.configureClassifiers(); err != nil {
+		m.output.AddStyledLine("  Configure decision model with `/decision model` command to use router", repltheme.UsageHintStyle)
+		m.output.AddEmptyLine()
+		m.textarea.Reset()
+		m.updateViewportContent()
+		return *m, nil
 	}
 	if !m.ctx.globalCfg.Router.Configured() {
 		m.output.AddError("Router models are not configured. Use /router config.", repltheme.ErrorStyle)
@@ -228,6 +233,10 @@ func (m *replModel) beginRouterPrompt(input string, fromQueue bool) (replModel, 
 		m.updateViewportContent()
 		return *m, nil
 	}
+	return m.startTaskClassification(input, fromQueue)
+}
+
+func (m *replModel) startTaskClassification(input string, fromQueue bool) (replModel, tea.Cmd) {
 	messages := m.taskComplexityInput(input)
 	m.router.generation++
 	generation := m.router.generation
@@ -274,6 +283,18 @@ func (m *replModel) handleRouterResult(msg routerResultMsg) (replModel, tea.Cmd)
 	}
 	m.router.pending, m.router.cancel = false, nil
 	classification := msg.classification
+	if !m.routerEnabled() {
+		if classification.err == nil {
+			m.recordUsage(classification.provider, classification.result.Model, &agentcore.TokenUsage{InputTokens: classification.result.Usage.InputTokens, OutputTokens: classification.result.Usage.OutputTokens})
+			description := "probably continuing the same task"
+			if classification.result.NewTask >= taskHintNewTaskThreshold {
+				description = "this looks like a new task"
+			}
+			m.output.AddStyledLine(fmt.Sprintf("  Task check: %s (p=%.2f)", description, classification.result.NewTask), repltheme.FaintedStyle)
+			m.output.AddEmptyLine()
+		}
+		return m.submitOrShowTaskHint(msg.input, classification)
+	}
 	category := config.RouterCategoryStandard
 	if classification.err == nil {
 		category = string(classification.result.Category)
@@ -314,7 +335,7 @@ func (m *replModel) handleRouterResult(msg routerResultMsg) (replModel, tea.Cmd)
 		m.addRouterClassificationResult(category, classification.result, switching)
 	}
 	m.refreshContextStatus()
-	return m.submitPrompt(msg.input, true, true)
+	return m.submitOrShowTaskHint(msg.input, classification)
 }
 
 func (m *replModel) addRouterClassificationResult(category string, result taskcomplexity.Result, switching bool) {

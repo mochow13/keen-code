@@ -175,6 +175,15 @@ Alongside the task category, the classifier reports the category **probability**
 
 The new-task signal decides *whether* to switch; the category probability decides *which* model to target. A confident verdict only switches in the upgrade direction, so a continuation is never moved down to a cheaper model, and the prompt cache is only paid for when work is escalating. When the active model is not one of the router's configured models, the tier is unknown and only the new-task signal can switch.
 
+### New-task hint
+
+When a decision model is configured (router on or off), Keen classifies each prompt sent after the first one in a session. If the new-task probability is at least 70%, Keen asks "Moving to a new task? You can save some cost." before sending it:
+
+- **Create a new session** starts a fresh session (like `/new`) and sends the prompt there.
+- **Compact current context** runs `/compact`, then sends the prompt. If compaction fails or is cancelled, the prompt is put back in the input box.
+- **Skip this time** (or `Esc`) sends the prompt in the current session.
+- **Skip this session** sends the prompt and stops the hint until you switch sessions (`/new`, `/clear`, `/resume`).
+
 ## `/router`
 
 Shows the saved provider, model, and thinking effort for each category, along with the router's activation status.

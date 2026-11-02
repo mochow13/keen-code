@@ -109,6 +109,7 @@ type replModel struct {
 	classifiers         *classificationManager
 	router              routerState
 	turnUsage           turnUsage
+	taskHint            taskHintState
 }
 
 type toolHistoryMode uint8
@@ -436,6 +437,7 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 		}
 	}
 	m.output.AddUserInput(input, repltheme.PromptStyle)
+	m.taskHint.display = input
 	m.history.Push(input)
 
 	if updated, cmd, handled := m.dispatchCommand(input); handled {
@@ -448,6 +450,9 @@ func (m *replModel) submitInput(input string, fromQueue bool) (replModel, tea.Cm
 
 	if m.routerEnabled() {
 		return m.beginRouterPrompt(input, fromQueue)
+	}
+	if m.taskHintEligible() && m.configureClassifiers() == nil {
+		return m.startTaskClassification(input, fromQueue)
 	}
 	return m.submitPrompt(input, fromQueue, false)
 }
@@ -594,6 +599,9 @@ func (m *replModel) updateViewportContent() {
 	}
 	if m.usageView != nil {
 		content.WriteString(replwidgets.FormatUsageCard(m.usageView, m.viewport.Width()))
+	}
+	if m.taskHint.active {
+		content.WriteString(formatTaskHintCard(m.taskHint.cursor, m.viewport.Width()))
 	}
 
 	viewportContent := content.String()
@@ -1130,6 +1138,7 @@ func (m *replModel) replayLoadedSession(loaded *session.LoadedSession) {
 	m.output = replay.output
 	m.agentCore.ReplaceMessages(agentcore.FromCoreMessages(session.BuildConversation(loaded.Events)))
 	m.router.pendingTurns = nil
+	m.taskHint = taskHintState{}
 	m.history.Reset()
 	m.sessionPicker = nil
 	m.contextStatus.ResetTotals()

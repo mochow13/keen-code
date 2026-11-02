@@ -308,6 +308,9 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	m.adjustTextareaHeight()
 	m.updateViewportContent()
 	m.scrollToBottomIfFollowing()
+	if input := m.takeTaskHintCompactionInput(); input != "" {
+		return m.submitPrompt(input, true, false)
+	}
 	return m.drainQueuedInput()
 }
 
@@ -334,6 +337,9 @@ func (m *replModel) handleCompactionError(err error) (replModel, tea.Cmd) {
 			status := "Compaction failed: " + err.Error()
 			reploutput.AddCompactionErrorStatus(m.output, status)
 		}
+	}
+	if m.takeTaskHintCompactionInput() != "" {
+		m.textarea.SetValue(m.taskHint.display)
 	}
 	m.adjustTextareaHeight()
 	m.refreshContextStatus()
@@ -576,6 +582,10 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		return m.handleSessionPickerKeyMsg(msg)
 	}
 
+	if m.taskHint.active {
+		return m.handleTaskHintKeyMsg(msg)
+	}
+
 	if m.modelSelection != nil {
 		var cmd tea.Cmd
 		m.modelSelection, cmd = m.modelSelection.Update(msg)
@@ -614,7 +624,11 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 		}
 		m.router.pending, m.router.cancel = false, nil
 		m.stopLoading()
-		m.output.AddStyledLine("  Routing cancelled", repltheme.UsageHintStyle)
+		cancelled := "  Cancelled"
+		if m.routerEnabled() {
+			cancelled = "  Routing cancelled"
+		}
+		m.output.AddStyledLine(cancelled, repltheme.UsageHintStyle)
 		m.output.AddEmptyLine()
 		m.updateViewportContent()
 		return m.drainQueuedInput()

@@ -442,6 +442,7 @@ func TestRouterPreservesIncompleteTurnOnModelSwitch(t *testing.T) {
 				t.Fatal("incomplete turn should remain in client pending state until switching")
 			}
 			m.ctx.globalCfg.Router.Standard.Model = "gpt-5.4-mini"
+			m.taskHint.skipSession = true
 			m.router.pending = true
 			m, _ = m.handleRouterResult(routerResultMsg{input: "continue", classification: routerClassification{result: taskcomplexity.Result{Category: taskcomplexity.CategoryStandard, Probability: 0.9, NewTask: 1}}})
 			messages := m.agentCore.GetMessages()

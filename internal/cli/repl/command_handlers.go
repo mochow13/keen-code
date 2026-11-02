@@ -1198,6 +1198,7 @@ func (m *replModel) handleClearCommand() replModel {
 	m.agentCore.ClearMessages()
 	m.agentCore.ResetClientState()
 	m.router.pendingTurns = nil
+	m.taskHint = taskHintState{}
 	m.agentCore.ClearContextMetrics()
 	m.contextStatus.ResetTotals()
 	m.agentCore.SetMode(currentMode)
