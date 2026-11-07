@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mochow13/keen-code/internal/agentcore"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mochow13/keen-code/internal/agentcore"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -2417,7 +2418,7 @@ func TestHelpFormattingFallbacks(t *testing.T) {
 	if got := m.helpWidth(); got != 80 {
 		t.Fatalf("helpWidth = %d, want 80", got)
 	}
-	if text := ansi.Strip(getHelpText(1)); !strings.Contains(text, "Available Commands") || !strings.Contains(text, replcommands.Help) {
+	if text := strings.ReplaceAll(ansi.Strip(getHelpText(1)), "\n", ""); !strings.Contains(text, "AvailableCommands") || !strings.Contains(text, replcommands.Help) {
 		t.Fatalf("narrow help text missing content: %q", text)
 	}
 	if got := maxCommandNameWidth(nil); got != 0 {

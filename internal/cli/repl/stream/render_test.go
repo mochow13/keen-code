@@ -2,6 +2,7 @@ package stream
 
 import (
 	"github.com/mochow13/keen-code/internal/agentcore"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	"strings"
 	"testing"
 
@@ -213,5 +214,52 @@ func TestRenderDiffSegment_RendersRulesUsingViewportWidth(t *testing.T) {
 		if w := lipgloss.Width(line); w > 22 {
 			t.Fatalf("expected non-empty diff line to leave right padding (%d > %d): %q", w, 22, line)
 		}
+	}
+}
+
+func TestCompletedTranscriptReflows(t *testing.T) {
+	tests := []struct {
+		name string
+		seed func(handler *StreamHandler)
+	}{
+		{
+			name: "bash",
+			seed: func(handler *StreamHandler) {
+				handler.HandleBashStart("printf a long command with multiple arguments", "running a long command")
+				handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{"stdout": "some long output with multiple words for wrapping"}})
+			},
+		},
+		{
+			name: "assistant and tool",
+			seed: func(handler *StreamHandler) {
+				handler.HandleChunk("A completed assistant response with several words to wrap correctly.")
+				handler.HandleToolStart(&agentcore.ToolCall{Name: agentcore.ToolNameGrep, Input: map[string]any{"pattern": "a pattern with several words to search for"}})
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := NewStreamHandler(nil)
+			test.seed(handler)
+			segments := handler.Snapshot()
+			handler.HandleDone()
+			output := reploutput.NewOutputBuilder(70, "")
+			handler.AppendTranscript(output, segments)
+			wide := output.Join()
+			output.SetWidth(25)
+			narrow := output.Join()
+			if wide == narrow {
+				t.Fatal("completed transcript did not reflow")
+			}
+			for _, line := range strings.Split(narrow, "\n") {
+				if ansi.StringWidth(line) > 25 {
+					t.Fatalf("line exceeds width: %q", line)
+				}
+			}
+			output.SetWidth(70)
+			if output.Join() != wide {
+				t.Fatal("completed transcript did not restore layout")
+			}
+		})
 	}
 }

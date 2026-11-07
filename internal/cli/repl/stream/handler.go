@@ -343,7 +343,15 @@ func (sh *StreamHandler) RewindForRetry() {
 }
 
 func (sh *StreamHandler) View(width int) string {
+	if sh.lastWidth != width {
+		for i := range sh.segments {
+			sh.segments[i].renderedLines = nil
+		}
+	}
 	sh.lastWidth = width
+	if sh.mdRenderer != nil {
+		_ = sh.mdRenderer.UpdateWidth(width)
+	}
 
 	var view strings.Builder
 

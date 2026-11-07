@@ -116,7 +116,7 @@ func (m replModel) handleBangMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 		if msg.stream == bangStreamStderr {
 			style = repltheme.ErrorStyle
 		}
-		m.output.AddStyledLine("  "+msg.line, style)
+		m.output.AddWrappedLine("  "+msg.line, style)
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
 		return m, waitForBangEvent(m.bang.events), true
@@ -127,20 +127,23 @@ func (m replModel) handleBangMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 
 		if msg.err != nil {
 			if msg.timedOut {
-				m.output.AddStyledLine("  command timed out after "+bangTimeout.String(), repltheme.ErrorStyle)
+				m.output.AddWrappedLine("  command timed out after "+bangTimeout.String(), repltheme.ErrorStyle)
 			} else if msg.canceled {
-				m.output.AddStyledLine("  command cancelled.", repltheme.InterruptedStyle)
+				m.output.AddWrappedLine("  command cancelled.", repltheme.InterruptedStyle)
 			} else if msg.exitCode != 0 {
-				m.output.AddStyledLine("  exit code: "+strconv.Itoa(msg.exitCode), repltheme.ErrorStyle)
+				m.output.AddWrappedLine("  exit code: "+strconv.Itoa(msg.exitCode), repltheme.ErrorStyle)
 			} else if !errors.Is(msg.err, context.Canceled) {
-				m.output.AddStyledLine("  "+msg.err.Error(), repltheme.ErrorStyle)
+				m.output.AddWrappedLine("  "+msg.err.Error(), repltheme.ErrorStyle)
 			}
 		} else {
-			m.output.AddStyledLine("  ‹ done in "+msg.duration.String(), repltheme.BashSummaryStyle)
+			m.output.AddWrappedLine("  ‹ done in "+msg.duration.String(), repltheme.BashSummaryStyle)
 		}
 
-		_, bottomRule := renderRulesWithChip(m.width, repltheme.RuleStyle, "shell", repltheme.ShellChipOutputStyle)
-		m.output.AddLine("\n" + bottomRule)
+		m.output.AddEmptyLine()
+		m.output.AddResponsive(func(width int) []string {
+			_, bottomRule := renderRulesWithChip(max(1, width), repltheme.RuleStyle, "shell", repltheme.ShellChipOutputStyle)
+			return []string{bottomRule}
+		})
 		m.output.AddEmptyLine()
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()

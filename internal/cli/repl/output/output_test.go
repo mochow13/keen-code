@@ -724,3 +724,42 @@ func TestFormattingBoundaryBranches(t *testing.T) {
 		t.Fatalf("empty tool path = %q", got)
 	}
 }
+
+func TestUserInputReflowsOnResize(t *testing.T) {
+	builder := NewOutputBuilder(40, "")
+	builder.AddLine("before")
+	builder.AddUserInput("a long user message that needs to wrap on a narrow terminal", lipgloss.NewStyle())
+	builder.AddLine("after")
+	original := builder.Join()
+	builder.SetWidth(15)
+	narrow := builder.Join()
+	if narrow == original || !strings.Contains(narrow, "before") || !strings.Contains(narrow, "after") {
+		t.Fatalf("resize did not preserve and reflow content: %q", narrow)
+	}
+	builder.SetWidth(40)
+	if builder.Join() != original {
+		t.Fatalf("expanding did not restore original output")
+	}
+}
+
+func TestResponsiveShellOutputAndRules(t *testing.T) {
+	builder := NewOutputBuilder(20, "")
+	builder.AddLine(strings.Repeat("─", 20))
+	builder.AddWrappedLine("  abcdefghijklmnopqrstuvwxyz", lipgloss.NewStyle())
+	builder.AddLine(strings.Repeat("─", 20))
+	original := builder.Join()
+	builder.SetWidth(10)
+	lines := strings.Split(builder.Join(), "\n")
+	if lines[0] != strings.Repeat("─", 10) || lines[len(lines)-1] != strings.Repeat("─", 10) {
+		t.Fatalf("rules did not resize: %q", builder.Join())
+	}
+	for _, line := range lines {
+		if lipgloss.Width(line) > 10 {
+			t.Fatalf("line exceeds width: %q", line)
+		}
+	}
+	builder.SetWidth(20)
+	if builder.Join() != original {
+		t.Fatalf("output was not restored after expanding: %q", builder.Join())
+	}
+}

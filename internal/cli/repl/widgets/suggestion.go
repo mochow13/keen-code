@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
@@ -234,6 +235,13 @@ func (s SuggestionModel) View(width int) string {
 	inner := strings.Join(rows, "\n")
 
 	box := repltheme.SuggestionContainerStyle.Render(inner)
+	if width > 0 {
+		lines := strings.Split(box, "\n")
+		for i, line := range lines {
+			lines[i] = ansi.Truncate(line, width, "…")
+		}
+		box = strings.Join(lines, "\n")
+	}
 
 	boxWidth := lipgloss.Width(box)
 	if boxWidth < width {

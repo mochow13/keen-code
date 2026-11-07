@@ -4,6 +4,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"encoding/json"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mochow13/keen-code/internal/agentcore"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	"golang.org/x/text/cases"
@@ -23,8 +24,14 @@ const (
 	maxGenericInputFields  = 2
 )
 
+type inputBlock struct {
+	start, end int
+	render     func(int) []string
+}
+
 type OutputBuilder struct {
 	lines      []string
+	inputs     []inputBlock
 	width      int
 	workingDir string
 }
@@ -39,6 +46,7 @@ func NewOutputBuilder(width int, workingDir string) *OutputBuilder {
 
 func (ob *OutputBuilder) SetLines(lines []string) {
 	ob.lines = lines
+	ob.inputs = nil
 }
 
 func (ob *OutputBuilder) GetLines() []string {
@@ -46,7 +54,24 @@ func (ob *OutputBuilder) GetLines() []string {
 }
 
 func (ob *OutputBuilder) AddLine(line string) {
-	ob.lines = append(ob.lines, line)
+	plain := ansi.Strip(line)
+	trimmed := strings.Trim(plain, " ")
+	if len([]rune(trimmed)) >= 4 && strings.Trim(trimmed, "─") == "" && ansi.StringWidth(plain) >= ob.width-4 && ob.width > 0 {
+		count := len([]rune(trimmed))
+		run := strings.Repeat("─", count)
+		if strings.Contains(line, run) {
+			margin := ob.width - count
+			ob.AddResponsive(func(width int) []string {
+				return []string{strings.Replace(line, run, strings.Repeat("─", max(1, width-margin)), 1)}
+			})
+			return
+		}
+	}
+	if line == "" {
+		ob.lines = append(ob.lines, line)
+		return
+	}
+	ob.AddResponsive(func(width int) []string { return []string{ansi.Hardwrap(line, max(width, 1), false)} })
 }
 
 func (ob *OutputBuilder) AddEmptyLine() {
@@ -54,10 +79,27 @@ func (ob *OutputBuilder) AddEmptyLine() {
 }
 
 func (ob *OutputBuilder) SetWidth(width int) {
+	if width == ob.width {
+		return
+	}
 	ob.width = width
+	offset := 0
+	for i := range ob.inputs {
+		block := &ob.inputs[i]
+		start, end := block.start+offset, block.end+offset
+		rendered := block.render(width)
+		lines := make([]string, 0, len(ob.lines)-(end-start)+len(rendered))
+		lines = append(lines, ob.lines[:start]...)
+		lines = append(lines, rendered...)
+		lines = append(lines, ob.lines[end:]...)
+		ob.lines = lines
+		offset += len(rendered) - (end - start)
+		block.start, block.end = start, start+len(rendered)
+	}
 }
 
 func (ob *OutputBuilder) AddUserInput(input string, promptStyle lipgloss.Style) {
+	start := len(ob.lines)
 	inputLines := strings.Split(input, "\n")
 	const (
 		promptWidth            = 3
@@ -99,6 +141,24 @@ func (ob *OutputBuilder) AddUserInput(input string, promptStyle lipgloss.Style) 
 		ob.lines = append(ob.lines, line)
 	}
 	ob.AddEmptyLine()
+	ob.inputs = append(ob.inputs, inputBlock{start: start, end: len(ob.lines), render: func(width int) []string {
+		temp := NewOutputBuilder(width, ob.workingDir)
+		temp.AddUserInput(input, promptStyle)
+		return temp.lines
+	}})
+}
+
+// AddResponsive retains the source for output that depends on terminal width.
+func (ob *OutputBuilder) AddResponsive(render func(int) []string) {
+	start := len(ob.lines)
+	ob.lines = append(ob.lines, render(ob.width)...)
+	ob.inputs = append(ob.inputs, inputBlock{start: start, end: len(ob.lines), render: render})
+}
+
+func (ob *OutputBuilder) AddWrappedLine(content string, style lipgloss.Style) {
+	ob.AddResponsive(func(width int) []string {
+		return []string{ansi.Hardwrap(style.Render(content), max(1, width), false)}
+	})
 }
 
 func (ob *OutputBuilder) AddAssistantResponse(response string, assistantStyle lipgloss.Style) {
@@ -111,13 +171,14 @@ func (ob *OutputBuilder) AddAssistantResponse(response string, assistantStyle li
 }
 
 func (ob *OutputBuilder) AddError(err string, errorStyle lipgloss.Style) {
-	wrapStyle := lipgloss.NewStyle().Width(ob.width - 4)
-	ob.lines = append(ob.lines, wrapStyle.Render(errorStyle.Render("  Error: "+err)))
+	ob.AddResponsive(func(width int) []string {
+		return []string{ansi.Wrap(errorStyle.Render("  Error: "+err), max(width, 1), "")}
+	})
 	ob.AddEmptyLine()
 }
 
 func (ob *OutputBuilder) AddStyledLine(content string, style lipgloss.Style) {
-	ob.lines = append(ob.lines, style.Render(content))
+	ob.AddResponsive(func(width int) []string { return []string{ansi.Wrap(style.Render(content), max(width, 1), "")} })
 }
 
 func (ob *OutputBuilder) Join() string {

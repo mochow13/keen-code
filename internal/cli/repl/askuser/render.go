@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
@@ -68,6 +69,9 @@ func (s State) Render(width int) string {
 	margin := strings.Repeat(" ", HorizontalMargin)
 	body = margin + strings.ReplaceAll(body, "\n", "\n"+margin)
 	rule := repltheme.AskUserRuleStyle.Render(strings.Repeat("─", max(width, 1)))
+	if width > 0 {
+		body = ansi.Wrap(body, width, "")
+	}
 	return "\n" + rule + "\n" + body + "\n" + rule + "\n"
 }
 

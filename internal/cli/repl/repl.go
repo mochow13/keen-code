@@ -138,6 +138,8 @@ type turnUsage struct {
 }
 
 type btwState struct {
+	segments      []replstream.Segment
+	errorText     string
 	lines         []string
 	question      string
 	streamHandler *replstream.StreamHandler
@@ -151,6 +153,8 @@ type decisionState struct {
 }
 
 type adversaryState struct {
+	segments       []replstream.Segment
+	errorText      string
 	streamHandler  *replstream.StreamHandler
 	streamCancel   context.CancelFunc
 	lines          []string
@@ -546,6 +550,13 @@ func (m *replModel) activateSkillInput(input string) (string, bool) {
 	return msg, true
 }
 
+func fitCardWidth(content string, width int) string {
+	if width <= 0 {
+		return content
+	}
+	return ansi.Wrap(content, width, "")
+}
+
 func (m *replModel) updateViewportContent() {
 	if m.viewport.Width() == 0 {
 		return
@@ -579,29 +590,29 @@ func (m *replModel) updateViewportContent() {
 	}
 
 	if m.modelSelection != nil {
-		content.WriteString(formatModelSelectionCard(m.modelSelection, m.viewport.Width()))
+		content.WriteString(fitCardWidth(formatModelSelectionCard(m.modelSelection, m.viewport.Width()), contentWidth))
 	}
 
 	if m.decision.modelSelection != nil {
-		content.WriteString(formatModelSelectionCard(m.decision.modelSelection, m.viewport.Width()))
+		content.WriteString(fitCardWidth(formatModelSelectionCard(m.decision.modelSelection, m.viewport.Width()), contentWidth))
 	}
 
 	if m.adversary.modelSelection != nil {
-		content.WriteString(formatModelSelectionCard(m.adversary.modelSelection, m.viewport.Width()))
+		content.WriteString(fitCardWidth(formatModelSelectionCard(m.adversary.modelSelection, m.viewport.Width()), contentWidth))
 	}
 
 	if m.themeSelection != nil {
-		content.WriteString(m.themeSelection.View(m.viewport.Width()))
+		content.WriteString(fitCardWidth(m.themeSelection.View(m.viewport.Width()), contentWidth))
 	}
 
 	if m.sessionPicker != nil {
-		content.WriteString(replwidgets.FormatSessionPickerCard(m.sessionPicker, m.viewport.Width(), m.viewport.Height()))
+		content.WriteString(fitCardWidth(replwidgets.FormatSessionPickerCard(m.sessionPicker, m.viewport.Width(), m.viewport.Height()), contentWidth))
 	}
 	if m.usageView != nil {
-		content.WriteString(replwidgets.FormatUsageCard(m.usageView, m.viewport.Width()))
+		content.WriteString(fitCardWidth(replwidgets.FormatUsageCard(m.usageView, m.viewport.Width()), contentWidth))
 	}
 	if m.taskHint.active {
-		content.WriteString(formatTaskHintCard(m.taskHint.cursor, m.viewport.Width()))
+		content.WriteString(fitCardWidth(formatTaskHintCard(m.taskHint.cursor, m.viewport.Width()), contentWidth))
 	}
 
 	viewportContent := content.String()
@@ -673,9 +684,6 @@ func (m replModel) updateNormalMode(msg tea.Msg) (replModel, tea.Cmd) {
 
 	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.applyWindowSize(sizeMsg)
-		if m.modelSelection != nil || m.decision.modelSelection != nil || m.adversary.modelSelection != nil || m.themeSelection != nil {
-			m.updateViewportContent()
-		}
 		return m, nil
 	}
 
@@ -966,12 +974,12 @@ func (m replModel) View() tea.View {
 				spinnerText += "  " + repltheme.AccentStyle.Render(m.notification.text)
 			}
 			view.WriteString("\n")
-			view.WriteString(spinnerText)
+			view.WriteString(ansi.Truncate(spinnerText, max(m.width, 1), "…"))
 			view.WriteString("\n")
 		} else if m.notification.text != "" {
 			view.WriteString("\n")
 			view.WriteString("  ")
-			view.WriteString(repltheme.AccentStyle.Render(m.notification.text))
+			view.WriteString(ansi.Truncate(repltheme.AccentStyle.Render(m.notification.text), max(1, m.width-2), "…"))
 			view.WriteString("\n")
 		}
 
@@ -1015,7 +1023,10 @@ func (m replModel) View() tea.View {
 }
 
 func (m replModel) inputMetaView() string {
-	return m.inputMetaLocationLine() + "\n" + m.inputMetaStatusLine()
+	if m.width <= 0 {
+		return m.inputMetaLocationLine() + "\n" + m.inputMetaStatusLine()
+	}
+	return ansi.Truncate(m.inputMetaLocationLine(), m.width, "…") + "\n" + ansi.Truncate(m.inputMetaStatusLine(), m.width, "…")
 }
 
 func (m replModel) inputMetaLocationLine() string {

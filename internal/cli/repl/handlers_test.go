@@ -157,6 +157,24 @@ func TestHandleLLMDone(t *testing.T) {
 	}
 }
 
+func TestHandleLLMDoneRendersResolvedAskUserSummary(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.Start(make(chan agentcore.StreamEvent), "Loading...")
+	m.askUser = testAskUserState()
+	m.stream.handler.SetAskUser(m.askUser.Card())
+	m.askUser.Answers = []string{"Recommended", "Second"}
+	m.askUser.Resolve(nil, false)
+
+	updated, _ := m.handleLLMDone()
+	output := strings.Join(updated.output.GetLines(), "\n")
+	if !strings.Contains(output, "Answers provided") || !strings.Contains(output, "Choose one: Recommended") {
+		t.Fatalf("completed output should render the resolved questionnaire summary, got %q", output)
+	}
+	if strings.Contains(output, "Question 1 of 2") {
+		t.Fatalf("completed output rendered the active questionnaire card: %q", output)
+	}
+}
+
 func TestHandleLLMError(t *testing.T) {
 	sh := replstream.NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)

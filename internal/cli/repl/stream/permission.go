@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
@@ -97,7 +98,7 @@ func renderPermissionCard(seg *Segment, width int) []string {
 	}
 
 	if req.Status != replpermissions.StatusPending {
-		return renderPermissionResolved(req)
+		return wrapPermissionResolved(req, width)
 	}
 
 	cardWidth := width - ContentHorizontalPadding
@@ -178,7 +179,11 @@ func renderPermissionCard(seg *Segment, width int) []string {
 	result := make([]string, 0, len(rawLines)+1)
 	result = append(result, "")
 	for _, l := range rawLines {
-		result = append(result, "  "+l)
+		line := "  " + l
+		if width > 0 {
+			line = ansi.Wrap(line, width, "")
+		}
+		result = append(result, strings.Split(line, "\n")...)
 	}
 	return result
 }
@@ -229,4 +234,12 @@ func renderPermissionResolved(req *replpermissions.Request) []string {
 		line = "  " + lipgloss.NewStyle().Foreground(repltheme.MutedColor).Render("✗ Permission cancelled for "+req.ToolName)
 	}
 	return []string{line}
+}
+
+func wrapPermissionResolved(req *replpermissions.Request, width int) []string {
+	lines := renderPermissionResolved(req)
+	if width <= 0 {
+		return lines
+	}
+	return strings.Split(ansi.Wrap(lines[0], max(1, width), ""), "\n")
 }

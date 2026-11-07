@@ -14,6 +14,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mochow13/keen-code/internal/cleanup"
 	replaskuser "github.com/mochow13/keen-code/internal/cli/repl/askuser"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
@@ -205,7 +206,9 @@ func (m *replModel) handleMCPStartupStatus(msg mcpStartupStatusMsg) {
 	m.syncMCPSkills(msg.Statuses)
 
 	if msg.Err != nil {
-		m.output.AddLine(wrapTextWithStyle("  MCP startup timed out: "+msg.Err.Error(), repltheme.ErrorStyle, m.messageWidth()))
+		m.output.AddResponsive(func(width int) []string {
+			return []string{wrapTextWithStyle("  MCP startup timed out: "+msg.Err.Error(), repltheme.ErrorStyle, max(1, width-contentHorizontalPadding))}
+		})
 		m.output.AddEmptyLine()
 		m.updateViewportContent()
 		m.viewport.GotoBottom()
@@ -225,7 +228,9 @@ func (m *replModel) handleMCPStartupStatus(msg mcpStartupStatusMsg) {
 		if status.LastError != "" {
 			line += " (" + status.LastError + ")"
 		}
-		m.output.AddLine(wrapTextWithStyle(line, repltheme.ErrorStyle, m.messageWidth()))
+		m.output.AddResponsive(func(width int) []string {
+			return []string{wrapTextWithStyle(line, repltheme.ErrorStyle, max(1, width-contentHorizontalPadding))}
+		})
 	}
 	m.output.AddEmptyLine()
 	m.updateViewportContent()
@@ -468,6 +473,10 @@ func abbreviateHome(path string) string {
 }
 
 func buildInitialScreen(ctx *replContext, lastSession *session.Summary, width int) []string {
+	return buildInitialScreenWithTip(ctx, lastSession, width, randomTip())
+}
+
+func buildInitialScreenWithTip(ctx *replContext, lastSession *session.Summary, width int, tip string) []string {
 	if width <= 0 {
 		width = defaultWidth
 	}
@@ -514,13 +523,18 @@ func buildInitialScreen(ctx *replContext, lastSession *session.Summary, width in
 	rule := repltheme.InitialScreenRuleStyle.Render(strings.Repeat("─", width))
 	label := initialScreenIndent + repltheme.InitialScreenTipLabelStyle.Render("✦ Tip of the session")
 	indent := initialScreenIndent
-	tipText := indent + strings.ReplaceAll(renderTipText(randomTip(), width-len(indent)), "\n", "\n"+indent)
+	tipText := indent + strings.ReplaceAll(renderTipText(tip, width-len(indent)), "\n", "\n"+indent)
 	lines = append(lines, rule)
 	lines = append(lines, label)
 	lines = append(lines, tipText)
 	lines = append(lines, rule)
 	lines = append(lines, "")
 
+	if width < 50 {
+		for i, line := range lines {
+			lines[i] = ansi.Wrap(line, width, "")
+		}
+	}
 	return lines
 }
 
@@ -585,7 +599,7 @@ func formatModelSelectionCard(ms interface{ ViewString() string }, width int) st
 }
 
 func renderRulesWithChip(width int, ruleStyle lipgloss.Style, chipText string, chipStyle lipgloss.Style) (topRule string, bottomRule string) {
-	chip := chipStyle.Render(chipText)
+	chip := chipStyle.Render(ansi.Truncate(chipText, max(width, 0), ""))
 	chipWidth := lipgloss.Width(chip)
 	leftDashLen := max(width-chipWidth-ruleChipTrailingDashCount, 0)
 	rightDashLen := max(width-leftDashLen-chipWidth, 0)
@@ -761,6 +775,8 @@ func (m *replModel) cancelBtwStream() {
 		m.btw.streamCancel = nil
 	}
 	m.btw.lines = nil
+	m.btw.segments = nil
+	m.btw.errorText = ""
 	m.btw.showSpinner = false
 }
 
@@ -768,12 +784,15 @@ func (m *replModel) flushBtwToOutput() {
 	if m.btw.lines == nil {
 		return
 	}
-	m.output.AddLine(renderBtwLeftBorder(renderBtwQuestionHeader(m.btw.question)))
-	for _, line := range m.btw.lines {
-		m.output.AddLine(renderBtwLeftBorder(line))
-	}
+	saved := *m
+	saved.output = nil
+	m.output.AddResponsive(func(width int) []string {
+		return strings.Split(strings.Trim(saved.renderBtwInlineFinished(width), "\n"), "\n")
+	})
 	m.output.AddEmptyLine()
 	m.btw.lines = nil
+	m.btw.segments = nil
+	m.btw.errorText = ""
 	m.btw.question = ""
 }
 
@@ -786,6 +805,8 @@ func (m *replModel) cancelAdversaryStream() {
 		m.adversary.streamCancel = nil
 	}
 	m.adversary.lines = nil
+	m.adversary.segments = nil
+	m.adversary.errorText = ""
 	m.adversary.showSpinner = false
 }
 
@@ -793,12 +814,15 @@ func (m *replModel) flushAdversaryToOutput() {
 	if m.adversary.lines == nil {
 		return
 	}
-	m.output.AddLine(renderAdversaryLeftBorder(renderAdversaryHeader(m.adversary.focus)))
-	for _, line := range m.adversary.lines {
-		m.output.AddLine(renderAdversaryLeftBorder(line))
-	}
+	saved := *m
+	saved.output = nil
+	m.output.AddResponsive(func(width int) []string {
+		return strings.Split(strings.Trim(saved.renderAdversaryInlineFinished(width), "\n"), "\n")
+	})
 	m.output.AddEmptyLine()
 	m.adversary.lines = nil
+	m.adversary.segments = nil
+	m.adversary.errorText = ""
 	m.adversary.focus = ""
 }
 
@@ -912,6 +936,7 @@ func waitForBtwEvent(llmCh <-chan agentcore.StreamEvent) tea.Cmd {
 }
 
 func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
+	following := m.viewport.AtBottom()
 	m.width = msg.Width
 	m.height = msg.Height
 	m.textarea.SetWidth(msg.Width - inputPromptWidth)
@@ -925,15 +950,17 @@ func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
 	m.viewport.SetHeight(msg.Height - m.textarea.Height() - viewportChromeHeight - m.spinnerHeight() - m.notificationHeight() - m.suggestion.Height() - m.queuedHeight())
 
 	if !m.initialScreenDone && msg.Width > 0 {
-		for _, line := range buildInitialScreen(m.ctx, m.lastSession, m.width) {
-			m.output.AddLine(line)
-		}
+		ctx, lastSession, tip := m.ctx, m.lastSession, randomTip()
+		m.output.AddResponsive(func(width int) []string { return buildInitialScreenWithTip(ctx, lastSession, width, tip) })
 		if m.projectPermsErr != nil {
 			m.output.AddError("Failed to load .keen/permissions.json: "+m.projectPermsErr.Error()+" (using defaults)", repltheme.ErrorStyle)
 			m.output.AddEmptyLine()
 		}
 		m.initialScreenDone = true
-		m.updateViewportContent()
+		following = true
+	}
+	m.updateViewportContent()
+	if following {
 		m.viewport.GotoBottom()
 	}
 }

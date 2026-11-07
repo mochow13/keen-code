@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/x/ansi"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
@@ -55,7 +56,11 @@ func (r *Renderer) Render(markdown string) string {
 	if err != nil {
 		return markdown
 	}
-	return makeURLsClickable(addTableOuterBorders(rendered, tables))
+	rendered = makeURLsClickable(addTableOuterBorders(rendered, tables))
+	if r.width > 0 {
+		rendered = ansi.Wrap(rendered, max(1, r.width-2), "")
+	}
+	return rendered
 }
 
 func (r *Renderer) UpdateWidth(width int) error {
@@ -280,12 +285,8 @@ func parseMarkdownTableRow(line string) []string {
 		return nil
 	}
 	line = strings.TrimSpace(line)
-	if strings.HasPrefix(line, "|") {
-		line = line[1:]
-	}
-	if strings.HasSuffix(line, "|") {
-		line = line[:len(line)-1]
-	}
+	line = strings.TrimPrefix(line, "|")
+	line = strings.TrimSuffix(line, "|")
 
 	cells := []string{}
 	var cell strings.Builder

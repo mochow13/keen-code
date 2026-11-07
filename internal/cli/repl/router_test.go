@@ -350,7 +350,7 @@ func TestRouterSwitchHeuristicBands(t *testing.T) {
 			if tc.switchModel {
 				wantStatus = "switching"
 			}
-			if !strings.Contains(ansi.Strip(m.output.Join()), "· "+wantStatus) {
+			if !strings.Contains(strings.Join(strings.Fields(ansi.Strip(m.output.Join())), " "), "· "+wantStatus) {
 				t.Fatalf("classification output missing %q status: %s", wantStatus, m.output.Join())
 			}
 			if len(m.agentCore.GetMessages()) != 1 || m.router.pending {
@@ -465,7 +465,7 @@ func TestThinkingCommandExplainsRouterSettingsWithoutChangingConfig(t *testing.T
 	if cmd != nil || m.ctx.cfg.ThinkingEffort != "low" || m.ctx.globalCfg.ThinkingEffort != "medium" || !reflect.DeepEqual(before, *m.ctx.globalCfg.Router) || m.ctx.loader.Exists() || m.agentCore.(*mockAgentCore).updateCount != 0 {
 		t.Fatal("thinking command changed router configuration or client")
 	}
-	output := ansi.Strip(m.output.Join())
+	output := strings.Join(strings.Fields(ansi.Strip(m.output.Join())), " ")
 	for _, want := range []string{"Thinking effort cannot be set while routing is enabled", "each router category has its own thinking setting", "/router config"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("missing router thinking explanation %q: %s", want, output)

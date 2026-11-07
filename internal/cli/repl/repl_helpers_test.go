@@ -558,3 +558,30 @@ func TestAutoCompactionCancelledAddsUsageToTurn(t *testing.T) {
 		t.Fatalf("turn usage = %+v, want cancelled compaction tokens folded in", updated.turnUsage.usage)
 	}
 }
+
+func TestNarrowStartupAndHelpFit(t *testing.T) {
+	const width = 20
+	ctx := &replContext{version: "1.2.3"}
+	last := &session.Summary{LastUserMessage: "a long previous message to display", UpdatedAt: time.Now()}
+	views := []string{strings.Join(buildInitialScreenWithTip(ctx, last, width, "A tip with several words to wrap"), "\n"), getHelpText(width)}
+	for _, view := range views {
+		for _, line := range strings.Split(view, "\n") {
+			if ansi.StringWidth(line) > width {
+				t.Fatalf("line exceeds width %d: %q", width, line)
+			}
+		}
+	}
+}
+
+func TestCardAndFooterFitNarrowWidth(t *testing.T) {
+	m := newTestModel()
+	m.width = 12
+	m.ctx.workingDir = "/a/very/long/directory/location"
+	for _, view := range []string{fitCardWidth("a long title with several words", m.width), m.inputMetaView()} {
+		for _, line := range strings.Split(view, "\n") {
+			if ansi.StringWidth(line) > m.width {
+				t.Fatalf("line exceeds width: %q", line)
+			}
+		}
+	}
+}

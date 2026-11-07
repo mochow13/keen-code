@@ -102,7 +102,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 				lines = append(lines, renderToolStatusLines(line, width)...)
 			}
 		case SegmentAssistant:
-			if seg.renderedLines == nil || i == lastAssistantIdx {
+			if seg.renderedLines == nil || i == lastAssistantIdx || sh.lastWidth != width {
 				seg.renderedLines = sh.renderAssistantViewLines(seg.Content, width)
 			}
 			lines = append(lines, seg.renderedLines...)
@@ -110,7 +110,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 			if !sh.showThinking {
 				continue
 			}
-			if seg.renderedLines == nil || i == lastReasoningIdx {
+			if seg.renderedLines == nil || i == lastReasoningIdx || sh.lastWidth != width {
 				seg.renderedLines = sh.renderReasoningViewLines(seg.Content, width)
 			}
 			lines = append(lines, seg.renderedLines...)
@@ -133,6 +133,10 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 }
 
 func (sh *StreamHandler) renderTranscriptLines() []string {
+	return sh.renderTranscriptAtWidth(0)
+}
+
+func (sh *StreamHandler) renderTranscriptAtWidth(width int) []string {
 	lines := make([]string, 0)
 
 	for i := 0; i < len(sh.segments); i++ {
@@ -165,7 +169,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 				}
 			}
 		case SegmentBash:
-			lines = append(lines, sh.renderBashSegment(seg, 0)...)
+			lines = append(lines, sh.renderBashSegment(seg, width)...)
 		case SegmentSubagent:
 			if isHiddenToolFailure(seg.EndToolCall) {
 				continue
@@ -175,15 +179,23 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 				lines = append(lines, renderToolStatusLines(line, sh.lastWidth)...)
 			}
 		case SegmentAssistant:
-			lines = append(lines, sh.renderAssistantTranscriptLines(seg.Content)...)
+			if width > 0 {
+				lines = append(lines, sh.renderAssistantViewLines(seg.Content, width)...)
+			} else {
+				lines = append(lines, sh.renderAssistantTranscriptLines(seg.Content)...)
+			}
 		case SegmentReasoning:
 			if !sh.showThinking {
 				continue
 			}
-			lines = append(lines, sh.renderReasoningTranscriptLines(seg.Content)...)
+			if width > 0 {
+				lines = append(lines, sh.renderReasoningViewLines(seg.Content, width)...)
+			} else {
+				lines = append(lines, sh.renderReasoningTranscriptLines(seg.Content)...)
+			}
 		case SegmentPermission:
 			if seg.PermissionReq != nil {
-				lines = append(lines, renderPermissionResolved(seg.PermissionReq)...)
+				lines = append(lines, wrapPermissionResolved(seg.PermissionReq, width)...)
 			}
 		case SegmentDiff:
 			lines = append(lines, renderDiffSegment(seg, sh.lastWidth)...)
@@ -350,6 +362,21 @@ func formatResponseLines(response string) []string {
 	return result
 }
 
+func (sh *StreamHandler) RenderSegments(segments []Segment, width int) []string {
+	width = max(width, 1)
+	if sh.mdRenderer != nil {
+		_ = sh.mdRenderer.UpdateWidth(width)
+	}
+	handler := &StreamHandler{segments: segments, mdRenderer: sh.mdRenderer, workingDir: sh.workingDir, showThinking: sh.showThinking, lastWidth: width}
+	return handler.renderTranscriptAtWidth(width)
+}
+
+func (sh *StreamHandler) AppendTranscript(output *reploutput.OutputBuilder, segments []Segment) {
+	snapshot := CloneSegments(segments)
+	handler := &StreamHandler{mdRenderer: sh.mdRenderer, workingDir: sh.workingDir, showThinking: sh.showThinking}
+	output.AddResponsive(func(width int) []string { return handler.RenderSegments(snapshot, width) })
+}
+
 func (sh *StreamHandler) renderBashSegment(seg *Segment, width int) []string {
 	ruleWidth := DefaultWidth
 	if width > 0 {
@@ -371,7 +398,11 @@ func (sh *StreamHandler) renderBashSegment(seg *Segment, width int) []string {
 	}
 
 	if seg.Summary != "" {
-		lines = append(lines, repltheme.BashSummaryStyle.Render("  › "+seg.Summary))
+		if width > 0 {
+			lines = append(lines, wrapAndIndent(repltheme.BashSummaryStyle.Render("› "+seg.Summary), width-ContentHorizontalPadding)...)
+		} else {
+			lines = append(lines, repltheme.BashSummaryStyle.Render("  › "+seg.Summary))
+		}
 	}
 
 	lines = append(lines, "")

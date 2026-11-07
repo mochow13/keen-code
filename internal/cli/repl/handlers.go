@@ -75,6 +75,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	if m.compaction.active && m.compaction.mode != compactionAutomatic {
 		return m.handleCompactionDone()
 	}
+	m.appendResolvedAskUserSegment()
 	segments := m.stream.handler.Snapshot()
 	m.recordHistoricalToolActivity(segments)
 	var elapsed time.Duration
@@ -85,8 +86,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	m.stopLoading()
 	m.clearStreamCancel()
 	m.adjustTextareaHeight()
-	m.appendResolvedAskUserSegment()
-	responseLines, response := m.stream.handler.HandleDone()
+	_, response := m.stream.handler.HandleDone()
 	assistantMessage := agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    response,
@@ -98,9 +98,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 		m.handleSessionPersistenceError(err)
 	}
 	m.refreshContextStatus()
-	for _, line := range responseLines {
-		m.output.AddLine(line)
-	}
+	m.stream.handler.AppendTranscript(m.output, segments)
 	if usageLine != "" {
 		m.output.AddEmptyLine()
 		m.output.AddStyledLine(usageLine, repltheme.TurnMetaStyle)
@@ -125,7 +123,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 	m.clearStreamCancel()
 	turnMemory := m.consumeTurnMemory()
 	m.adjustTextareaHeight()
-	pendingLines, errMsg := m.stream.handler.HandleError(err)
+	_, errMsg := m.stream.handler.HandleError(err)
 	assistantMessage := agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    partialResponse,
@@ -135,9 +133,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 		m.handleSessionPersistenceError(persistErr)
 	}
 	m.rememberPendingRouterTurn(assistantMessage)
-	for _, line := range pendingLines {
-		m.output.AddLine(line)
-	}
+	m.stream.handler.AppendTranscript(m.output, segments)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		m.output.AddError(errMsg, repltheme.ErrorStyle)
 	}
@@ -160,7 +156,7 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	m.clearStreamCancel()
 	turnMemory := m.consumeTurnMemory()
 	m.adjustTextareaHeight()
-	pendingLines, errMsg := m.stream.handler.HandleError(err)
+	_, errMsg := m.stream.handler.HandleError(err)
 	assistantMessage := agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    partialResponse,
@@ -172,9 +168,7 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 			m.handleSessionPersistenceError(persistErr)
 		}
 	}
-	for _, line := range pendingLines {
-		m.output.AddLine(line)
-	}
+	m.stream.handler.AppendTranscript(m.output, segments)
 	if errors.Is(err, context.Canceled) {
 		m.updateViewportContent()
 		m.scrollToBottomIfFollowing()
@@ -247,16 +241,14 @@ func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionE
 	}
 
 	m.clearTurnMemory()
-	lines, _, _ := m.stream.handler.Checkpoint()
+	lines, _, checkpointSegments := m.stream.handler.Checkpoint()
 	m.agentCore.ReplaceMessages(persistedReplacement)
 	m.router.pendingTurns = nil
 	m.startAssistantTurnMemory()
 	m.agentCore.ClearContextMetrics()
 	m.refreshContextStatus()
 	m.restoreAutomaticCompactionLoader()
-	for _, line := range lines {
-		m.output.AddLine(line)
-	}
+	m.stream.handler.AppendTranscript(m.output, checkpointSegments)
 	if len(lines) > 0 {
 		m.output.AddEmptyLine()
 	}
@@ -296,9 +288,7 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	}
 	m.router.pendingTurns = nil
 	m.refreshContextStatus()
-	for _, line := range responseLines {
-		m.output.AddLine(line)
-	}
+	m.stream.handler.AppendTranscript(m.output, segments)
 	if len(responseLines) > 0 {
 		m.output.AddEmptyLine()
 	}
@@ -317,10 +307,9 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 func (m *replModel) handleCompactionError(err error) (replModel, tea.Cmd) {
 	m.flushStreamRender()
 	if m.stream.handler != nil && m.stream.handler.IsActive() {
+		segments := m.stream.handler.Snapshot()
 		responseLines, _ := m.stream.handler.HandleError(err)
-		for _, line := range responseLines {
-			m.output.AddLine(line)
-		}
+		m.stream.handler.AppendTranscript(m.output, segments)
 		if len(responseLines) > 0 {
 			m.output.AddEmptyLine()
 		}
@@ -879,9 +868,8 @@ func (m *replModel) interruptStream(message string) {
 	partialResponse := m.stream.handler.GetResponse()
 	turnMemory := m.consumeTurnMemory()
 
-	for _, line := range m.stream.handler.HandleInterrupt() {
-		m.output.AddLine(line)
-	}
+	m.stream.handler.HandleInterrupt()
+	m.stream.handler.AppendTranscript(m.output, segments)
 	m.output.AddStyledLine("\n  "+message, repltheme.InterruptedStyle)
 	m.output.AddEmptyLine()
 
@@ -1138,6 +1126,8 @@ func (m replModel) handleBtwStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 		return m, waitForBtwEvent(m.btw.streamHandler.EventChannel()), true
 	case btwDoneMsg:
 		m.flushStreamRender()
+		m.btw.segments = m.btw.streamHandler.Snapshot()
+		m.btw.errorText = ""
 		responseLines, _ := m.btw.streamHandler.HandleDone()
 		m.btw.showSpinner = false
 		m.btw.lines = responseLines
@@ -1146,10 +1136,13 @@ func (m replModel) handleBtwStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bool) {
 		return m, nil, true
 	case btwErrorMsg:
 		m.flushStreamRender()
+		m.btw.segments = m.btw.streamHandler.Snapshot()
+		m.btw.errorText = ""
 		pendingLines, errMsg := m.btw.streamHandler.HandleError(msg.err)
 		m.btw.showSpinner = false
 		lines := pendingLines
 		if msg.err != nil && !errors.Is(msg.err, context.Canceled) {
+			m.btw.errorText = errMsg
 			lines = append(lines, "  "+repltheme.ErrorStyle.Render(errMsg))
 		}
 		m.btw.lines = lines
@@ -1193,6 +1186,8 @@ func (m replModel) handleAdversaryStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bo
 		return m, waitForAdversaryEvent(m.adversary.streamHandler.EventChannel()), true
 	case adversaryDoneMsg:
 		m.flushStreamRender()
+		m.adversary.segments = m.adversary.streamHandler.Snapshot()
+		m.adversary.errorText = ""
 		responseLines, _ := m.adversary.streamHandler.HandleDone()
 		m.adversary.showSpinner = false
 		m.adversary.lines = responseLines
@@ -1201,10 +1196,13 @@ func (m replModel) handleAdversaryStreamMsg(msg tea.Msg) (replModel, tea.Cmd, bo
 		return m, nil, true
 	case adversaryErrorMsg:
 		m.flushStreamRender()
+		m.adversary.segments = m.adversary.streamHandler.Snapshot()
+		m.adversary.errorText = ""
 		pendingLines, errMsg := m.adversary.streamHandler.HandleError(msg.err)
 		m.adversary.showSpinner = false
 		lines := pendingLines
 		if msg.err != nil && !errors.Is(msg.err, context.Canceled) {
+			m.adversary.errorText = errMsg
 			lines = append(lines, "  "+repltheme.ErrorStyle.Render(errMsg))
 		}
 		m.adversary.lines = lines

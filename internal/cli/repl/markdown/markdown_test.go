@@ -256,3 +256,16 @@ func TestRendererUpdateWidth(t *testing.T) {
 		t.Fatal("new width did not rebuild renderer")
 	}
 }
+
+func TestNarrowMarkdownTableFits(t *testing.T) {
+	renderer, err := New(18)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := "| First | Second | Third |\n| --- | --- | --- |\n| alpha | beta | gamma |"
+	for _, line := range strings.Split(renderer.Render(content), "\n") {
+		if lipgloss.Width(line) > 16 {
+			t.Fatalf("table line exceeds width: %q", line)
+		}
+	}
+}

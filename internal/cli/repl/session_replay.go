@@ -92,19 +92,17 @@ func (r *sessionReplay) flushDone() {
 	if !r.handler.HasContent() {
 		return
 	}
-	lines, _ := r.handler.HandleDone()
-	for _, line := range lines {
-		r.output.AddLine(line)
-	}
+	segments := r.handler.Snapshot()
+	r.handler.HandleDone()
+	r.handler.AppendTranscript(r.output, segments)
 	r.output.AddEmptyLine()
 }
 
 func (r *sessionReplay) flushInterrupt() {
 	if r.handler.HasContent() {
-		lines := r.handler.HandleInterrupt()
-		for _, line := range lines {
-			r.output.AddLine(line)
-		}
+		segments := r.handler.Snapshot()
+		r.handler.HandleInterrupt()
+		r.handler.AppendTranscript(r.output, segments)
 	}
 	r.output.AddStyledLine("\n  "+interruptedPromptText, repltheme.InterruptedStyle)
 	r.output.AddEmptyLine()
@@ -112,10 +110,9 @@ func (r *sessionReplay) flushInterrupt() {
 
 func (r *sessionReplay) flushError(errText string) {
 	if r.handler.HasContent() {
-		lines, _ := r.handler.HandleError(errors.New(errText))
-		for _, line := range lines {
-			r.output.AddLine(line)
-		}
+		segments := r.handler.Snapshot()
+		r.handler.HandleError(errors.New(errText))
+		r.handler.AppendTranscript(r.output, segments)
 	}
 	if errText != "" {
 		r.output.AddError(errText, repltheme.ErrorStyle)

@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
+	"github.com/charmbracelet/x/ansi"
 	keenauth "github.com/mochow13/keen-code/internal/auth"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
@@ -39,7 +40,7 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 		return *m, tea.Quit, true
 
 	case input == replcommands.Help:
-		m.output.AddLine(getHelpText(m.helpWidth()))
+		m.output.AddResponsive(func(width int) []string { return []string{getHelpText(max(1, width))} })
 		m.output.AddEmptyLine()
 		m.textarea.Reset()
 		m.updateViewportContent()
@@ -925,40 +926,53 @@ const (
 )
 
 func (m *replModel) addCommandTable(headers []string, rows [][]string, styleFunc func(row, col int, style lipgloss.Style) lipgloss.Style) {
-	tableWidth := m.width - lipgloss.Width(commandTableLeftPadding) - commandTableRightPadding
-	if tableWidth < 1 {
-		tableWidth = m.viewport.Width() - lipgloss.Width(commandTableLeftPadding) - commandTableRightPadding
-	}
-	tableWidth = max(1, tableWidth)
-
-	rendered := table.New().
-		Headers(headers...).
-		Rows(rows...).
-		Width(tableWidth).
-		Wrap(true).
-		Border(lipgloss.NormalBorder()).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		BorderRight(false).
-		BorderColumn(false).
-		BorderRow(false).
-		BorderHeader(true).
-		BorderStyle(repltheme.RuleStyle).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			style := lipgloss.NewStyle().PaddingRight(commandTableCellPadding)
-			if row == table.HeaderRow {
-				style = style.Inherit(repltheme.MutedStyle.Bold(true))
+	m.output.AddResponsive(func(width int) []string {
+		tableWidth := max(1, width-lipgloss.Width(commandTableLeftPadding)-commandTableRightPadding)
+		if width < 40 {
+			var lines []string
+			for _, row := range rows {
+				for i, cell := range row {
+					label := ""
+					if i < len(headers) {
+						label = headers[i] + ": "
+					}
+					lines = append(lines, strings.Split(ansi.Wrap(label+cell, max(1, width), ""), "\n")...)
+				}
+				lines = append(lines, "")
 			}
-			if styleFunc != nil {
-				style = styleFunc(row, col, style)
-			}
-			return style
-		}).
-		Render()
-	for line := range strings.SplitSeq(rendered, "\n") {
-		m.output.AddLine(commandTableLeftPadding + line)
-	}
+			return lines
+		}
+		rendered := table.New().
+			Headers(headers...).
+			Rows(rows...).
+			Width(tableWidth).
+			Wrap(true).
+			Border(lipgloss.NormalBorder()).
+			BorderTop(false).
+			BorderBottom(false).
+			BorderLeft(false).
+			BorderRight(false).
+			BorderColumn(false).
+			BorderRow(false).
+			BorderHeader(true).
+			BorderStyle(repltheme.RuleStyle).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				style := lipgloss.NewStyle().PaddingRight(commandTableCellPadding)
+				if row == table.HeaderRow {
+					style = style.Inherit(repltheme.MutedStyle.Bold(true))
+				}
+				if styleFunc != nil {
+					style = styleFunc(row, col, style)
+				}
+				return style
+			}).
+			Render()
+		lines := strings.Split(rendered, "\n")
+		for i := range lines {
+			lines[i] = commandTableLeftPadding + lines[i]
+		}
+		return lines
+	})
 }
 
 func maxSkillNameWidth(skillList []agentcore.Skill) int {
@@ -1051,11 +1065,12 @@ func (m *replModel) handleBangCommand(input string) (replModel, tea.Cmd) {
 		return *m, nil
 	}
 
-	topRule, _ := renderRulesWithChip(m.width, repltheme.RuleStyle, "shell", repltheme.ShellChipOutputStyle)
-
 	m.output.AddEmptyLine()
-	m.output.AddLine(topRule)
-	m.output.AddStyledLine("  $ "+command, repltheme.BashCommandStyle)
+	m.output.AddResponsive(func(width int) []string {
+		topRule, _ := renderRulesWithChip(max(1, width), repltheme.RuleStyle, "shell", repltheme.ShellChipOutputStyle)
+		return []string{topRule}
+	})
+	m.output.AddWrappedLine("  $ "+command, repltheme.BashCommandStyle)
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 
@@ -1211,10 +1226,8 @@ func (m *replModel) handleClearCommand() replModel {
 	m.adjustTextareaHeight()
 
 	newOutput := reploutput.NewOutputBuilder(m.width, m.ctx.workingDir)
-	initialLines := buildInitialScreen(m.ctx, m.lastSession, m.width)
-	for _, line := range initialLines {
-		newOutput.AddLine(line)
-	}
+	ctx, lastSession, tip := m.ctx, m.lastSession, randomTip()
+	newOutput.AddResponsive(func(width int) []string { return buildInitialScreenWithTip(ctx, lastSession, width, tip) })
 	if currentMode != agentcore.ModeBuild {
 		newOutput.AddStyledLine("  ✓ Mode restored: "+string(currentMode), repltheme.HighlightStyle)
 	}
@@ -1287,6 +1300,15 @@ func getHelpText(width int) string {
 		descWidth = 1
 	}
 
+	if width < cmdWidth+lipgloss.Width(leftPadding)+lipgloss.Width(colGap)+12 {
+		var lines []string
+		lines = append(lines, ansi.Wrap(repltheme.TitleStyle.Render("Available Commands"), max(1, width), ""), "")
+		for _, c := range replcommands.All {
+			lines = append(lines, ansi.Wrap(repltheme.HelpCmdStyle.Render(c.Name), max(1, width), ""))
+			lines = append(lines, ansi.Wrap(repltheme.HelpDescStyle.Render(c.Description), max(1, width), ""))
+		}
+		return strings.Join(lines, "\n")
+	}
 	var lines []string
 	lines = append(lines, leftPadding+repltheme.TitleStyle.Render("Available Commands"))
 	lines = append(lines, "")

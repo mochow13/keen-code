@@ -3,6 +3,8 @@ package repl
 import (
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
 
@@ -26,8 +28,10 @@ func (m *replModel) renderBtwInline(width int) string {
 	view.WriteString("\n\n")
 
 	header := renderBtwQuestionHeader(m.btw.question)
-	view.WriteString(renderBtwLeftBorder(header))
-	view.WriteString("\n")
+	for _, line := range strings.Split(ansi.Wrap(header, max(1, width-2), ""), "\n") {
+		view.WriteString(renderBtwLeftBorder(line))
+		view.WriteString("\n")
+	}
 
 	streamView := strings.TrimLeft(m.btw.streamHandler.View(contentWidth), "\n")
 	for _, line := range strings.Split(streamView, "\n") {
@@ -48,10 +52,19 @@ func (m *replModel) renderBtwInlineFinished(width int) string {
 	view.WriteString("\n")
 
 	header := renderBtwQuestionHeader(m.btw.question)
-	view.WriteString(renderBtwLeftBorder(header))
-	view.WriteString("\n")
+	for _, line := range strings.Split(ansi.Wrap(header, max(1, width-2), ""), "\n") {
+		view.WriteString(renderBtwLeftBorder(line))
+		view.WriteString("\n")
+	}
 
-	for _, line := range m.btw.lines {
+	lines := m.btw.lines
+	if m.btw.segments != nil && m.btw.streamHandler != nil {
+		lines = m.btw.streamHandler.RenderSegments(m.btw.segments, max(1, width-contentHorizontalPadding))
+		if m.btw.errorText != "" {
+			lines = append(lines, "  "+repltheme.ErrorStyle.Render(m.btw.errorText))
+		}
+	}
+	for _, line := range lines {
 		view.WriteString(renderBtwLeftBorder(line))
 		view.WriteString("\n")
 	}
@@ -78,8 +91,10 @@ func (m *replModel) renderAdversaryInline(width int) string {
 	var view strings.Builder
 	view.WriteString("\n\n")
 
-	view.WriteString(renderAdversaryLeftBorder(renderAdversaryHeader(m.adversary.focus)))
-	view.WriteString("\n")
+	for _, line := range strings.Split(ansi.Wrap(renderAdversaryHeader(m.adversary.focus), max(1, width-2), ""), "\n") {
+		view.WriteString(renderAdversaryLeftBorder(line))
+		view.WriteString("\n")
+	}
 
 	streamView := strings.TrimLeft(m.adversary.streamHandler.View(contentWidth), "\n")
 	for _, line := range strings.Split(streamView, "\n") {
@@ -99,10 +114,19 @@ func (m *replModel) renderAdversaryInlineFinished(width int) string {
 	var view strings.Builder
 	view.WriteString("\n")
 
-	view.WriteString(renderAdversaryLeftBorder(renderAdversaryHeader(m.adversary.focus)))
-	view.WriteString("\n")
+	for _, line := range strings.Split(ansi.Wrap(renderAdversaryHeader(m.adversary.focus), max(1, width-2), ""), "\n") {
+		view.WriteString(renderAdversaryLeftBorder(line))
+		view.WriteString("\n")
+	}
 
-	for _, line := range m.adversary.lines {
+	lines := m.adversary.lines
+	if m.adversary.segments != nil && m.adversary.streamHandler != nil {
+		lines = m.adversary.streamHandler.RenderSegments(m.adversary.segments, max(1, width-contentHorizontalPadding))
+		if m.adversary.errorText != "" {
+			lines = append(lines, "  "+repltheme.ErrorStyle.Render(m.adversary.errorText))
+		}
+	}
+	for _, line := range lines {
 		view.WriteString(renderAdversaryLeftBorder(line))
 		view.WriteString("\n")
 	}

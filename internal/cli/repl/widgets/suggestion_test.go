@@ -352,7 +352,7 @@ func TestSuggestionViewHandlesNarrowDescriptions(t *testing.T) {
 	s.items = []SuggestionItem{{Name: "/command", Description: "description"}}
 	s.visible = true
 	view := ansi.Strip(s.View(8))
-	if !strings.Contains(view, "/command") || strings.Contains(view, "description") {
+	if !strings.Contains(view, "/com") || strings.Contains(view, "description") || ansi.StringWidth(view) > 8 {
 		t.Fatalf("narrow view = %q", view)
 	}
 }

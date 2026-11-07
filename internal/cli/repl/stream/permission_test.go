@@ -2,6 +2,7 @@ package stream
 
 import (
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mochow13/keen-code/internal/agentcore"
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	"strings"
@@ -338,5 +339,16 @@ func TestPermissionTranscript_ResolvedBeforeDone(t *testing.T) {
 	}
 	if !foundAfter {
 		t.Error("expected 'after permission' in transcript")
+	}
+}
+
+func TestPermissionCardsFitNarrowWidth(t *testing.T) {
+	for _, status := range []replpermissions.Status{replpermissions.StatusPending, replpermissions.StatusAllowed} {
+		seg := &Segment{PermissionReq: &replpermissions.Request{ToolName: "a-very-long-tool-name", Path: "a-long-path-to-review", Status: status}}
+		for _, line := range renderPermissionCard(seg, 16) {
+			if ansi.StringWidth(line) > 16 {
+				t.Fatalf("permission line exceeds width: %q", line)
+			}
+		}
 	}
 }
