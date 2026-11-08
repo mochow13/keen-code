@@ -763,6 +763,9 @@ func (m *replModel) startStreamContext() context.Context {
 }
 
 func (m *replModel) clearStreamCancel() {
+	if m.stream.cancel != nil {
+		m.stream.cancel()
+	}
 	m.stream.cancel = nil
 }
 

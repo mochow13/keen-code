@@ -155,13 +155,16 @@ func TestBuildAssistantTurnEvent_MixedTranscript(t *testing.T) {
 		{Kind: replstream.SegmentDiff, DiffLines: diffLines},
 	}
 
-	event := buildAssistantTurnEvent(segments, agentcore.Message{
-		Role:    agentcore.RoleAssistant,
-		Content: "final answer",
-		TurnMemory: &agentcore.TurnMemory{
-			ToolActivity: []agentcore.HistoricalToolActivity{{Tool: "write_file", Input: map[string]any{"path": "a.go", "content": "content"}, Status: "success"}},
+	event := session.Event{
+		Kind: session.KindAssistantTurn,
+		AssistantTurn: &session.AssistantTurnPayload{
+			Transcript: buildAssistantTurnTranscript(segments),
+			Message:    "final answer",
+			TurnMemory: agentcore.ToCoreTurnMemory(&agentcore.TurnMemory{
+				ToolActivity: []agentcore.HistoricalToolActivity{{Tool: "write_file", Input: map[string]any{"path": "a.go", "content": "content"}, Status: "success"}},
+			}),
 		},
-	}, false, "")
+	}
 
 	if event.Kind != session.KindAssistantTurn {
 		t.Fatalf("expected assistant turn event, got %q", event.Kind)

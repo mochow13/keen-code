@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	"github.com/mochow13/keen-code/internal/app"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textarea"
@@ -74,7 +75,7 @@ type replModel struct {
 	askUser             replaskuser.State
 	projectPerms        *config.ProjectPermissions
 	diffEmitter         *repltooling.DiffEmitter
-	sessions            *replSessionState
+	sessions            *app.Session
 	sessionPicker       *replwidgets.SessionPicker
 	usageView           *replwidgets.UsageView
 	suggestion          replwidgets.SuggestionModel
@@ -247,7 +248,10 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 	permissionRequester := replpermissions.NewRequester(projectPerms)
 	diffEmitter := repltooling.NewDiffEmitter()
 	askUserRequester := replaskuser.NewRequester()
-	sessions := newReplSessionState(ctx.workingDir)
+	sessions, sessionErr := app.NewSession(agentCore, ctx.workingDir)
+	if sessionErr != nil {
+		sessions = app.NewSessionWithoutStore(agentCore)
+	}
 
 	fileGitAwareness := filesystem.NewGitAwareness()
 	_ = fileGitAwareness.LoadGitignore(filepath.Join(ctx.workingDir, ".gitignore"))
@@ -273,7 +277,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 
 	output := reploutput.NewOutputBuilder(defaultWidth, ctx.workingDir)
 	var lastSession *session.Summary
-	if summaries, err := sessions.listSessions(); err == nil && len(summaries) > 0 {
+	if summaries, err := sessions.List(); err == nil && len(summaries) > 0 {
 		lastSession = &summaries[0]
 	}
 
@@ -324,7 +328,7 @@ func initialModel(ctx *replContext, lifecycleCtx context.Context, agentCore agen
 	model.classifiers, err = newClassificationManager(ctx.globalCfg)
 
 	if ctx.resumeSession != nil {
-		model.sessions.setSession(ctx.resumeSession.Session)
+		model.sessions.Resume(ctx.resumeSession)
 		model.replayLoadedSession(ctx.resumeSession)
 		model.initialScreenDone = true
 	}
@@ -475,20 +479,12 @@ func (m *replModel) submitPrompt(input string, fromQueue, routed bool) (replMode
 		return *m, nil
 	}
 
-	if err := m.sessions.appendUserMessage(m.agentCore.FormatUserMessage(input)); err != nil {
-		m.output.AddError("Session persistence failed: "+err.Error(), repltheme.ErrorStyle)
-		if !fromQueue {
-			m.textarea.Reset()
-		}
-		m.updateViewportContent()
-		m.viewport.GotoBottom()
-		return *m, nil
+	if m.sessions == nil {
+		m.sessions = app.NewSessionWithoutStore(m.agentCore)
 	}
-
-	ctx := m.startStreamContext()
-	eventCh, err := m.agentCore.Submit(ctx, m.sessions.currentID(), input)
+	m.sessions.SetAgent(m.agentCore)
+	turn, err := m.sessions.StartTurn(context.Background(), input)
 	if err != nil {
-		m.clearStreamCancel()
 		m.output.AddError(err.Error(), repltheme.ErrorStyle)
 		if !fromQueue {
 			m.textarea.Reset()
@@ -497,10 +493,11 @@ func (m *replModel) submitPrompt(input string, fromQueue, routed bool) (replMode
 		m.viewport.GotoBottom()
 		return *m, nil
 	}
+	m.stream.cancel = turn.Close
 
 	m.startLoading(nextLoadingText())
 	m.startAssistantTurnMemory()
-	m.stream.handler.Start(eventCh, m.loading.text)
+	m.stream.handler.Start(turn.Events, m.loading.text)
 	if !fromQueue {
 		m.textarea.Reset()
 	}
@@ -1202,5 +1199,5 @@ func RunREPL(
 		return "", err
 	}
 
-	return m.sessions.currentID(), nil
+	return m.sessions.CurrentID(), nil
 }

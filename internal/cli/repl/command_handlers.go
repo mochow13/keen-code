@@ -102,7 +102,7 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 
 	case input == replcommands.Resume:
 		m.textarea.Reset()
-		summaries, err := m.sessions.listSessions()
+		summaries, err := m.sessions.List()
 		if err != nil {
 			m.output.AddError("Failed to load sessions: "+err.Error(), repltheme.ErrorStyle)
 			m.updateViewportContent()
@@ -116,7 +116,7 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 			m.viewport.GotoBottom()
 			return *m, nil, true
 		}
-		loaded, err := m.sessions.load(summaries[0])
+		loaded, err := m.sessions.Load(summaries[0])
 		if err != nil {
 			m.output.AddError("Failed to load session: "+err.Error(), repltheme.ErrorStyle)
 			m.updateViewportContent()
@@ -128,7 +128,7 @@ func (m *replModel) dispatchCommand(input string) (replModel, tea.Cmd, bool) {
 
 	case input == replcommands.Sessions:
 		m.textarea.Reset()
-		summaries, err := m.sessions.listSessions()
+		summaries, err := m.sessions.List()
 		if err != nil {
 			m.output.AddError("Failed to load sessions: "+err.Error(), repltheme.ErrorStyle)
 			m.updateViewportContent()
@@ -272,7 +272,7 @@ func (m *replModel) startCompaction(extraPrompt string) (replModel, tea.Cmd) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	eventCh, err := m.agentCore.Compact(ctx, m.sessions.currentID(), extraPrompt)
+	eventCh, err := m.agentCore.Compact(ctx, m.sessions.CurrentID(), extraPrompt)
 	if err != nil {
 		cancel()
 		m.output.AddError(err.Error(), repltheme.ErrorStyle)
@@ -1217,7 +1217,7 @@ func (m *replModel) handleClearCommand() replModel {
 	m.agentCore.ClearContextMetrics()
 	m.contextStatus.ResetTotals()
 	m.agentCore.SetMode(currentMode)
-	m.sessions.resetSession()
+	m.sessions.Reset()
 	if m.permissionRequester != nil {
 		m.permissionRequester.ResetSessionPermissions()
 		m.permissionRequester.SetYoloMode(currentMode == agentcore.ModeYolo)

@@ -6,24 +6,22 @@ import (
 	"github.com/mochow13/keen-code/internal/session"
 )
 
-func TestReplSessionState_SetSession(t *testing.T) {
+func TestSessionResumeSelectsCurrentSession(t *testing.T) {
 	home := t.TempDir()
 	work := t.TempDir()
 	t.Setenv("HOME", home)
 
-	state := newReplSessionState(work)
+	state := newTestSession(work)
 	if state == nil {
-		t.Fatal("newReplSessionState() returned nil")
+		t.Fatal("newTestSession() returned nil")
 	}
-
-	if state.currentID() != "" {
-		t.Fatalf("expected empty current ID, got %q", state.currentID())
+	if state.CurrentID() != "" {
+		t.Fatalf("expected empty current ID, got %q", state.CurrentID())
 	}
 
 	sess := &session.Session{ID: "test-session-id"}
-	state.setSession(sess)
-
-	if state.currentID() != sess.ID {
-		t.Fatalf("currentID() = %q, want %q", state.currentID(), sess.ID)
+	state.Resume(&session.LoadedSession{Session: sess})
+	if state.CurrentID() != sess.ID {
+		t.Fatalf("CurrentID() = %q, want %q", state.CurrentID(), sess.ID)
 	}
 }

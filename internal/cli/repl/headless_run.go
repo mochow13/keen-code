@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	"github.com/mochow13/keen-code/internal/app"
 
 	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
@@ -93,25 +94,22 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	defer drainUsageRecords(subagentUsage, appendUsageRecord)
 	_ = agentCore.SetupTools(ctx, permissionRequester, diffEmitter, nil, opts.MCPRuntime, false, subagentUsage)
 
-	sessions := newReplSessionState(opts.WorkingDir)
-	if sessions == nil {
-		return nil, fmt.Errorf("session store unavailable")
+	sessions, err := app.NewSession(agentCore, opts.WorkingDir)
+	if err != nil {
+		return nil, fmt.Errorf("session store unavailable: %w", err)
 	}
 	if opts.SessionID != "" {
-		loaded, err := loadHeadlessSession(sessions, opts.SessionID)
-		if err != nil {
+		if _, err := loadHeadlessSession(sessions, opts.SessionID); err != nil {
 			return nil, err
 		}
-		agentCore.ReplaceMessages(agentcore.FromCoreMessages(session.BuildConversation(loaded.Events)))
 	}
 
-	if err := sessions.appendUserMessage(agentCore.FormatUserMessage(prompt)); err != nil {
-		return nil, err
-	}
-	eventCh, err := agentCore.Submit(ctx, sessions.currentID(), prompt)
+	turn, err := sessions.StartTurn(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
+	defer turn.Close()
+	eventCh := turn.Events
 	if eventCh == nil {
 		return nil, fmt.Errorf("LLM client not initialized")
 	}
@@ -191,14 +189,14 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	}
 }
 
-func loadHeadlessSession(sessions *replSessionState, sessionID string) (*session.LoadedSession, error) {
-	summaries, err := sessions.listSessions()
+func loadHeadlessSession(sessions *app.Session, sessionID string) (*session.LoadedSession, error) {
+	summaries, err := sessions.List()
 	if err != nil {
 		return nil, err
 	}
 	for _, summary := range summaries {
 		if summary.ID == sessionID {
-			return sessions.load(summary)
+			return sessions.Load(summary)
 		}
 	}
 	return nil, fmt.Errorf("session %q not found", sessionID)
@@ -229,7 +227,7 @@ func handleHeadlessToolEnd(handler *replstream.StreamHandler, toolCall *agentcor
 }
 
 func checkpointHeadlessAutoCompaction(
-	sessions *replSessionState,
+	sessions *app.Session,
 	agentCore agentcore.AgentCore,
 	handler *replstream.StreamHandler,
 	turnMemory *turnMemoryAccumulator,
@@ -244,7 +242,7 @@ func checkpointHeadlessAutoCompaction(
 	turnMemory.RecordToolActivity(segments, handler.WorkingDir())
 	response := handler.GetResponse()
 	persistedReplacement := agentCore.WithoutSystemMessages(compaction.Replacement)
-	if err := sessions.appendAutoCompaction(segments, agentcore.Message{
+	if err := sessions.AppendAutoCompaction(buildAssistantTurnTranscript(segments), agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    response,
 		TurnMemory: turnMemory.Build(),
@@ -263,7 +261,7 @@ func finishHeadlessRun(
 	out io.Writer,
 	format string,
 	completionSignal string,
-	sessions *replSessionState,
+	sessions *app.Session,
 	handler *replstream.StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText string,
@@ -277,13 +275,13 @@ func finishHeadlessRun(
 		Content:    currentResponse,
 		TurnMemory: turnMemory.Build(),
 	}
-	if err := sessions.appendAssistantTurn(segments, assistantMessage, false, ""); err != nil {
+	if err := sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, false, ""); err != nil {
 		return nil, err
 	}
 
 	result := &HeadlessRunResult{
-		SessionID:         sessions.currentID(),
-		OpenCodeSessionID: strings.ReplaceAll(sessions.currentID(), "-", ""),
+		SessionID:         sessions.CurrentID(),
+		OpenCodeSessionID: strings.ReplaceAll(sessions.CurrentID(), "-", ""),
 		Text:              completedText + currentResponse,
 		Usage:             cloneHeadlessUsage(usage),
 	}
@@ -299,7 +297,7 @@ func finishHeadlessRun(
 func failHeadlessRun(
 	out io.Writer,
 	format string,
-	sessions *replSessionState,
+	sessions *app.Session,
 	handler *replstream.StreamHandler,
 	turnMemory *turnMemoryAccumulator,
 	completedText string,
@@ -318,10 +316,10 @@ func failHeadlessRun(
 		Content:    partialResponse,
 		TurnMemory: turnMemory.Build(),
 	}
-	_ = sessions.appendAssistantTurn(segments, assistantMessage, false, errMsg)
+	_ = sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, false, errMsg)
 	result := &HeadlessRunResult{
-		SessionID:         sessions.currentID(),
-		OpenCodeSessionID: strings.ReplaceAll(sessions.currentID(), "-", ""),
+		SessionID:         sessions.CurrentID(),
+		OpenCodeSessionID: strings.ReplaceAll(sessions.CurrentID(), "-", ""),
 		Text:              completedText + partialResponse,
 		Usage:             cloneHeadlessUsage(usage),
 	}

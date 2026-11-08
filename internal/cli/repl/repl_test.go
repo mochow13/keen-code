@@ -75,7 +75,7 @@ func TestNewTestModelDoesNotEnablePersistence(t *testing.T) {
 	if m.sessions != nil {
 		t.Fatal("UI-only test models must not create a session store")
 	}
-	if err := m.sessions.appendUserMessage("test input"); err != nil {
+	if err := m.sessions.AppendUserMessage("test input"); err != nil {
 		t.Fatalf("disabled persistence should be a no-op: %v", err)
 	}
 }

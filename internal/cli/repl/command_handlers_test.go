@@ -352,7 +352,7 @@ func TestHandleEnterKey_SessionsCommand_EmptyState(t *testing.T) {
 	t.Setenv("HOME", tmp)
 
 	m := newTestModel()
-	m.sessions = newReplSessionState(filepath.Join(tmp, "project"))
+	m.sessions = newTestSession(filepath.Join(tmp, "project"))
 	m.textarea.SetValue(replcommands.Sessions)
 
 	newM, cmd := m.handleEnterKey()
@@ -1241,11 +1241,11 @@ func TestHandleEnterKey_SessionsCommandWithSessions(t *testing.T) {
 	m.ctx.registry = &providers.Registry{Providers: []providers.Provider{}}
 	m.ctx.globalCfg = &config.GlobalConfig{}
 	m.ctx.loader = config.NewLoader()
-	m.sessions = newReplSessionState(workingDir)
-	if err := m.sessions.appendUserMessage("saved prompt"); err != nil {
+	m.sessions = newTestSession(workingDir)
+	if err := m.sessions.AppendUserMessage("saved prompt"); err != nil {
 		t.Fatalf("append user message: %v", err)
 	}
-	m.sessions.resetSession()
+	m.sessions.Reset()
 	m.textarea.SetValue(replcommands.Sessions)
 
 	newM, cmd := m.handleEnterKey()
@@ -1266,7 +1266,7 @@ func TestHandleEnterKey_ResumeCommand(t *testing.T) {
 	t.Setenv("HOME", tmp)
 
 	m := newTestModel()
-	m.sessions = newReplSessionState(filepath.Join(tmp, "project"))
+	m.sessions = newTestSession(filepath.Join(tmp, "project"))
 	m.textarea.SetValue(replcommands.Resume)
 
 	newM, _ := m.handleEnterKey()
@@ -2432,7 +2432,7 @@ func TestDispatchCommandHandlesEmptySessionLists(t *testing.T) {
 		t.Run(command, func(t *testing.T) {
 			m := newTestModel()
 			m.ctx.workingDir = t.TempDir()
-			m.sessions = newReplSessionState(m.ctx.workingDir)
+			m.sessions = newTestSession(m.ctx.workingDir)
 			result, cmd, handled := m.dispatchCommand(command)
 			if !handled || cmd != nil {
 				t.Fatalf("dispatch handled=%v cmd=%v", handled, cmd)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	"github.com/mochow13/keen-code/internal/app"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm"
 	"github.com/mochow13/keen-code/internal/llm/core"
@@ -64,6 +65,14 @@ func newAgentCore(client llm.LLMClient, workingDir string, cfg ...*config.Resolv
 		resolved = cfg[0]
 	}
 	return agentcore.New(client, workingDir, resolved, nil)
+}
+
+func newTestSession(workingDir string) *app.Session {
+	sessions, err := app.NewSession(nil, workingDir)
+	if err != nil {
+		return nil
+	}
+	return sessions
 }
 
 func processCmd(m replModel, cmd tea.Cmd) (replModel, tea.Cmd) {

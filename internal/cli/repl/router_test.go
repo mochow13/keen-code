@@ -475,14 +475,14 @@ func TestThinkingCommandExplainsRouterSettingsWithoutChangingConfig(t *testing.T
 
 func TestRouterDoesNotPersistClassifierFailures(t *testing.T) {
 	m := routerTestModel(t)
-	m.sessions = newReplSessionState(t.TempDir())
+	m.sessions = newTestSession(t.TempDir())
 	m.router.pending = true
 	m, _ = m.handleRouterResult(routerResultMsg{input: "hello", classification: routerClassification{err: errors.New("sensitive classifier response")}})
-	summaries, err := m.sessions.listSessions()
+	summaries, err := m.sessions.List()
 	if err != nil || len(summaries) != 1 {
 		t.Fatalf("summaries: %v, error: %v", summaries, err)
 	}
-	loaded, err := m.sessions.load(summaries[0])
+	loaded, err := m.sessions.Load(summaries[0])
 	if err != nil {
 		t.Fatal(err)
 	}

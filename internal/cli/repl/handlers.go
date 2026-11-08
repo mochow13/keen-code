@@ -94,7 +94,7 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	}
 	m.agentCore.AppendMessage(assistantMessage)
 	m.router.pendingTurns = nil
-	if err := m.sessions.appendAssistantTurn(segments, assistantMessage, false, ""); err != nil {
+	if err := m.sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, false, ""); err != nil {
 		m.handleSessionPersistenceError(err)
 	}
 	m.refreshContextStatus()
@@ -129,7 +129,7 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 		Content:    partialResponse,
 		TurnMemory: turnMemory,
 	}
-	if persistErr := m.sessions.appendAssistantTurn(segments, assistantMessage, false, errMsg); persistErr != nil {
+	if persistErr := m.sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, false, errMsg); persistErr != nil {
 		m.handleSessionPersistenceError(persistErr)
 	}
 	m.rememberPendingRouterTurn(assistantMessage)
@@ -164,7 +164,7 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 	}
 	if partialResponse != "" || (turnMemory != nil && !turnMemory.IsEmpty()) {
 		m.agentCore.AppendMessage(assistantMessage)
-		if persistErr := m.sessions.appendAssistantTurn(segments, assistantMessage, false, errMsg); persistErr != nil {
+		if persistErr := m.sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, false, errMsg); persistErr != nil {
 			m.handleSessionPersistenceError(persistErr)
 		}
 	}
@@ -235,7 +235,7 @@ func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionE
 	}
 
 	persistedReplacement := m.agentCore.WithoutSystemMessages(event.Replacement)
-	if err := m.sessions.appendAutoCompaction(segments, checkpoint, persistedReplacement); err != nil {
+	if err := m.sessions.AppendAutoCompaction(buildAssistantTurnTranscript(segments), checkpoint, persistedReplacement); err != nil {
 		m.handleSessionPersistenceError(err)
 		return m.handleAutoCompactionStopped()
 	}
@@ -292,7 +292,7 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	if len(responseLines) > 0 {
 		m.output.AddEmptyLine()
 	}
-	if err := m.sessions.appendCompaction(segments, m.agentCore.GetMessages(), "Context compacted."); err != nil {
+	if err := m.sessions.AppendCompaction(buildAssistantTurnTranscript(segments), m.agentCore.GetMessages(), "Context compacted."); err != nil {
 		m.handleSessionPersistenceError(err)
 	}
 	m.adjustTextareaHeight()
@@ -878,7 +878,7 @@ func (m *replModel) interruptStream(message string) {
 		Content:    partialResponse,
 		TurnMemory: turnMemory,
 	}
-	if persistErr := m.sessions.appendAssistantTurn(segments, assistantMessage, true, ""); persistErr != nil {
+	if persistErr := m.sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, true, ""); persistErr != nil {
 		m.handleSessionPersistenceError(persistErr)
 	}
 	m.rememberPendingRouterTurn(assistantMessage)
@@ -906,7 +906,7 @@ func (m *replModel) handleSessionPickerKeyMsg(msg tea.Msg) (replModel, tea.Cmd) 
 		if selected == nil {
 			return *m, nil
 		}
-		loaded, err := m.sessions.load(*selected)
+		loaded, err := m.sessions.Load(*selected)
 		if err != nil {
 			m.sessionPicker = nil
 			m.handleSessionPersistenceError(err)
