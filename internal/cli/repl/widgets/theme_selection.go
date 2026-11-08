@@ -108,7 +108,9 @@ func (m *ThemeSelection) View(width int) string {
 		}
 		swatches := lipgloss.NewStyle().Foreground(opt.Primary).Render("██") +
 			lipgloss.NewStyle().Foreground(opt.PrimaryLight).Render("██") +
-			lipgloss.NewStyle().Foreground(opt.Secondary).Render("██")
+			lipgloss.NewStyle().Foreground(opt.Secondary).Render("██") +
+			lipgloss.NewStyle().Foreground(opt.Accent).Render("██") +
+			lipgloss.NewStyle().Foreground(opt.Error).Render("██")
 		line := prefix + swatches + " " + label
 		if opt.Name == m.Active {
 			line += lipgloss.NewStyle().Foreground(opt.Secondary).Render(" (active)")
@@ -119,6 +121,8 @@ func (m *ThemeSelection) View(width int) string {
 		title := lipgloss.NewStyle().Foreground(opt.Secondary).Bold(true).Render("Title ")
 		code := lipgloss.NewStyle().Foreground(opt.PrimaryLight).Bold(true).Render("code ")
 		faintRule := lipgloss.NewStyle().Foreground(opt.Primary).Faint(true).Render("────")
+		warn := lipgloss.NewStyle().Foreground(opt.Accent).Bold(true).Render("warn ")
+		errText := lipgloss.NewStyle().Foreground(opt.Error).Bold(true).Render("error ")
 		previewIndent := "  "
 		if selected {
 			previewIndent = repltheme.ModelSelectionCursorStyle.Render("  ")
@@ -129,6 +133,8 @@ func (m *ThemeSelection) View(width int) string {
 		body.WriteString(title)
 		body.WriteString(code)
 		body.WriteString(faintRule)
+		body.WriteString(warn)
+		body.WriteString(errText)
 		body.WriteString("\n")
 	}
 	if end < len(m.Options) {

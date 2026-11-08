@@ -59,3 +59,13 @@ func TestThemeSelectionViewListsOptions(t *testing.T) {
 		}
 	}
 }
+
+func TestThemeSelectionViewShowsAccentAndErrorPreview(t *testing.T) {
+	sel := NewThemeSelection("default")
+	view := sel.View(80)
+	for _, s := range []string{"warn", "error", "██"} {
+		if !strings.Contains(view, s) {
+			t.Fatalf("view missing %q", s)
+		}
+	}
+}

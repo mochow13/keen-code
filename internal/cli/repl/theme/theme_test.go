@@ -1,6 +1,9 @@
 package theme
 
 import (
+	"image/color"
+	"math"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -96,7 +99,7 @@ func TestMonochromeThemeIsAdaptiveAndNeutral(t *testing.T) {
 	if !ok {
 		t.Fatal("monochrome theme missing")
 	}
-	for _, c := range []compat.AdaptiveColor{theme.Primary, theme.PrimaryLight, theme.Secondary, theme.OnPrimary} {
+	for _, c := range []compat.AdaptiveColor{theme.Primary, theme.PrimaryLight, theme.Secondary, theme.Accent, theme.Error, theme.OnPrimary} {
 		if c.Light == c.Dark {
 			t.Fatalf("expected adaptive light/dark pair, got %v", c)
 		}
@@ -115,5 +118,67 @@ func TestMonochromeThemeIsAdaptiveAndNeutral(t *testing.T) {
 	ApplyTheme("default")
 	if PromptPlanStyle.Render("x") == planPrompt {
 		t.Fatal("plan styles must follow Secondary across themes")
+	}
+}
+
+func TestApplyThemeChangesAccentAndError(t *testing.T) {
+	prev := CurrentThemeName
+	t.Cleanup(func() { ApplyTheme(prev) })
+
+	ApplyTheme("default")
+	defaultAccent := AccentStyle.Render("x")
+	defaultError := ErrorStyle.Render("x")
+	defaultShellChip := ShellChipStyle.Render("x")
+	defaultYoloChip := ModeYoloChipStyle.Render("x")
+	ApplyTheme("dracula")
+	if AccentStyle.Render("x") == defaultAccent {
+		t.Fatal("expected AccentStyle to change between default and dracula")
+	}
+	if ErrorStyle.Render("x") == defaultError {
+		t.Fatal("expected ErrorStyle to change between default and dracula")
+	}
+	if ShellChipStyle.Render("x") == defaultShellChip {
+		t.Fatal("expected ShellChipStyle to follow Accent between default and dracula")
+	}
+	if ModeYoloChipStyle.Render("x") == defaultYoloChip {
+		t.Fatal("expected ModeYoloChipStyle to follow Error between default and dracula")
+	}
+}
+
+func TestChipColorsHaveContrast(t *testing.T) {
+	previous := CurrentThemeName
+	t.Cleanup(func() { ApplyTheme(previous) })
+	luminance := func(c color.Color) float64 {
+		r, g, b, _ := c.RGBA()
+		linear := func(v uint32) float64 {
+			x := float64(v) / 65535
+			if x <= 0.04045 {
+				return x / 12.92
+			}
+			return math.Pow((x+0.055)/1.055, 2.4)
+		}
+		return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
+	}
+	for _, theme := range Themes {
+		ApplyTheme(theme.Name)
+		for _, pair := range []struct {
+			name   string
+			bg, fg compat.AdaptiveColor
+		}{
+			{"accent", theme.Accent, theme.OnAccent}, {"error", theme.Error, theme.OnError},
+		} {
+			for _, colors := range [][2]color.Color{{pair.bg.Light, pair.fg.Light}, {pair.bg.Dark, pair.fg.Dark}} {
+				a, b := luminance(colors[0]), luminance(colors[1])
+				if a < b {
+					a, b = b, a
+				}
+				if ratio := (a + 0.05) / (b + 0.05); ratio < 4.5 {
+					t.Errorf("%s %s contrast = %.2f", theme.Name, pair.name, ratio)
+				}
+			}
+		}
+		if !reflect.DeepEqual(BtwChipStyle.GetForeground(), theme.OnAccent) || !reflect.DeepEqual(ShellChipStyle.GetForeground(), theme.OnAccent) || !reflect.DeepEqual(ModeYoloChipStyle.GetForeground(), theme.OnError) {
+			t.Errorf("%s chip foregrounds do not match theme", theme.Name)
+		}
 	}
 }
