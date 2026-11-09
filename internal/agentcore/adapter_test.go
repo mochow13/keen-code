@@ -314,8 +314,7 @@ func messageTextBenchmarkMessages(n int) []Message {
 func BenchmarkAdapterGetMessages(b *testing.B) {
 	a := newMessageTextAdapter(messageTextBenchmarkMessages(1000))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		messageTextBenchSink = a.GetMessages()
 	}
 }
@@ -323,8 +322,7 @@ func BenchmarkAdapterGetMessages(b *testing.B) {
 func BenchmarkAdapterGetMessageText(b *testing.B) {
 	a := newMessageTextAdapter(messageTextBenchmarkMessages(1000))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		messageTextBenchSink = a.GetMessageText()
 	}
 }

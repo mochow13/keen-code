@@ -91,7 +91,11 @@ func linkifySegment(segment string, underlined bool) string {
 		if !underlined {
 			visible = "\x1b[4m" + url + "\x1b[24m"
 		}
-		b.WriteString(osc8Open + url + osc8ST + visible + osc8Close)
+		b.WriteString(osc8Open)
+		b.WriteString(url)
+		b.WriteString(osc8ST)
+		b.WriteString(visible)
+		b.WriteString(osc8Close)
 		last = loc[0] + lead + len(url)
 	}
 	b.WriteString(segment[last:])
