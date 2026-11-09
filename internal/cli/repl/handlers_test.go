@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	"github.com/mochow13/keen-code/internal/app"
 	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 
 	"charm.land/bubbles/v2/textarea"
@@ -845,7 +846,8 @@ func TestHandleLLMError_MaterializesMessageAndTurnMemory(t *testing.T) {
 		agentCore: newAgentCore(nil, workingDir),
 		output:    reploutput.NewOutputBuilder(80, ""),
 	}
-	m.startAssistantTurnMemory()
+	m.turn = &app.Turn{}
+	m.turn.ConfigureMemory(workingDir, false)
 	m.handleToolEnd(&agentcore.ToolCall{
 		Name:  "write_file",
 		Input: map[string]any{"path": workingDir + "/foo.go", "content": "package foo"},

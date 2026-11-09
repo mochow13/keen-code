@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mochow13/keen-code/internal/agentcore"
+	"github.com/mochow13/keen-code/internal/app"
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/decision/tasks/taskcomplexity"
 	"github.com/mochow13/keen-code/internal/providers"
@@ -431,7 +432,8 @@ func TestRouterPreservesIncompleteTurnOnModelSwitch(t *testing.T) {
 			m.agentCore.AppendMessage(agentcore.Message{Role: agentcore.RoleUser, Content: "first request"})
 			m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 			m.stream.handler.HandleChunk("partial response")
-			m.startAssistantTurnMemory()
+			m.turn = &app.Turn{}
+			m.turn.ConfigureMemory(m.turnMemoryWorkingDir(), m.toolHistory == toolHistoryFull)
 			m.handleToolEnd(&agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "file.go"}, Output: "file contents"})
 			if interrupted {
 				m.interruptStream(interruptedPromptText)
