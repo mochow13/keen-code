@@ -77,7 +77,6 @@ func (m *replModel) handleLLMDone() (replModel, tea.Cmd) {
 	}
 	m.appendResolvedAskUserSegment()
 	segments := m.stream.handler.Snapshot()
-	m.recordHistoricalToolActivity(segments)
 	var elapsed time.Duration
 	if !m.loading.startedAt.IsZero() {
 		elapsed = time.Since(m.loading.startedAt)
@@ -117,7 +116,6 @@ func (m *replModel) handleLLMIncomplete(err error) (replModel, tea.Cmd) {
 		return m.handleCompactionError(err)
 	}
 	segments := m.stream.handler.Snapshot()
-	m.recordHistoricalToolActivity(segments)
 	partialResponse := m.stream.handler.GetResponse()
 	m.stopLoading()
 	m.clearStreamCancel()
@@ -150,7 +148,6 @@ func (m *replModel) handleLLMError(err error) (replModel, tea.Cmd) {
 		return m.handleCompactionError(err)
 	}
 	segments := m.stream.handler.Snapshot()
-	m.recordHistoricalToolActivity(segments)
 	partialResponse := m.stream.handler.GetResponse()
 	m.stopLoading()
 	m.clearStreamCancel()
@@ -222,12 +219,8 @@ func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionE
 
 	m.flushStreamRender()
 	segments := m.stream.handler.Snapshot()
-	m.recordHistoricalToolActivity(segments)
 
-	var turnMemory *agentcore.TurnMemory
-	if m.turnMemory != nil {
-		turnMemory = m.turnMemory.Build()
-	}
+	turnMemory := m.turn.Memory()
 	checkpoint := agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    m.stream.handler.GetResponse(),
@@ -240,11 +233,10 @@ func (m *replModel) handleAutoCompactionApplied(event *agentcore.AutoCompactionE
 		return m.handleAutoCompactionStopped()
 	}
 
-	m.clearTurnMemory()
+	m.turn.ResetMemory()
 	lines, _, checkpointSegments := m.stream.handler.Checkpoint()
 	m.agentCore.ReplaceMessages(persistedReplacement)
 	m.router.pendingTurns = nil
-	m.startAssistantTurnMemory()
 	m.agentCore.ClearContextMetrics()
 	m.refreshContextStatus()
 	m.restoreAutomaticCompactionLoader()
@@ -357,6 +349,7 @@ func (m *replModel) handleToolStart(toolCall *agentcore.ToolCall) (replModel, te
 
 func (m *replModel) handleToolEnd(toolCall *agentcore.ToolCall) (replModel, tea.Cmd) {
 	m.flushStreamRender()
+	m.turn.RecordToolCall(toolCall, m.stream.handler.GetResponse())
 	if toolCall != nil && toolCall.Name == agentcore.ToolNameAskUser {
 		m.stream.handler.HandleToolEnd(toolCall)
 		return *m, m.waitForAsyncEvent()
@@ -864,7 +857,6 @@ func (m *replModel) interruptStream(message string) {
 	m.stopLoading()
 
 	segments := m.stream.handler.Snapshot()
-	m.recordHistoricalToolActivity(segments)
 	partialResponse := m.stream.handler.GetResponse()
 	turnMemory := m.consumeTurnMemory()
 

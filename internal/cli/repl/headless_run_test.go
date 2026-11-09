@@ -298,6 +298,26 @@ func TestRunHeadless_PersistsHistoricalToolActivity(t *testing.T) {
 	}
 }
 
+func TestRunHeadless_RetryPersistsCorrectToolOffset(t *testing.T) {
+	workingDir := setupHeadlessTestHome(t)
+	client := &recordingHeadlessClient{events: []core.StreamEvent{
+		{Type: core.StreamEventTypeChunk, Content: "discard me"},
+		{Type: core.StreamEventTypeRetry},
+		{Type: core.StreamEventTypeChunk, Content: "hé"},
+		{Type: core.StreamEventTypeToolEnd, ToolCall: &core.ToolCall{Name: "read_file"}},
+		{Type: core.StreamEventTypeChunk, Content: " done"},
+		{Type: core.StreamEventTypeDone},
+	}}
+	if _, err := RunHeadless(context.Background(), HeadlessRunOptions{WorkingDir: workingDir, Config: headlessTestConfig(), Client: client, Prompt: "inspect"}); err != nil {
+		t.Fatal(err)
+	}
+	events := loadOnlyHeadlessSessionEvents(t, workingDir)
+	turn := events[len(events)-1].AssistantTurn
+	if turn.Message != "hé done" || turn.TurnMemory == nil || len(turn.TurnMemory.ToolActivity) != 1 || turn.TurnMemory.ToolActivity[0].TextOffset != len("hé") {
+		t.Fatalf("unexpected persisted turn: %#v", turn)
+	}
+}
+
 func TestRunHeadless_CompletionSignalPresent(t *testing.T) {
 	workingDir := setupHeadlessTestHome(t)
 	client := &recordingHeadlessClient{events: []core.StreamEvent{
@@ -421,9 +441,8 @@ func TestCheckpointHeadlessAutoCompactionRejectsEmptyReplacement(t *testing.T) {
 	handler := replstream.NewStreamHandler(nil)
 	handler.Start(make(chan agentcore.StreamEvent), "")
 	completedText := &strings.Builder{}
-	turnMemory := newTurnMemoryAccumulator(false)
 
-	err := checkpointHeadlessAutoCompaction(nil, agentcore.New(nil, "/tmp", &config.ResolvedConfig{}, nil), handler, turnMemory, completedText, &agentcore.AutoCompactionEvent{})
+	err := checkpointHeadlessAutoCompaction(nil, agentcore.New(nil, "/tmp", &config.ResolvedConfig{}, nil), handler, nil, completedText, &agentcore.AutoCompactionEvent{})
 	if err == nil {
 		t.Fatal("expected empty replacement error")
 	}

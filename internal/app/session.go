@@ -32,6 +32,7 @@ type Turn struct {
 	session *Session
 	cancel  context.CancelFunc
 	close   sync.Once
+	memory  turnMemory
 }
 
 func NewSession(agent Agent, workingDir string) (*Session, error) {
@@ -89,6 +90,33 @@ func (t *Turn) Close() {
 			t.session.active = nil
 		}
 	})
+}
+
+func (t *Turn) ConfigureMemory(workingDir string, retainOutput bool) {
+	if t != nil {
+		t.memory.workingDir = workingDir
+		t.memory.retainOutput = retainOutput
+	}
+}
+
+func (t *Turn) RecordToolCall(call *agentcore.ToolCall, response string) {
+	if t == nil || call == nil {
+		return
+	}
+	t.memory.record(call, len(response))
+}
+
+func (t *Turn) Memory() *agentcore.TurnMemory {
+	if t == nil {
+		return nil
+	}
+	return t.memory.build()
+}
+
+func (t *Turn) ResetMemory() {
+	if t != nil {
+		t.memory.activity = nil
+	}
 }
 
 func (s *Session) AppendUserMessage(content string) error {

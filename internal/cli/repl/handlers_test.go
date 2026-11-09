@@ -846,7 +846,7 @@ func TestHandleLLMError_MaterializesMessageAndTurnMemory(t *testing.T) {
 		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 	m.startAssistantTurnMemory()
-	sh.HandleToolEnd(&agentcore.ToolCall{
+	m.handleToolEnd(&agentcore.ToolCall{
 		Name:  "write_file",
 		Input: map[string]any{"path": workingDir + "/foo.go", "content": "package foo"},
 	})

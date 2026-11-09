@@ -252,3 +252,24 @@ func TestDenyToolRegistry_ExecutionEmitsRejectedToolEnd(t *testing.T) {
 		t.Fatalf("unexpected rejected tool end: %#v", end.ToolCall)
 	}
 }
+
+func TestExecuteTool_CompletedEventRetainsBashInput(t *testing.T) {
+	registry := tools.NewRegistry()
+	tool := writeToolStub{name: tools.BashToolName}
+	if err := registry.Register(tool); err != nil {
+		t.Fatal(err)
+	}
+	events := make(chan core.StreamEvent, 2)
+	input := map[string]any{"command": "go test ./..."}
+	result := executeTool(context.Background(), registry, tool.Name(), input, events)
+	if result.Err != nil {
+		t.Fatal(result.Err)
+	}
+	start, end := <-events, <-events
+	if start.Type != core.StreamEventTypeToolStart || end.Type != core.StreamEventTypeToolEnd {
+		t.Fatalf("unexpected events: %q, %q", start.Type, end.Type)
+	}
+	if end.ToolCall == nil || end.ToolCall.Input["command"] != input["command"] {
+		t.Fatalf("completed tool input: %#v", end.ToolCall)
+	}
+}

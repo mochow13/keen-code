@@ -109,6 +109,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 		return nil, err
 	}
 	defer turn.Close()
+	turn.ConfigureMemory(opts.WorkingDir, false)
 	eventCh := turn.Events
 	if eventCh == nil {
 		return nil, fmt.Errorf("LLM client not initialized")
@@ -118,7 +119,6 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 	handler.SetWorkingDir(opts.WorkingDir)
 	handler.SetShowThinking(false)
 	handler.Start(eventCh, "")
-	turnMemory := newTurnMemoryAccumulator(false)
 	var completedText strings.Builder
 
 	var lastUsage *agentcore.TokenUsage
@@ -132,9 +132,9 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 		case event, ok := <-eventCh:
 			if !ok {
 				if ctx.Err() != nil {
-					return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, ctx.Err())
+					return failHeadlessRun(opts.Out, format, sessions, handler, turn, completedText.String(), lastUsage, ctx.Err())
 				}
-				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turnMemory, completedText.String(), lastUsage)
+				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turn, completedText.String(), lastUsage)
 			}
 			switch event.Type {
 			case agentcore.StreamEventTypeChunk:
@@ -146,6 +146,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 				handleHeadlessToolStart(handler, event.ToolCall)
 				progress.newLine()
 			case agentcore.StreamEventTypeToolEnd:
+				turn.RecordToolCall(event.ToolCall, handler.GetResponse())
 				handleHeadlessToolEnd(handler, event.ToolCall)
 				progress.writeToolEnd(event.ToolCall)
 			case agentcore.StreamEventTypeUsage:
@@ -169,7 +170,7 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 					sessions,
 					agentCore,
 					handler,
-					turnMemory,
+					turn,
 					&completedText,
 					event.AutoCompaction,
 				); err != nil {
@@ -177,14 +178,14 @@ func RunHeadless(ctx context.Context, opts HeadlessRunOptions) (*HeadlessRunResu
 				}
 				lastUsage = nil
 			case agentcore.StreamEventTypeDone:
-				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turnMemory, completedText.String(), lastUsage)
+				return finishHeadlessRun(opts.Out, format, opts.CompletionSignal, sessions, handler, turn, completedText.String(), lastUsage)
 			case agentcore.StreamEventTypeIncomplete:
-				return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, event.Error)
+				return failHeadlessRun(opts.Out, format, sessions, handler, turn, completedText.String(), lastUsage, event.Error)
 			case agentcore.StreamEventTypeError:
-				return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, event.Error)
+				return failHeadlessRun(opts.Out, format, sessions, handler, turn, completedText.String(), lastUsage, event.Error)
 			}
 		case <-ctx.Done():
-			return failHeadlessRun(opts.Out, format, sessions, handler, turnMemory, completedText.String(), lastUsage, ctx.Err())
+			return failHeadlessRun(opts.Out, format, sessions, handler, turn, completedText.String(), lastUsage, ctx.Err())
 		}
 	}
 }
@@ -230,7 +231,7 @@ func checkpointHeadlessAutoCompaction(
 	sessions *app.Session,
 	agentCore agentcore.AgentCore,
 	handler *replstream.StreamHandler,
-	turnMemory *turnMemoryAccumulator,
+	turn *app.Turn,
 	completedText *strings.Builder,
 	compaction *agentcore.AutoCompactionEvent,
 ) error {
@@ -239,13 +240,12 @@ func checkpointHeadlessAutoCompaction(
 	}
 
 	segments := handler.Snapshot()
-	turnMemory.RecordToolActivity(segments, handler.WorkingDir())
 	response := handler.GetResponse()
 	persistedReplacement := agentCore.WithoutSystemMessages(compaction.Replacement)
 	if err := sessions.AppendAutoCompaction(buildAssistantTurnTranscript(segments), agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    response,
-		TurnMemory: turnMemory.Build(),
+		TurnMemory: turn.Memory(),
 	}, persistedReplacement); err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func checkpointHeadlessAutoCompaction(
 	completedText.WriteString(response)
 	agentCore.ReplaceMessages(persistedReplacement)
 	handler.ResetContent()
-	*turnMemory = *newTurnMemoryAccumulator(false)
+	turn.ResetMemory()
 	return nil
 }
 
@@ -263,17 +263,16 @@ func finishHeadlessRun(
 	completionSignal string,
 	sessions *app.Session,
 	handler *replstream.StreamHandler,
-	turnMemory *turnMemoryAccumulator,
+	turn *app.Turn,
 	completedText string,
 	usage *agentcore.TokenUsage,
 ) (*HeadlessRunResult, error) {
 	segments := handler.Snapshot()
-	turnMemory.RecordToolActivity(segments, handler.WorkingDir())
 	_, currentResponse := handler.HandleDone()
 	assistantMessage := agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    currentResponse,
-		TurnMemory: turnMemory.Build(),
+		TurnMemory: turn.Memory(),
 	}
 	if err := sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, false, ""); err != nil {
 		return nil, err
@@ -299,7 +298,7 @@ func failHeadlessRun(
 	format string,
 	sessions *app.Session,
 	handler *replstream.StreamHandler,
-	turnMemory *turnMemoryAccumulator,
+	turn *app.Turn,
 	completedText string,
 	usage *agentcore.TokenUsage,
 	err error,
@@ -308,13 +307,12 @@ func failHeadlessRun(
 		err = fmt.Errorf("LLM stream incomplete")
 	}
 	segments := handler.Snapshot()
-	turnMemory.RecordToolActivity(segments, handler.WorkingDir())
 	partialResponse := handler.GetResponse()
 	_, errMsg := handler.HandleError(err)
 	assistantMessage := agentcore.Message{
 		Role:       agentcore.RoleAssistant,
 		Content:    partialResponse,
-		TurnMemory: turnMemory.Build(),
+		TurnMemory: turn.Memory(),
 	}
 	_ = sessions.AppendAssistantTurn(buildAssistantTurnTranscript(segments), assistantMessage, false, errMsg)
 	result := &HeadlessRunResult{

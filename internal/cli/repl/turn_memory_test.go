@@ -2,6 +2,7 @@ package repl
 
 import (
 	"github.com/mochow13/keen-code/internal/agentcore"
+	"github.com/mochow13/keen-code/internal/app"
 	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	"path/filepath"
 	"strings"
@@ -28,13 +29,14 @@ func TestHandleLLMDone_AttachesTurnMemoryToAssistantMessage(t *testing.T) {
 		output:    reploutput.NewOutputBuilder(80, ""),
 	}
 	m.startAssistantTurnMemory()
-	sh.HandleToolEnd(&agentcore.ToolCall{
+	m.handleToolEnd(&agentcore.ToolCall{
 		Name:  "edit_file",
 		Input: map[string]any{"path": filepath.Join(workingDir, "nested", "a.go"), "oldString": "old", "newString": "new"},
 	})
-	sh.HandleBashStart("go test ./...", "")
-	sh.HandleBashEnd(&agentcore.ToolCall{
+	m.handleToolStart(&agentcore.ToolCall{Name: "bash", Input: map[string]any{"command": "go test ./..."}})
+	m.handleToolEnd(&agentcore.ToolCall{
 		Name:   "bash",
+		Input:  map[string]any{"command": "go test ./..."},
 		Output: map[string]any{"exit_code": 1},
 	})
 
@@ -329,5 +331,24 @@ func TestCollectHistoricalToolActivity_TruncatesOversizedWriteAndEditStrings(t *
 	}
 	if strings.Contains(writeContent, "truncated") || strings.Contains(newString, "truncated") {
 		t.Fatalf("did not expect truncation marker, got %#v", got)
+	}
+}
+
+func TestTurnMemoryOffsetAfterRetry(t *testing.T) {
+	handler := replstream.NewStreamHandler(nil)
+	handler.Start(make(chan agentcore.StreamEvent), "")
+	turn := &app.Turn{}
+	handler.HandleChunk("discarded text")
+	handler.RewindForRetry()
+	handler.HandleChunk("hé")
+	turn.RecordToolCall(&agentcore.ToolCall{Name: "read_file"}, handler.GetResponse())
+	handler.HandleToolEnd(&agentcore.ToolCall{Name: "read_file"})
+	handler.HandleChunk(" end")
+	memory := turn.Memory()
+	if got, want := memory.ToolActivity[0].TextOffset, len("hé"); got != want {
+		t.Fatalf("offset = %d, want %d", got, want)
+	}
+	if got := handler.GetResponse(); got != "hé end" {
+		t.Fatalf("response = %q", got)
 	}
 }

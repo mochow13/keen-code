@@ -432,7 +432,7 @@ func TestRouterPreservesIncompleteTurnOnModelSwitch(t *testing.T) {
 			m.stream.handler.Start(make(chan agentcore.StreamEvent), "Working...")
 			m.stream.handler.HandleChunk("partial response")
 			m.startAssistantTurnMemory()
-			m.stream.handler.HandleToolEnd(&agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "file.go"}, Output: "file contents"})
+			m.handleToolEnd(&agentcore.ToolCall{Name: "read_file", Input: map[string]any{"path": "file.go"}, Output: "file contents"})
 			if interrupted {
 				m.interruptStream(interruptedPromptText)
 			} else {

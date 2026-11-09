@@ -86,7 +86,7 @@ type replModel struct {
 	width               int
 	height              int
 	userScrolled        bool
-	turnMemory          *turnMemoryAccumulator
+	turn                *app.Turn
 	compaction          compactionState
 	contextStatus       contextStatus
 	showThinking        bool
@@ -494,9 +494,10 @@ func (m *replModel) submitPrompt(input string, fromQueue, routed bool) (replMode
 		return *m, nil
 	}
 	m.stream.cancel = turn.Close
+	m.turn = turn
+	turn.ConfigureMemory(m.turnMemoryWorkingDir(), m.toolHistory == toolHistoryFull)
 
 	m.startLoading(nextLoadingText())
-	m.startAssistantTurnMemory()
 	m.stream.handler.Start(turn.Events, m.loading.text)
 	if !fromQueue {
 		m.textarea.Reset()
