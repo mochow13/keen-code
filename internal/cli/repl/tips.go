@@ -26,6 +26,7 @@ var tips = []string{
 	"In plan mode the model cannot make file changes — it must describe the plan first. Switch with `/mode build` when ready; `/mode yolo` skips all permission prompts.",
 	"`/skills list` shows all available skills including ones auto-generated from connected MCP servers.",
 	"Press Tab to move focus between the input box and the output viewport for keyboard scrolling.",
+	"When the agent is tracking tasks, press Ctrl+T to collapse the task panel to a single line.",
 	"Drag to select text in the output or input — it copies automatically when you release the mouse.",
 	"Alt/Option+click or Ctrl+click a link in the output to open it in your browser.",
 	"While the agent is working, your next prompts (up to 5) are queued and run automatically when it finishes.",

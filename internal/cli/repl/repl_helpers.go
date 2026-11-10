@@ -693,7 +693,7 @@ func (m *replModel) adjustTextareaHeight() {
 	if m.height <= 0 {
 		return
 	}
-	m.viewport.SetHeight(m.height - m.textarea.Height() - viewportChromeHeight - m.spinnerHeight() - m.notificationHeight() - m.suggestion.Height() - m.queuedHeight())
+	m.viewport.SetHeight(m.height - m.textarea.Height() - viewportChromeHeight - m.spinnerHeight() - m.notificationHeight() - m.suggestion.Height() - m.queuedHeight() - m.todoPanelHeight())
 }
 
 func (m replModel) isAtTopOfInput() bool {
@@ -950,7 +950,7 @@ func (m *replModel) applyWindowSize(msg tea.WindowSizeMsg) {
 		m.output.SetWidth(msg.Width)
 	}
 	m.viewport.SetWidth(msg.Width)
-	m.viewport.SetHeight(msg.Height - m.textarea.Height() - viewportChromeHeight - m.spinnerHeight() - m.notificationHeight() - m.suggestion.Height() - m.queuedHeight())
+	m.viewport.SetHeight(msg.Height - m.textarea.Height() - viewportChromeHeight - m.spinnerHeight() - m.notificationHeight() - m.suggestion.Height() - m.queuedHeight() - m.todoPanelHeight())
 
 	if !m.initialScreenDone && msg.Width > 0 {
 		ctx, lastSession, tip := m.ctx, m.lastSession, randomTip()

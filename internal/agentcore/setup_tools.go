@@ -96,6 +96,8 @@ func (a *adapter) SetupTools(
 	webFetchTool := tools.NewWebFetchTool()
 	appState.RegisterTool(webFetchTool)
 
+	appState.RegisterTool(tools.NewTodoWriteTool())
+
 	if !isNilInterface(askUserRequester) {
 		appState.RegisterTool(tools.NewAskUserTool(&askUserRequesterAdapter{inner: askUserRequester}))
 	}

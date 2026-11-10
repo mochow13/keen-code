@@ -17,7 +17,7 @@ var retainedHistoricalToolInputs = map[string]struct{}{
 	agentcore.ToolNameReadFile: {}, agentcore.ToolNameGrep: {}, agentcore.ToolNameGlob: {},
 	agentcore.ToolNameWebFetch: {}, agentcore.ToolNameBash: {}, agentcore.ToolNameDelegate: {},
 	agentcore.ToolNameCallMCP: {}, agentcore.ToolNameWriteFile: {}, agentcore.ToolNameEditFile: {},
-	agentcore.ToolNameAskUser: {},
+	agentcore.ToolNameAskUser: {}, agentcore.ToolNameTodoWrite: {},
 }
 
 type turnMemory struct {
@@ -53,7 +53,7 @@ func (m *turnMemory) record(call *agentcore.ToolCall, offset int) {
 				input["path"] = relativizePath(path, m.workingDir)
 			}
 		}
-		if call.Name == agentcore.ToolNameAskUser {
+		if call.Name == agentcore.ToolNameAskUser || call.Name == agentcore.ToolNameTodoWrite {
 			activity.Input = maps.Clone(input)
 		} else {
 			activity.Input = boundedHistoricalToolInput(input, truncatesHistoricalToolInput(call.Name))
@@ -62,6 +62,19 @@ func (m *turnMemory) record(call *agentcore.ToolCall, offset int) {
 	if call.Name == agentcore.ToolNameBash {
 		if code, ok := extractIntField(call.Output, "exit_code"); ok && code != 0 {
 			activity.ExitCode = &code
+		}
+	}
+	if call.Name == agentcore.ToolNameTodoWrite {
+		if call.Error != "" {
+			// A rejected list must not replace the last valid one.
+			activity.Input = nil
+		} else {
+			// Each todo_write carries the full list; keep only the latest copy.
+			for i := range m.activity {
+				if m.activity[i].Tool == agentcore.ToolNameTodoWrite {
+					m.activity[i].Input = nil
+				}
+			}
 		}
 	}
 	m.activity = append(m.activity, activity)

@@ -67,3 +67,46 @@ func TestIsCancellation(t *testing.T) {
 		t.Fatal("unexpected cancellation classification")
 	}
 }
+
+func todoActivity(status string, todoStatuses ...string) core.HistoricalToolActivity {
+	items := make([]any, len(todoStatuses))
+	for i, s := range todoStatuses {
+		items[i] = map[string]any{"content": "Task " + string(rune('A'+i)), "activeForm": "Doing", "status": s}
+	}
+	return core.HistoricalToolActivity{Tool: "todo_write", Status: status, Input: map[string]any{"todos": items}}
+}
+
+func TestAutomaticReplacementCarriesLatestTodos(t *testing.T) {
+	history := []core.Message{
+		{Role: core.RoleUser, Content: "do the work"},
+		{Role: core.RoleAssistant, TurnMemory: &core.TurnMemory{ToolActivity: []core.HistoricalToolActivity{
+			todoActivity("success", "pending", "pending"),
+			todoActivity("success", "completed", "in_progress"),
+			todoActivity("error", "completed", "completed"),
+		}}},
+	}
+	replacement, err := AutomaticReplacement("summary", history)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := replacement[len(replacement)-1].Content
+	for _, want := range []string{"<current_todos>", "- [completed] Task A", "- [in_progress] Task B"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("missing %q in %q", want, content)
+		}
+	}
+}
+
+func TestAutomaticReplacementOmitsFinishedTodos(t *testing.T) {
+	history := []core.Message{
+		{Role: core.RoleUser, Content: "do the work"},
+		{Role: core.RoleAssistant, TurnMemory: &core.TurnMemory{ToolActivity: []core.HistoricalToolActivity{todoActivity("success", "completed")}}},
+	}
+	replacement, err := AutomaticReplacement("summary", history)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(replacement[len(replacement)-1].Content, "<current_todos>") {
+		t.Fatal("finished task list should not be injected")
+	}
+}

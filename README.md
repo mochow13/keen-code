@@ -43,7 +43,7 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 ## Features
 
 - **Multi-provider** — Anthropic, OpenAI, Codex (via OAuth), Gemini, DeepSeek, Kimi, GLM, MiniMax, OpenCode Go, Yolo-Auto, and Amazon Bedrock. Switch with `/model`. More providers will be added in the future.
-- **10 built-in tools** — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_fetch`, `ask_user`, `delegate_task`, and `call_mcp_tool`. Core coding tools stay deliberately lean.
+- **11 built-in tools** — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_fetch`, `ask_user`, `todo_write`, `delegate_task`, and `call_mcp_tool`. Core coding tools stay deliberately lean.
 - **Hashline editing** — `read_file` prefixes every line with an `N:HASH|` anchor (line number + 3-character FNV-1a hash of the line), and `edit_file` applies a multi-op `ops[]` array validated against one file snapshot, atomically — stale anchors are rejected instead of editing drifted content. Inspired by [pi-hashline-edit](https://pi.dev/packages/pi-hashline-edit).
 - **MCP (Model Context Protocol)** — Connect external tool providers from `~/.keen/mcp/configs.json` (or a file selected with `--mcp-config <file_path>`) over streamable HTTP or stdio, with `none`, `api_key`, or browser-based `oauth` auth. Connect and inspect servers with `/mcp`. See [docs/mcp-servers.md](docs/mcp-servers.md).
 - **Skill-driven MCP servers** — Each connected MCP server generates an ordinary skill (`mcp:<server>`) with a tool table and JSON schemas, so tool discovery stays prompt-efficient and detailed schemas load on demand. No tool-search-tool needed to discover MCP tools. See [docs/skill-driven-mcp-impl.md](docs/skill-driven-mcp-impl.md).
@@ -210,6 +210,7 @@ Keen Code aims to support minimal set of useful tools for coding. Currently, the
 - `bash` — run shell commands
 - `web_fetch` — fetch a URL and return the content as text (HTML converted to Markdown)
 - `ask_user` — ask the interactive user clarification questions with preselected recommendations
+- `todo_write` — track multi-step work in a task list shown in a compact panel above the input
 - `delegate_task` — delegate up to 10 bounded tasks to named subagents and run them in parallel
 - `call_mcp_tool` — call a tool on a connected MCP (Model Context Protocol) server
 

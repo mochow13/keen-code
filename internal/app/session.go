@@ -22,6 +22,7 @@ type Session struct {
 	store   *session.Store
 	current *session.Session
 	active  *Turn
+	todos   Todos
 }
 
 // Turn is one prompt submission. Close releases the session's active-turn slot
@@ -237,6 +238,7 @@ func (s *Session) Resume(loaded *session.LoadedSession) {
 		return
 	}
 	s.current = loaded.Session
+	s.todos = TodosFromEvents(loaded.Events)
 	if s.agent != nil {
 		s.agent.ReplaceMessages(agentcore.FromCoreMessages(session.BuildConversation(loaded.Events)))
 	}
@@ -247,4 +249,5 @@ func (s *Session) Reset() {
 		return
 	}
 	s.current = nil
+	s.todos = nil
 }

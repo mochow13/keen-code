@@ -87,6 +87,7 @@ Built-in tools the LLM can call:
 | grep | `grep.go` | Search file contents |
 | bash | `bash.go` | Execute shell commands |
 | web_fetch | `web_fetch.go` | Fetch public web content |
+| todo_write | `todo_write.go` | Maintain the agent's task list |
 | call_mcp_tool | `call_mcp_tool.go` | Call a tool on a connected MCP server |
 | delegate_task | `delegate_tool.go` | Delegate a task to a configured subagent |
 

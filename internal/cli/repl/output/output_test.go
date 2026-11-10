@@ -763,3 +763,28 @@ func TestResponsiveShellOutputAndRules(t *testing.T) {
 		t.Fatalf("output was not restored after expanding: %q", builder.Join())
 	}
 }
+
+func TestFormatTodoWriteToolDone(t *testing.T) {
+	todo := func(content, status string) any {
+		return map[string]any{"content": content, "activeForm": content, "status": status}
+	}
+	tests := []struct {
+		name  string
+		todos []any
+		want  string
+	}{
+		{"planned", []any{todo("A", "pending"), todo("B", "pending")}, "✓ Tasks → planned 2 tasks"},
+		{"progress", []any{todo("A", "completed"), todo("B", "in_progress"), todo("C", "pending")}, "✓ Tasks → 1/3 done · B"},
+		{"all done", []any{todo("A", "completed")}, "✓ Tasks → all 1 done"},
+		{"cleared", []any{}, "✓ Tasks → cleared"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			call := &agentcore.ToolCall{Name: agentcore.ToolNameTodoWrite, Input: map[string]any{"todos": tt.todos}, Duration: time.Millisecond}
+			got := strings.TrimSpace(ansi.Strip(FormatToolDone(call, call, "")))
+			if got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -111,6 +111,7 @@ type replModel struct {
 	router              routerState
 	turnUsage           turnUsage
 	taskHint            taskHintState
+	todoPanel           todoPanelState
 }
 
 type toolHistoryMode uint8
@@ -497,7 +498,8 @@ func (m *replModel) submitPrompt(input string, fromQueue, routed bool) (replMode
 	m.turn = turn
 	turn.ConfigureMemory(m.turnMemoryWorkingDir(), m.toolHistory == toolHistoryFull)
 
-	m.startLoading(nextLoadingText())
+	m.dismissCompletedTodos()
+	m.startLoading(m.turnLoadingText())
 	m.stream.handler.Start(turn.Events, m.loading.text)
 	if !fromQueue {
 		m.textarea.Reset()
@@ -981,6 +983,10 @@ func (m replModel) View() tea.View {
 			view.WriteString("\n")
 		}
 
+		if todoView := m.renderTodoPanelView(); todoView != "" {
+			view.WriteString(todoView)
+		}
+
 		if queuedView := m.renderQueuedInputs(); queuedView != "" {
 			view.WriteString(queuedView)
 		}
@@ -1148,10 +1154,12 @@ func (m *replModel) replayLoadedSession(loaded *session.LoadedSession) {
 	m.agentCore.ReplaceMessages(agentcore.FromCoreMessages(session.BuildConversation(loaded.Events)))
 	m.router.pendingTurns = nil
 	m.taskHint = taskHintState{}
+	m.resetTodoPanelForSession()
 	m.history.Reset()
 	m.sessionPicker = nil
 	m.contextStatus.ResetTotals()
 	m.refreshContextStatus()
+	m.adjustTextareaHeight()
 	m.updateViewportContent()
 	m.viewport.GotoBottom()
 }

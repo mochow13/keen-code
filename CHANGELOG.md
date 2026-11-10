@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add a `todo_write` tool so the agent can track multi-step work, with a compact task panel above the input (Ctrl+T to collapse), the active task shown in the spinner, and the list restored on resume and preserved across compaction.
+
 ## [0.68.0] - 2026-11-28
 
 ### Added

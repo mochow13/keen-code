@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	"github.com/mochow13/keen-code/internal/tools"
 
 	tea "charm.land/bubbletea/v2"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
@@ -191,7 +192,7 @@ func (m *replModel) restoreAutomaticCompactionLoader() {
 	m.compaction.active = false
 	m.compaction.mode = compactionNone
 	m.compaction.cancel = nil
-	m.loading.text = nextLoadingText()
+	m.loading.text = m.turnLoadingText()
 	m.stream.handler.SetLoadingText(m.loading.text)
 }
 
@@ -275,6 +276,7 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	m.stopLoading()
 	m.compaction.cancel = nil
 	m.clearStreamCancel()
+	summary = tools.AppendTodoContext(summary, m.sessions.Todos())
 	if err := m.agentCore.ApplyCompaction(summary); err != nil {
 		return m.handleCompactionError(err)
 	}
@@ -350,6 +352,9 @@ func (m *replModel) handleToolStart(toolCall *agentcore.ToolCall) (replModel, te
 func (m *replModel) handleToolEnd(toolCall *agentcore.ToolCall) (replModel, tea.Cmd) {
 	m.flushStreamRender()
 	m.turn.RecordToolCall(toolCall, m.stream.handler.GetResponse())
+	if m.observeTodos(toolCall) {
+		m.adjustTextareaHeight()
+	}
 	if toolCall != nil && toolCall.Name == agentcore.ToolNameAskUser {
 		m.stream.handler.HandleToolEnd(toolCall)
 		return *m, m.waitForAsyncEvent()
@@ -359,7 +364,7 @@ func (m *replModel) handleToolEnd(toolCall *agentcore.ToolCall) (replModel, tea.
 	} else {
 		m.stream.handler.HandleToolEnd(toolCall)
 	}
-	m.loading.text = nextLoadingText()
+	m.loading.text = m.turnLoadingText()
 	m.stream.handler.SetLoadingText(m.loading.text)
 	m.updateViewportContent()
 	m.scrollToBottomIfFollowing()
@@ -645,6 +650,11 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 
 	if m.askUser.Active() {
 		return m.handleAskUserKeyMsg(keyMsg)
+	}
+
+	if keyMsg.String() == keyCtrlT && m.todoPanelVisible() {
+		m.toggleTodoPanel()
+		return *m, nil
 	}
 
 	if m.suggestion.Visible() {

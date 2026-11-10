@@ -196,6 +196,8 @@ func rebuildThemedStyles(onAccent, onError compat.AdaptiveColor) {
 	ModelSelectionCursorStyle = SuggestionSelectedStyle
 	ContextStatusPercentStyle = lipgloss.NewStyle().Foreground(SecondaryColor)
 	QueueChipStyle = lipgloss.NewStyle().Background(SecondaryColor).Foreground(BlackColor).Bold(true).Padding(0, 1)
+	TodoActiveStyle = lipgloss.NewStyle().Foreground(PrimaryLightColor).Bold(true)
+	TodoDoneMarkStyle = lipgloss.NewStyle().Foreground(SecondaryColor)
 	AdversaryPromptStyle = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor).MarginTop(2)
 	AdversaryInputRuleStyle = lipgloss.NewStyle().Foreground(SecondaryColor).Faint(true)
 	PlanInputRuleStyle = lipgloss.NewStyle().Foreground(SecondaryColor).Faint(true)

@@ -246,6 +246,13 @@ var (
 	QueueItemStyle = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
 	QueueChipStyle = lipgloss.NewStyle().Background(SecondaryColor).Foreground(BlackColor).Bold(true).Padding(0, 1)
 
+	TodoHeaderStyle   = lipgloss.NewStyle().Foreground(TextSecondaryColor).Bold(true)
+	TodoCountStyle    = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	TodoActiveStyle   = lipgloss.NewStyle().Foreground(PrimaryLightColor).Bold(true)
+	TodoPendingStyle  = lipgloss.NewStyle().Foreground(TextSecondaryColor)
+	TodoDoneStyle     = lipgloss.NewStyle().Foreground(TextDimColor).Faint(true)
+	TodoDoneMarkStyle = lipgloss.NewStyle().Foreground(SecondaryColor)
+
 	ShellChipStyle       = lipgloss.NewStyle().Background(AccentColor).Foreground(BlackColor).Bold(true).Padding(0, 1)
 	ShellChipOutputStyle = lipgloss.NewStyle().Background(MutedColor).Foreground(BlackColor).Bold(true).Padding(0, 1)
 

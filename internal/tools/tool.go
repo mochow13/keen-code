@@ -15,6 +15,7 @@ const (
 	GlobToolName      = "glob"
 	GrepToolName      = "grep"
 	ReadFileToolName  = "read_file"
+	TodoWriteToolName = "todo_write"
 	WebFetchToolName  = "web_fetch"
 	WriteFileToolName = "write_file"
 )

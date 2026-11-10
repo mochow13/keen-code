@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mochow13/keen-code/internal/agentcore"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
+	"github.com/mochow13/keen-code/internal/tools"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"path/filepath"
@@ -210,6 +211,7 @@ var toolDisplayNames = map[string]string{
 	agentcore.ToolNameWebFetch:  "Fetch",
 	agentcore.ToolNameCallMCP:   "MCP",
 	agentcore.ToolNameDelegate:  "Delegate",
+	agentcore.ToolNameTodoWrite: "Tasks",
 }
 
 var toolLabelCaser = cases.Title(language.English)
@@ -352,6 +354,8 @@ func formatToolInputDetail(toolName string, input map[string]any, workingDir str
 		return formatMCPToolInput(input)
 	case agentcore.ToolNameDelegate:
 		return formatDelegateTaskInput(input)
+	case agentcore.ToolNameTodoWrite:
+		return formatTodoWriteInput(input)
 	case agentcore.ToolNameReadFile, agentcore.ToolNameWriteFile, agentcore.ToolNameEditFile:
 		if path, ok := input["path"].(string); ok && path != "" {
 			return compactDisplayPath(formatToolPathForUI(path, workingDir))
@@ -372,6 +376,28 @@ func formatToolInputDetail(toolName string, input map[string]any, workingDir str
 	}
 
 	return formatGenericInput(input)
+}
+
+func formatTodoWriteInput(input map[string]any) string {
+	todos, err := tools.ParseTodoWriteInput(input)
+	if err != nil {
+		return ""
+	}
+	done, total := todos.Counts()
+	active, hasActive := todos.Active()
+	switch {
+	case total == 0:
+		return "cleared"
+	case done == 0 && !hasActive:
+		return "planned " + pluralize(total, "task")
+	case done == total:
+		return fmt.Sprintf("all %d done", total)
+	}
+	detail := fmt.Sprintf("%d/%d done", done, total)
+	if hasActive {
+		detail += " · " + compactDisplayValue(active.Content, maxDisplayValueRunes)
+	}
+	return detail
 }
 
 func formatSearchInput(input map[string]any, workingDir string) string {
@@ -452,6 +478,9 @@ func formatGenericValue(value any) (string, bool) {
 func formatToolResultMetadata(toolName string, input map[string]any, endCall *agentcore.ToolCall) ([]string, bool) {
 	if endCall.Error != "" {
 		return withDuration(nil, endCall.Duration), true
+	}
+	if toolName == agentcore.ToolNameTodoWrite {
+		return nil, false
 	}
 
 	var metadata []string

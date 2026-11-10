@@ -290,6 +290,7 @@ func (s *AppState) StreamAdversary(ctx context.Context, focus string) (<-chan co
 		tools.BashToolName,
 		tools.CallMCPToolName,
 		tools.DelegateToolName,
+		tools.TodoWriteToolName,
 	)
 	return s.adversaryClient.StreamChat(ctx, messages, readOnlyRegistry, core.StreamOptions{OneShot: true})
 }

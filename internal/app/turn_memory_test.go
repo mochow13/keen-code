@@ -41,3 +41,30 @@ func TestTurnMemoryBashCommandFromCompletedCall(t *testing.T) {
 		t.Fatalf("mutated tool call: %#v", call)
 	}
 }
+
+func TestTurnMemoryKeepsOnlyLatestTodoWriteInput(t *testing.T) {
+	turn := &Turn{}
+	turn.ConfigureMemory(t.TempDir(), false)
+	first := map[string]any{"todos": []any{map[string]any{"content": "A", "activeForm": "Doing A", "status": "in_progress"}}}
+	second := map[string]any{"todos": []any{map[string]any{"content": "A", "activeForm": "Doing A", "status": "completed"}}}
+	turn.RecordToolCall(&agentcore.ToolCall{Name: agentcore.ToolNameTodoWrite, Input: first}, "")
+	turn.RecordToolCall(&agentcore.ToolCall{Name: agentcore.ToolNameReadFile}, "")
+	turn.RecordToolCall(&agentcore.ToolCall{Name: agentcore.ToolNameTodoWrite, Input: second}, "")
+	activity := turn.Memory().ToolActivity
+	if len(activity) != 3 || activity[0].Input != nil || activity[2].Input == nil {
+		t.Fatalf("expected only the latest todo_write input to be retained: %#v", activity)
+	}
+}
+
+func TestTurnMemoryFailedTodoWriteKeepsLastValidInput(t *testing.T) {
+	turn := &Turn{}
+	turn.ConfigureMemory(t.TempDir(), false)
+	valid := map[string]any{"todos": []any{map[string]any{"content": "A", "activeForm": "Doing A", "status": "in_progress"}}}
+	rejected := map[string]any{"todos": []any{}}
+	turn.RecordToolCall(&agentcore.ToolCall{Name: agentcore.ToolNameTodoWrite, Input: valid}, "")
+	turn.RecordToolCall(&agentcore.ToolCall{Name: agentcore.ToolNameTodoWrite, Input: rejected, Error: "invalid input"}, "")
+	activity := turn.Memory().ToolActivity
+	if len(activity) != 2 || activity[0].Input == nil || activity[1].Input != nil {
+		t.Fatalf("failed todo_write must not displace the last valid list: %#v", activity)
+	}
+}

@@ -31,6 +31,7 @@ The registry manages all available tools and converts them to provider-specific 
 | `grep` | Search file contents | `pattern`, `path`, `include` |
 | `bash` | Execute shell commands | `command`, `isDangerous`, `summary` |
 | `web_fetch` | Fetch content from a URL | `url` |
+| `todo_write` | Create or update the agent's task list | `todos` |
 | `call_mcp_tool` | Call a tool on an MCP server | `server`, `tool`, `arguments` |
 | `delegate_task` | Delegate a task to a configured subagent | `profile`, `task` |
 
@@ -287,6 +288,16 @@ When `truncated` is true, the agent should not rerun the same broad command just
   "truncated": true,
   "stdout_file": "/Users/alice/.keen/bash/keen-bash-abc123.stdout"
 ```
+
+## todo_write
+
+Replaces the agent's task list for multi-step work. Each call sends the complete, ordered list; an empty list clears it. The REPL shows the list in a compact panel above the input (Ctrl+T collapses it), the spinner shows the active task, and the list is restored on session resume and carried across context compaction. Subagents do not get this tool.
+
+**Parameters:**
+- `todos` (array, required, at most 30): items with
+  - `content` (string): imperative description, e.g. "Run the tests"
+  - `activeForm` (string): present-continuous form shown while in progress, e.g. "Running the tests"
+  - `status` (string): `pending`, `in_progress`, or `completed`; at most one item may be `in_progress`
 
 ## web_fetch
 
