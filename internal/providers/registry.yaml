@@ -302,6 +302,7 @@ providers:
       - id: claude-haiku-5-5
         name: Claude Haiku 5.5
         context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: grok-4.7
         name: Grok 4.7
         context_window: 500000
