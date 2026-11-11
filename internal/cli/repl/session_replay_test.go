@@ -211,11 +211,32 @@ func TestSessionReplayIgnoresLegacyClassification(t *testing.T) {
 	}
 }
 
-func TestReplayBashPayloadKeepsExitCode(t *testing.T) {
+func TestBashPayloadRoundTripsOutputStreams(t *testing.T) {
+	segment := replstream.Segment{
+		Kind:       replstream.SegmentBash,
+		Command:    "go test ./...",
+		Output:     "FAIL",
+		Stderr:     "panic: boom",
+		StdoutFile: "/tmp/keen-bash-1.stdout",
+		StderrFile: "/tmp/keen-bash-1.stderr",
+		ToolCall:   &agentcore.ToolCall{Output: map[string]any{"exit_code": 1}},
+	}
+	transcript := buildAssistantTurnTranscript([]replstream.Segment{segment})
+	if len(transcript) != 1 || transcript[0].Bash == nil {
+		t.Fatalf("expected one bash payload, got %#v", transcript)
+	}
+
 	handler := replstream.NewStreamHandler(nil)
-	replayBashPayload(handler, &session.BashPayload{Command: "go test ./...", Output: "FAIL", ExitCode: 1})
+	replayBashPayload(handler, transcript[0].Bash)
 	segments := handler.Snapshot()
-	if len(segments) != 1 || reploutput.BashExitCode(segments[0].ToolCall) != 1 {
-		t.Fatalf("expected replayed bash segment to keep exit code, got %#v", segments)
+	if len(segments) != 1 {
+		t.Fatalf("expected one replayed segment, got %#v", segments)
+	}
+	got := segments[0]
+	if got.Output != segment.Output || got.Stderr != segment.Stderr || got.StdoutFile != segment.StdoutFile || got.StderrFile != segment.StderrFile {
+		t.Fatalf("replayed bash segment = %#v, want streams of %#v", got, segment)
+	}
+	if reploutput.BashExitCode(got.ToolCall) != 1 {
+		t.Fatalf("expected replayed exit code 1, got %d", reploutput.BashExitCode(got.ToolCall))
 	}
 }

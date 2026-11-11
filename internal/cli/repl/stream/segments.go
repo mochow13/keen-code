@@ -29,6 +29,9 @@ type Segment struct {
 	Command       string
 	Summary       string
 	Output        string
+	Stderr        string
+	StdoutFile    string
+	StderrFile    string
 	PermissionReq *replpermissions.Request
 	DiffLines     []agentcore.EditDiffLine
 	Agent         string

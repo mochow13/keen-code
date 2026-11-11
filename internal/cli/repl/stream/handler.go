@@ -222,18 +222,16 @@ func (sh *StreamHandler) HandleBashStart(command, summary string) {
 func (sh *StreamHandler) HandleBashEnd(toolCall *agentcore.ToolCall) {
 	n := len(sh.segments)
 	if n > 0 && sh.segments[n-1].Kind == SegmentBash {
+		seg := &sh.segments[n-1]
 		if result, ok := toolCall.Output.(map[string]any); ok {
-			if stdout, ok := result["stdout"].(string); ok {
-				sh.segments[n-1].Output = stdout
-			}
-			if stderr, ok := result["stderr"].(string); ok && stderr != "" {
-				if sh.segments[n-1].Output != "" {
-					sh.segments[n-1].Output += "\n"
-				}
-				sh.segments[n-1].Output += stderr
-			}
+			stdout, _ := result["stdout"].(string)
+			stderr, _ := result["stderr"].(string)
+			seg.Output = sanitizeCommandOutput(stdout)
+			seg.Stderr = sanitizeCommandOutput(stderr)
+			seg.StdoutFile, _ = result["stdout_file"].(string)
+			seg.StderrFile, _ = result["stderr_file"].(string)
 		}
-		sh.segments[n-1].ToolCall = toolCall
+		seg.ToolCall = toolCall
 	}
 }
 

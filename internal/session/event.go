@@ -81,6 +81,9 @@ type BashPayload struct {
 	Command    string `json:"command"`
 	Summary    string `json:"summary,omitempty"`
 	Output     string `json:"output,omitempty"`
+	Stderr     string `json:"stderr,omitempty"`
+	StdoutFile string `json:"stdout_file,omitempty"`
+	StderrFile string `json:"stderr_file,omitempty"`
 	Error      string `json:"error,omitempty"`
 	DurationNS int64  `json:"duration_ns,omitempty"`
 	ExitCode   int    `json:"exit_code,omitempty"`

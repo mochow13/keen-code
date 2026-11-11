@@ -2,6 +2,7 @@ package stream
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
@@ -395,7 +396,7 @@ func (sh *StreamHandler) blinkRunning(line string) string {
 func (sh *StreamHandler) renderBashSegment(seg *Segment, width int, live bool) []string {
 	finished := seg.ToolCall != nil
 	failed := reploutput.BashFailed(seg.ToolCall)
-	collapsed := finished && !failed && strings.TrimSpace(seg.Output) == ""
+	collapsed := finished && !failed && strings.TrimSpace(seg.Output+seg.Stderr) == ""
 
 	header := reploutput.FormatBashStatus(seg.Summary, seg.Command, seg.ToolCall, collapsed)
 	if live && !finished {
@@ -432,25 +433,99 @@ func (sh *StreamHandler) renderBashSegment(seg *Segment, width int, live bool) [
 
 	addBody(repltheme.BashCommandStyle.Render("$ " + seg.Command))
 
-	output := strings.TrimRight(seg.Output, "\n")
-	switch {
-	case output != "":
-		outputLines := strings.Split(output, "\n")
-		visible := outputLines
-		if len(outputLines) > bashOutputMaxLines {
-			visible = outputLines[:bashOutputMaxLines]
+	stdout := splitOutputLines(seg.Output)
+	stderr := splitOutputLines(seg.Stderr)
+	type outputBlock struct {
+		lines []string
+		style lipgloss.Style
+	}
+	blocks := []outputBlock{{stdout, repltheme.BashOutputStyle}, {stderr, repltheme.ToolErrorStyle}}
+	if failed {
+		blocks[0], blocks[1] = blocks[1], blocks[0]
+	}
+	firstBudget, secondBudget := splitLineBudget(len(blocks[0].lines), len(blocks[1].lines), bashOutputMaxLines)
+	for i, budget := range []int{firstBudget, secondBudget} {
+		block := blocks[i]
+		if hidden := len(block.lines) - budget; hidden > 0 {
+			addBody(repltheme.ToolMetaStyle.Render(fmt.Sprintf("… %d earlier lines", hidden)))
 		}
-		for _, line := range visible {
-			addBody(repltheme.BashOutputStyle.Render(line))
+		for _, line := range block.lines[len(block.lines)-budget:] {
+			addBody(block.style.Render(line))
 		}
-		if hidden := len(outputLines) - len(visible); hidden > 0 {
-			addBody(repltheme.ToolMetaStyle.Render(fmt.Sprintf("… %d more lines", hidden)))
-		}
-	case failed:
+	}
+	if failed && len(stdout) == 0 && len(stderr) == 0 {
 		addBody(repltheme.ToolMetaStyle.Render("(no output)"))
+	}
+	for _, saved := range []struct{ stream, file string }{{"stdout", seg.StdoutFile}, {"stderr", seg.StderrFile}} {
+		if saved.file != "" {
+			addBody(repltheme.ToolMetaStyle.Render("full " + saved.stream + ": " + displayHomePath(saved.file)))
+		}
 	}
 
 	return lines
+}
+
+func splitOutputLines(output string) []string {
+	output = strings.TrimRight(output, "\n")
+	if strings.TrimSpace(output) == "" {
+		return nil
+	}
+	return strings.Split(output, "\n")
+}
+
+func splitLineBudget(first, second, budget int) (int, int) {
+	if first+second <= budget {
+		return first, second
+	}
+	half := budget / 2
+	switch {
+	case second <= half:
+		return budget - second, second
+	case first <= budget-half:
+		return first, budget - first
+	default:
+		return budget - half, half
+	}
+}
+
+func displayHomePath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if rest, ok := strings.CutPrefix(path, home+string(os.PathSeparator)); ok {
+		return "~" + string(os.PathSeparator) + rest
+	}
+	return path
+}
+
+func sanitizeCommandOutput(output string) string {
+	if output == "" {
+		return ""
+	}
+	lines := strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "\r") {
+			line = lastNonEmptyCarriageSegment(line)
+		}
+		lines[i] = strings.Map(func(r rune) rune {
+			if r == '\t' || r >= 0x20 && r != 0x7f {
+				return r
+			}
+			return -1
+		}, ansi.Strip(line))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func lastNonEmptyCarriageSegment(line string) string {
+	parts := strings.Split(line, "\r")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "" {
+			return parts[i]
+		}
+	}
+	return ""
 }
 
 func renderDiffSegment(seg *Segment, width int) []string {

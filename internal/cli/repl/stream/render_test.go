@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -52,7 +53,7 @@ func TestRenderBashSegmentCoversWidthSummaryAndTruncation(t *testing.T) {
 	segment := &Segment{Kind: SegmentBash, Command: "go test ./...", Summary: "testing", Output: strings.Join(output, "\n")}
 	lines := handler.renderBashSegment(segment, 20, false)
 	got := ansi.Strip(strings.Join(lines, "\n"))
-	for _, want := range []string{"$ go test", "testing", "2 more lines"} {
+	for _, want := range []string{"$ go test", "testing", "2 earlier"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("bash render %q missing %q", got, want)
 		}
@@ -322,5 +323,74 @@ func TestCompletedTranscriptReflows(t *testing.T) {
 				t.Fatal("completed transcript did not restore layout")
 			}
 		})
+	}
+}
+
+func TestRenderBashSegmentShowsOutputTail(t *testing.T) {
+	output := make([]string, 30)
+	for i := range output {
+		output[i] = fmt.Sprintf("line %02d", i)
+	}
+	handler := NewStreamHandler(nil)
+	handler.HandleBashStart("go test ./...", "")
+	handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{"stdout": strings.Join(output, "\n") + "\n", "exit_code": 0}})
+
+	got := ansi.Strip(strings.Join(handler.renderBashSegment(&handler.segments[0], 80, false), "\n"))
+	if !strings.Contains(got, "… 14 earlier lines") || !strings.Contains(got, "line 29") || strings.Contains(got, "line 13") {
+		t.Fatalf("expected last %d lines with earlier-lines marker, got %q", bashOutputMaxLines, got)
+	}
+}
+
+func TestRenderBashSegmentShowsStderrFirstOnFailure(t *testing.T) {
+	handler := NewStreamHandler(nil)
+	handler.HandleBashStart("make", "")
+	handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{
+		"stdout":      "building\n",
+		"stderr":      "error: missing target\n",
+		"stdout_file": "/tmp/keen-bash-1.stdout",
+		"exit_code":   2,
+	}})
+
+	lines := handler.renderBashSegment(&handler.segments[0], 80, false)
+	got := ansi.Strip(strings.Join(lines, "\n"))
+	errAt, outAt := strings.Index(got, "error: missing target"), strings.Index(got, "building")
+	if errAt < 0 || outAt < 0 || errAt > outAt {
+		t.Fatalf("expected stderr before stdout on failure, got %q", got)
+	}
+	if !strings.Contains(got, "full stdout: /tmp/keen-bash-1.stdout") {
+		t.Fatalf("expected saved output hint, got %q", got)
+	}
+	if !strings.Contains(strings.Join(lines, "\n"), repltheme.ToolErrorStyle.Render("error: missing target")) {
+		t.Fatal("expected stderr in the error style")
+	}
+}
+
+func TestSplitLineBudget(t *testing.T) {
+	tests := []struct{ first, second, wantFirst, wantSecond int }{
+		{3, 4, 3, 4},
+		{30, 2, 14, 2},
+		{2, 30, 2, 14},
+		{30, 30, 8, 8},
+	}
+	for _, test := range tests {
+		gotFirst, gotSecond := splitLineBudget(test.first, test.second, 16)
+		if gotFirst != test.wantFirst || gotSecond != test.wantSecond {
+			t.Fatalf("splitLineBudget(%d, %d) = %d, %d; want %d, %d", test.first, test.second, gotFirst, gotSecond, test.wantFirst, test.wantSecond)
+		}
+	}
+}
+
+func TestSanitizeCommandOutput(t *testing.T) {
+	tests := map[string]string{
+		"progress 10%\rprogress 50%\rprogress 100%\ndone": "progress 100%\ndone",
+		"windows\r\nline": "windows\nline",
+		"trailing\r":      "trailing",
+		"\x1b[31mred\x1b[0m and \x1b[1mbold\x1b[0m": "red and bold",
+		"bell\a and\bback\ttab":                     "bell andback\ttab",
+	}
+	for input, want := range tests {
+		if got := sanitizeCommandOutput(input); got != want {
+			t.Fatalf("sanitizeCommandOutput(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
