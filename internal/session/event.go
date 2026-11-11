@@ -83,6 +83,7 @@ type BashPayload struct {
 	Output     string `json:"output,omitempty"`
 	Error      string `json:"error,omitempty"`
 	DurationNS int64  `json:"duration_ns,omitempty"`
+	ExitCode   int    `json:"exit_code,omitempty"`
 }
 
 type DiffPayload struct {

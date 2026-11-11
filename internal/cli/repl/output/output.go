@@ -216,6 +216,8 @@ var toolDisplayNames = map[string]string{
 
 var toolLabelCaser = cases.Title(language.English)
 
+const runningMarker = "●"
+
 func toolDisplayName(name string) string {
 	if label, ok := toolDisplayNames[name]; ok {
 		return label
@@ -223,9 +225,13 @@ func toolDisplayName(name string) string {
 	return toolLabelCaser.String(strings.ReplaceAll(name, "_", " "))
 }
 
+func HideRunningMarker(line string) string {
+	return strings.Replace(line, repltheme.ToolNameStyle.Render(runningMarker), " ", 1)
+}
+
 func FormatToolStart(toolCall *agentcore.ToolCall, workingDir string) string {
 	detail := formatToolInputDetail(toolCall.Name, toolCall.Input, workingDir)
-	return "  " + renderToolStatus("●", toolCall.Name, toolDisplayName(toolCall.Name), detail, nil, nil, false) + repltheme.ToolMetaStyle.Render("...")
+	return "  " + renderToolStatus(runningMarker, toolCall.Name, toolDisplayName(toolCall.Name), detail, nil, nil, false) + repltheme.ToolMetaStyle.Render("...")
 }
 
 func FormatToolDone(startCall, endCall *agentcore.ToolCall, workingDir string) string {
@@ -283,6 +289,45 @@ func FormatSubagentTool(agent string, startCall, endCall *agentcore.ToolCall, wo
 	return strings.Replace(FormatToolDone(startCall, &cloned, workingDir), toolDisplayName(startCall.Name), prefix+toolDisplayName(startCall.Name), 1)
 }
 
+func FormatBashStatus(summary, command string, endCall *agentcore.ToolCall, inlineCommand bool) string {
+	label := toolDisplayName(agentcore.ToolNameBash)
+	compactCommand := compactDisplayValue(command, maxDisplayValueRunes)
+	detail := compactDisplayValue(summary, maxDisplayPatternRunes)
+	var metadata []string
+	switch {
+	case detail == "" && inlineCommand:
+		detail = compactCommand
+	case inlineCommand && compactCommand != "":
+		metadata = append(metadata, "$ "+compactCommand)
+	}
+	if endCall == nil {
+		return "  " + renderToolStatus(runningMarker, agentcore.ToolNameBash, label, detail, metadata, nil, false) + repltheme.ToolMetaStyle.Render("...")
+	}
+	result, failed := formatToolResultMetadata(agentcore.ToolNameBash, nil, endCall)
+	metadata = append(metadata, result...)
+	marker := "✓"
+	if failed || BashFailed(endCall) {
+		marker = "✗"
+	}
+	return "  " + renderToolStatus(marker, agentcore.ToolNameBash, label, detail, metadata, formatToolError(agentcore.ToolNameBash, endCall.Error), false)
+}
+
+func BashFailed(toolCall *agentcore.ToolCall) bool {
+	return toolCall != nil && (toolCall.Error != "" || BashExitCode(toolCall) != 0)
+}
+
+func BashExitCode(toolCall *agentcore.ToolCall) int {
+	if toolCall == nil {
+		return 0
+	}
+	result, ok := toolCall.Output.(map[string]any)
+	if !ok {
+		return 0
+	}
+	code, _ := intValue(result["exit_code"])
+	return code
+}
+
 func FormatToolEnd(toolCall *agentcore.ToolCall) string {
 	metadata, failed := formatToolResultMetadata(toolCall.Name, toolCall.Input, toolCall)
 	errText := formatToolError(toolCall.Name, toolCall.Error)
@@ -306,7 +351,8 @@ func formatToolError(toolName, message string) *string {
 
 func renderToolStatus(marker, toolName, label, detail string, metadata []string, errText *string, failed bool) string {
 	var b strings.Builder
-	b.WriteString(repltheme.ToolNameStyle.Render(marker + " " + label))
+	b.WriteString(repltheme.ToolNameStyle.Render(marker))
+	b.WriteString(repltheme.ToolNameStyle.Render(" " + label))
 	if detail != "" {
 		b.WriteString(" ")
 		b.WriteString(repltheme.ToolMetaStyle.Render("→"))

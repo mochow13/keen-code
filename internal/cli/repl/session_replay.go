@@ -182,7 +182,7 @@ func replayBashPayload(handler *replstream.StreamHandler, payload *session.BashP
 	handler.HandleBashStart(payload.Command, payload.Summary)
 	handler.HandleBashEnd(&agentcore.ToolCall{
 		Name:     agentcore.ToolNameBash,
-		Output:   map[string]any{"stdout": payload.Output},
+		Output:   map[string]any{"stdout": payload.Output, "exit_code": payload.ExitCode},
 		Error:    payload.Error,
 		Duration: time.Duration(payload.DurationNS),
 	})

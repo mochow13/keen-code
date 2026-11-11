@@ -2,6 +2,7 @@ package repl
 
 import (
 	"github.com/mochow13/keen-code/internal/agentcore"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"strings"
@@ -147,8 +148,9 @@ func TestBuildAssistantTurnEvent_MixedTranscript(t *testing.T) {
 			Kind:    replstream.SegmentBash,
 			Command: "go test ./...",
 			Summary: "Run unit tests",
-			Output:  "ok",
+			Output:  "FAIL",
 			ToolCall: &agentcore.ToolCall{
+				Output:   map[string]any{"stdout": "FAIL", "exit_code": 2},
 				Duration: 7 * time.Millisecond,
 			},
 		},
@@ -193,8 +195,8 @@ func TestBuildAssistantTurnEvent_MixedTranscript(t *testing.T) {
 	if event.AssistantTurn.Transcript[3].ToolEnd == nil || event.AssistantTurn.Transcript[3].ToolEnd.Name != "read_file" {
 		t.Fatal("expected tool end payload")
 	}
-	if event.AssistantTurn.Transcript[4].Bash == nil || event.AssistantTurn.Transcript[4].Bash.Command != "go test ./..." {
-		t.Fatal("expected bash payload")
+	if event.AssistantTurn.Transcript[4].Bash == nil || event.AssistantTurn.Transcript[4].Bash.Command != "go test ./..." || event.AssistantTurn.Transcript[4].Bash.ExitCode != 2 {
+		t.Fatal("expected bash payload with exit code")
 	}
 	if event.AssistantTurn.Transcript[5].Diff == nil || len(event.AssistantTurn.Transcript[5].Diff.Lines) != 1 {
 		t.Fatal("expected diff payload")
@@ -206,5 +208,14 @@ func TestSessionReplayIgnoresLegacyClassification(t *testing.T) {
 	replay.applyEvent(session.Event{Kind: session.EventKind("task_classification")})
 	if got := replay.output.Join(); got != "" {
 		t.Fatalf("legacy classification rendered: %q", got)
+	}
+}
+
+func TestReplayBashPayloadKeepsExitCode(t *testing.T) {
+	handler := replstream.NewStreamHandler(nil)
+	replayBashPayload(handler, &session.BashPayload{Command: "go test ./...", Output: "FAIL", ExitCode: 1})
+	segments := handler.Snapshot()
+	if len(segments) != 1 || reploutput.BashExitCode(segments[0].ToolCall) != 1 {
+		t.Fatalf("expected replayed bash segment to keep exit code, got %#v", segments)
 	}
 }

@@ -19,6 +19,8 @@ type StreamHandler struct {
 	mdRenderer      *replmarkdown.Renderer
 	segments        []Segment
 	showThinking    bool
+	markerHidden    bool
+	hasRunningTool  bool
 }
 
 // Option configures a StreamHandler without exposing its fields.
@@ -309,6 +311,18 @@ func (sh *StreamHandler) Checkpoint() ([]string, string, []Segment) {
 	response := sh.currentResponse
 	sh.ResetContent()
 	return lines, response, segments
+}
+
+func (sh *StreamHandler) SetRunningMarkerHidden(hidden bool) bool {
+	if sh.markerHidden == hidden {
+		return false
+	}
+	sh.markerHidden = hidden
+	return true
+}
+
+func (sh *StreamHandler) HasRunningTool() bool {
+	return sh.hasRunningTool
 }
 
 func (sh *StreamHandler) ResetContent() {

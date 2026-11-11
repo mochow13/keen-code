@@ -53,6 +53,7 @@ func renderToolStatusLines(line string, width int) []string {
 
 func (sh *StreamHandler) renderViewLines(width int) []string {
 	lines := make([]string, 0)
+	sh.hasRunningTool = false
 
 	lastAssistantIdx := -1
 	lastReasoningIdx := -1
@@ -81,7 +82,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 				if sh.shouldHideToolStart(i) || (i+1 < len(sh.segments) && sh.segments[i+1].Kind == SegmentToolEnd) {
 					continue
 				}
-				lines = append(lines, renderToolStatusLines(reploutput.FormatToolStart(seg.ToolCall, sh.workingDir), width)...)
+				lines = append(lines, renderToolStatusLines(sh.blinkRunning(reploutput.FormatToolStart(seg.ToolCall, sh.workingDir)), width)...)
 			}
 		case SegmentToolEnd:
 			if seg.ToolCall != nil {
@@ -95,12 +96,15 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 				}
 			}
 		case SegmentBash:
-			lines = append(lines, sh.renderBashSegment(seg, width)...)
+			lines = append(lines, sh.renderBashSegment(seg, width, true)...)
 		case SegmentSubagent:
 			if isHiddenToolFailure(seg.EndToolCall) {
 				continue
 			}
 			line := reploutput.FormatSubagentTool(seg.Agent, seg.ToolCall, seg.EndToolCall, sh.workingDir)
+			if seg.EndToolCall == nil {
+				line = sh.blinkRunning(line)
+			}
 			if line != "" {
 				lines = append(lines, renderToolStatusLines(line, width)...)
 			}
@@ -172,7 +176,7 @@ func (sh *StreamHandler) renderTranscriptAtWidth(width int) []string {
 				}
 			}
 		case SegmentBash:
-			lines = append(lines, sh.renderBashSegment(seg, width)...)
+			lines = append(lines, sh.renderBashSegment(seg, width, false)...)
 		case SegmentSubagent:
 			if isHiddenToolFailure(seg.EndToolCall) {
 				continue
@@ -380,57 +384,71 @@ func (sh *StreamHandler) AppendTranscript(output *reploutput.OutputBuilder, segm
 	output.AddResponsive(func(width int) []string { return handler.RenderSegments(snapshot, width) })
 }
 
-func (sh *StreamHandler) renderBashSegment(seg *Segment, width int) []string {
-	ruleWidth := DefaultWidth
-	if width > 0 {
-		ruleWidth = width
+func (sh *StreamHandler) blinkRunning(line string) string {
+	sh.hasRunningTool = true
+	if sh.markerHidden {
+		return reploutput.HideRunningMarker(line)
 	}
-	if ruleWidth < 1 {
-		ruleWidth = 1
+	return line
+}
+
+func (sh *StreamHandler) renderBashSegment(seg *Segment, width int, live bool) []string {
+	finished := seg.ToolCall != nil
+	failed := reploutput.BashFailed(seg.ToolCall)
+	collapsed := finished && !failed && strings.TrimSpace(seg.Output) == ""
+
+	header := reploutput.FormatBashStatus(seg.Summary, seg.Command, seg.ToolCall, collapsed)
+	if live && !finished {
+		header = sh.blinkRunning(header)
 	}
-	rule := repltheme.RuleStyle.Render(strings.Repeat("─", ruleWidth))
-
-	lines := make([]string, 0)
-
-	lines = append(lines, "")
-	lines = append(lines, rule)
+	var lines []string
 	if width > 0 {
-		lines = append(lines, wrapAndIndent(repltheme.BashCommandStyle.Render("$ "+seg.Command), width-ContentHorizontalPadding)...)
+		lines = renderToolStatusLines(header, width)
 	} else {
-		lines = append(lines, repltheme.BashCommandStyle.Render("  $ "+seg.Command))
+		lines = []string{header}
+	}
+	if collapsed {
+		return lines
 	}
 
-	if seg.Summary != "" {
-		if width > 0 {
-			lines = append(lines, wrapAndIndent(repltheme.BashSummaryStyle.Render("› "+seg.Summary), width-ContentHorizontalPadding)...)
-		} else {
-			lines = append(lines, repltheme.BashSummaryStyle.Render("  › "+seg.Summary))
+	gutterStyle := repltheme.ToolMetaStyle
+	switch {
+	case failed:
+		gutterStyle = repltheme.ToolErrorStyle
+	case finished:
+		gutterStyle = repltheme.RuleStyle
+	}
+	gutter := "  " + gutterStyle.Render("│") + " "
+	contentWidth := max(1, width-ContentHorizontalPadding-2)
+	addBody := func(styled string) {
+		if width <= 0 {
+			lines = append(lines, gutter+styled)
+			return
+		}
+		for _, part := range strings.Split(lipgloss.NewStyle().Width(contentWidth).Render(styled), "\n") {
+			lines = append(lines, gutter+part)
 		}
 	}
 
-	lines = append(lines, "")
+	addBody(repltheme.BashCommandStyle.Render("$ " + seg.Command))
 
-	if seg.Output != "" {
-		outputLines := strings.Split(seg.Output, "\n")
-		total := len(outputLines)
+	output := strings.TrimRight(seg.Output, "\n")
+	switch {
+	case output != "":
+		outputLines := strings.Split(output, "\n")
 		visible := outputLines
-		if total > bashOutputMaxLines {
+		if len(outputLines) > bashOutputMaxLines {
 			visible = outputLines[:bashOutputMaxLines]
 		}
 		for _, line := range visible {
-			if width > 0 {
-				lines = append(lines, wrapAndIndent(repltheme.BashOutputStyle.Render(line), width-ContentHorizontalPadding)...)
-			} else {
-				lines = append(lines, "  "+repltheme.BashOutputStyle.Render(line))
-			}
+			addBody(repltheme.BashOutputStyle.Render(line))
 		}
-		if total > bashOutputMaxLines {
-			accentStyle := lipgloss.NewStyle().Foreground(repltheme.AccentColor)
-			lines = append(lines, "  "+accentStyle.Render(fmt.Sprintf("→ %d more lines", total-bashOutputMaxLines)))
+		if hidden := len(outputLines) - len(visible); hidden > 0 {
+			addBody(repltheme.ToolMetaStyle.Render(fmt.Sprintf("… %d more lines", hidden)))
 		}
+	case failed:
+		addBody(repltheme.ToolMetaStyle.Render("(no output)"))
 	}
-
-	lines = append(lines, rule)
 
 	return lines
 }

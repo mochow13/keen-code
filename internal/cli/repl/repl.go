@@ -924,6 +924,8 @@ func (m replModel) consumeDecisionModelSelectionResult(msg tea.Msg) (replModel, 
 	return m, nil, false
 }
 
+const runningMarkerBlinkInterval = 500 * time.Millisecond
+
 func (m replModel) handleSpinnerTick(msg spinner.TickMsg) (replModel, tea.Cmd, bool) {
 	if !m.loading.showSpinner && !m.btw.showSpinner && !m.adversary.showSpinner {
 		return m, nil, false
@@ -945,6 +947,11 @@ func (m replModel) handleSpinnerTick(msg spinner.TickMsg) (replModel, tea.Cmd, b
 		m.adversary.spinner, cmd = m.adversary.spinner.Update(msg)
 		cmds = append(cmds, cmd)
 		refreshInline = refreshInline || cmd != nil
+	}
+	if m.stream.handler != nil {
+		hidden := m.loading.showSpinner && m.stream.handler.IsActive() && m.stream.handler.HasRunningTool() &&
+			time.Now().UnixMilli()/runningMarkerBlinkInterval.Milliseconds()%2 == 1
+		refreshInline = m.stream.handler.SetRunningMarkerHidden(hidden) || refreshInline
 	}
 	if refreshInline {
 		m.updateViewportContent()

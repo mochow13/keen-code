@@ -3,9 +3,12 @@ package stream
 import (
 	"charm.land/lipgloss/v2"
 	"errors"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mochow13/keen-code/internal/agentcore"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStreamHandlerHidesSubagentFileNotFoundFailure(t *testing.T) {
@@ -575,50 +578,70 @@ func TestStreamHandler_HandleDone_LongToolStatusWrapsToLastWidth(t *testing.T) {
 	}
 }
 
-func TestStreamHandler_View_BashUsesViewportWidthRules(t *testing.T) {
+func TestStreamHandler_View_BashStaysWithinViewportWidth(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	sh.Start(make(<-chan agentcore.StreamEvent), "Brewing...")
-	sh.HandleBashStart("npm test", "running tests")
+	sh.HandleBashStart("npm test -- --reporter verbose --coverage", "running tests")
 
-	wideView := sh.View(80)
-	wideLines := strings.Split(strings.TrimRight(wideView, "\n"), "\n")
-	wideNonEmpty := make([]string, 0, len(wideLines))
-	for _, line := range wideLines {
-		if strings.TrimSpace(line) != "" {
-			wideNonEmpty = append(wideNonEmpty, line)
+	for _, width := range []int{80, 24} {
+		lines := strings.Split(strings.TrimRight(sh.View(width), "\n"), "\n")
+		for _, line := range lines {
+			if w := lipgloss.Width(line); w > width {
+				t.Fatalf("line exceeds viewport width (%d > %d): %q", w, width, line)
+			}
+			if strings.Contains(ansi.Strip(line), "────") {
+				t.Fatalf("expected no full-width rules, got %q", line)
+			}
 		}
 	}
-	if len(wideNonEmpty) < 3 {
-		t.Fatalf("expected ruled bash block, got %v", wideNonEmpty)
-	}
-	if !strings.Contains(wideNonEmpty[0], "─") || !strings.Contains(wideNonEmpty[len(wideNonEmpty)-1], "─") {
-		t.Fatalf("expected top and bottom bash rules, got %q", wideView)
-	}
-	if strings.HasPrefix(wideNonEmpty[0], "  ") || strings.HasPrefix(wideNonEmpty[len(wideNonEmpty)-1], "  ") {
-		t.Fatalf("expected bash rules to span edge-to-edge without left inset, got %q", wideView)
-	}
-	if wideRuleWidth := lipgloss.Width(wideNonEmpty[0]); wideRuleWidth != 80 {
-		t.Fatalf("expected bash rules to match viewport width, got width %d", wideRuleWidth)
+}
+
+func TestStreamHandler_BashBlockStates(t *testing.T) {
+	render := func(command, summary string, end *agentcore.ToolCall) string {
+		sh := NewStreamHandler(nil)
+		sh.HandleBashStart(command, summary)
+		if end != nil {
+			sh.HandleBashEnd(end)
+		}
+		return ansi.Strip(strings.Join(sh.renderBashSegment(&sh.segments[0], 80, true), "\n"))
 	}
 
-	narrowView := sh.View(24)
-	narrowLines := strings.Split(strings.TrimRight(narrowView, "\n"), "\n")
-	for _, line := range narrowLines {
-		if w := lipgloss.Width(line); w > 24 {
-			t.Fatalf("line exceeds viewport width (%d > %d): %q", w, 24, line)
+	running := render("npm test", "running tests", nil)
+	if !strings.Contains(running, "● Run → running tests...") || !strings.Contains(running, "│ $ npm test") {
+		t.Fatalf("running block = %q", running)
+	}
+
+	passed := render("npm test", "running tests", &agentcore.ToolCall{
+		Output:   map[string]any{"stdout": "ok\n", "exit_code": 0},
+		Duration: 1500 * time.Millisecond,
+	})
+	for _, want := range []string{"✓ Run → running tests · 1.5s", "│ $ npm test", "│ ok"} {
+		if !strings.Contains(passed, want) {
+			t.Fatalf("passed block %q missing %q", passed, want)
 		}
 	}
-	narrowNonEmpty := make([]string, 0, len(narrowLines))
-	for _, line := range narrowLines {
-		if strings.TrimSpace(line) != "" {
-			narrowNonEmpty = append(narrowNonEmpty, line)
+
+	quiet := render("git add foo", "stage files", &agentcore.ToolCall{
+		Output:   map[string]any{"stdout": "", "exit_code": 0},
+		Duration: 12 * time.Millisecond,
+	})
+	if strings.Contains(quiet, "\n") || !strings.Contains(quiet, "✓ Run → stage files · $ git add foo · 12ms") {
+		t.Fatalf("quiet block should collapse to one line, got %q", quiet)
+	}
+
+	failed := render("false", "", &agentcore.ToolCall{
+		Output:   map[string]any{"stdout": "", "exit_code": 1},
+		Duration: 3 * time.Millisecond,
+	})
+	for _, want := range []string{"✗ Run · exit 1 · 3ms", "│ $ false", "│ (no output)"} {
+		if !strings.Contains(failed, want) {
+			t.Fatalf("failed block %q missing %q", failed, want)
 		}
 	}
-	if len(narrowNonEmpty) < 3 {
-		t.Fatalf("expected non-empty narrow bash lines, got %v", narrowNonEmpty)
-	}
-	if narrowRuleWidth := lipgloss.Width(narrowNonEmpty[0]); narrowRuleWidth != 24 {
-		t.Fatalf("expected narrow bash rules to match viewport width, got width %d", narrowRuleWidth)
+
+	errored := render("sleep 999", "wait", &agentcore.ToolCall{Error: "command timed out after 5m0s"})
+	if !strings.Contains(errored, "✗ Run → wait · command timed out after 5m0s") {
+		t.Fatalf("errored block = %q", errored)
 	}
 }
 
@@ -702,5 +725,56 @@ func TestStreamHandlerCheckpointPreservesActiveStream(t *testing.T) {
 	}
 	if handler.GetResponse() != "" || handler.HasContent() {
 		t.Fatal("checkpoint did not clear current content")
+	}
+}
+
+func TestStreamHandler_RunningMarkerBlinks(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan agentcore.StreamEvent), "Brewing...")
+	sh.View(80)
+	if sh.HasRunningTool() {
+		t.Fatal("expected no running tool in empty stream")
+	}
+
+	sh.HandleBashStart("npm test", "running tests")
+	sh.HandleToolStart(&agentcore.ToolCall{Name: agentcore.ToolNameGrep, Input: map[string]any{"pattern": "foo"}})
+	lit := sh.View(80)
+	if !sh.HasRunningTool() {
+		t.Fatal("expected running tool")
+	}
+
+	if !sh.SetRunningMarkerHidden(true) || sh.SetRunningMarkerHidden(true) {
+		t.Fatal("expected SetRunningMarkerHidden to report only phase changes")
+	}
+	hidden := sh.View(80)
+	if strings.Count(ansi.Strip(lit), "●") != 2 {
+		t.Fatalf("expected both running markers visible, got %q", ansi.Strip(lit))
+	}
+	if strings.Contains(ansi.Strip(hidden), "●") {
+		t.Fatalf("expected running markers hidden, got %q", ansi.Strip(hidden))
+	}
+	if ansi.Strip(strings.ReplaceAll(lit, repltheme.ToolNameStyle.Render("●"), " ")) != ansi.Strip(hidden) {
+		t.Fatalf("hiding should only blank the marker:\n%q\n%q", ansi.Strip(lit), ansi.Strip(hidden))
+	}
+
+	sh.HandleToolEnd(&agentcore.ToolCall{Name: agentcore.ToolNameGrep})
+	sh.segments[0].ToolCall = &agentcore.ToolCall{Name: agentcore.ToolNameBash, Output: map[string]any{"stdout": "ok"}}
+	if view := ansi.Strip(sh.View(80)); strings.Count(view, "✓") != 2 {
+		t.Fatalf("finished tools should show their done markers while hidden, got %q", view)
+	}
+	if sh.HasRunningTool() {
+		t.Fatal("expected no running tool after completion")
+	}
+}
+
+func TestStreamHandler_CheckpointIgnoresHiddenMarkerPhase(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan agentcore.StreamEvent), "Brewing...")
+	sh.HandleBashStart("npm test", "running tests")
+	sh.SetRunningMarkerHidden(true)
+
+	lines, _, _ := sh.Checkpoint()
+	if got := ansi.Strip(strings.Join(lines, "\n")); !strings.Contains(got, "● Run → running tests") {
+		t.Fatalf("checkpoint transcript should keep the running marker, got %q", got)
 	}
 }

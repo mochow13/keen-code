@@ -408,7 +408,7 @@ func TestFormatToolDone_ShowsResultMetadata(t *testing.T) {
 func TestFormatToolDone_ErrorShowsReasonAndDuration(t *testing.T) {
 	start := &agentcore.ToolCall{Name: "edit_file", Input: map[string]any{"path": "output.go"}}
 	end := &agentcore.ToolCall{Name: "edit_file", Error: "op 1: line hash mismatch at 2:fff (actual a1b)", Duration: 2 * 1e6}
-	got := FormatToolDone(start, end, "/tmp/project")
+	got := ansi.Strip(FormatToolDone(start, end, "/tmp/project"))
 
 	for _, want := range []string{"✗ Edit", "output.go", "line hash mismatch", "2ms"} {
 		if !strings.Contains(got, want) {

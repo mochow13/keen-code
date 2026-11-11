@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	replstream "github.com/mochow13/keen-code/internal/cli/repl/stream"
 	"github.com/mochow13/keen-code/internal/session"
 )
@@ -67,6 +68,7 @@ func buildAssistantTurnTranscript(segments []replstream.Segment) []session.Trans
 					Output:     seg.Output,
 					Error:      errText,
 					DurationNS: duration,
+					ExitCode:   reploutput.BashExitCode(seg.ToolCall),
 				},
 			})
 		case replstream.SegmentDiff:

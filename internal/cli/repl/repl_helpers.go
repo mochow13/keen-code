@@ -96,11 +96,6 @@ var keenCrystalBallSpinner = spinner.Spinner{
 	FPS:    time.Second / 8,
 }
 
-var keenBeepingPointerSpinner = spinner.Spinner{
-	Frames: []string{"●", " "},
-	FPS:    time.Second / 4,
-}
-
 var loadingSpinners = []spinner.Spinner{
 	spinner.Dot,
 	spinner.MiniDot,
@@ -110,7 +105,6 @@ var loadingSpinners = []spinner.Spinner{
 	keenBrailleDriftSpinner,
 	keenStarTwinkleSpinner,
 	keenCrystalBallSpinner,
-	keenBeepingPointerSpinner,
 }
 
 func nextLoadingText() string {
@@ -186,6 +180,9 @@ func cleanupCmd() tea.Cmd {
 func (m *replModel) stopLoading() {
 	m.loading.showSpinner = false
 	m.loading.startedAt = time.Time{}
+	if m.stream.handler != nil {
+		m.stream.handler.SetRunningMarkerHidden(false)
+	}
 	m.turnUsage = turnUsage{}
 	m.refreshGitBranch()
 }

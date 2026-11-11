@@ -50,7 +50,7 @@ func TestRenderBashSegmentCoversWidthSummaryAndTruncation(t *testing.T) {
 	}
 	handler := NewStreamHandler(nil)
 	segment := &Segment{Kind: SegmentBash, Command: "go test ./...", Summary: "testing", Output: strings.Join(output, "\n")}
-	lines := handler.renderBashSegment(segment, 20)
+	lines := handler.renderBashSegment(segment, 20, false)
 	got := ansi.Strip(strings.Join(lines, "\n"))
 	for _, want := range []string{"$ go test", "testing", "2 more lines"} {
 		if !strings.Contains(got, want) {
@@ -58,7 +58,7 @@ func TestRenderBashSegmentCoversWidthSummaryAndTruncation(t *testing.T) {
 		}
 	}
 
-	withoutWidth := ansi.Strip(strings.Join(handler.renderBashSegment(&Segment{Command: "pwd", Output: "path"}, 0), "\n"))
+	withoutWidth := ansi.Strip(strings.Join(handler.renderBashSegment(&Segment{Command: "pwd", Output: "path"}, 0, false), "\n"))
 	if !strings.Contains(withoutWidth, "$ pwd") || !strings.Contains(withoutWidth, "path") {
 		t.Fatalf("unbounded bash render = %q", withoutWidth)
 	}
