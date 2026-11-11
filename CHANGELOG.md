@@ -7,12 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-11-11
+
 ### Added
 - Add a `todo_write` tool so the agent can track multi-step work, with a compact task panel above the input (Ctrl+T to collapse), the active task shown in the spinner, and the list restored on resume and preserved across compaction.
 - Add an Atom One theme based on the One Dark and One Light palettes.
 
 ### Changed
 - Render file diffs with full-width added/removed line tints and surrounding context lines, colored by the active theme.
+- Reduce hyperlink rendering allocations and update benchmarks.
+- Move turn memory out of the REPL and extract session lifecycle handling from the REPL.
+- Improve theme accent and error colors.
+- Remove the bundled worker subagent.
 
 ## [0.68.0] - 2026-11-28
 
@@ -1179,8 +1185,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.68.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.69.0...HEAD
 [0.68.0]: https://github.com/mochow13/keen-code/compare/v0.67.0...v0.68.0
+[0.69.0]: https://github.com/mochow13/keen-code/compare/v0.68.0...v0.69.0
 [0.67.0]: https://github.com/mochow13/keen-code/compare/v0.66.0...v0.67.0
 [0.66.0]: https://github.com/mochow13/keen-code/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/mochow13/keen-code/compare/v0.64.2...v0.65.0
