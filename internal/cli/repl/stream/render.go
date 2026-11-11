@@ -17,12 +17,14 @@ const (
 	DefaultWidth             = 120
 	ContentHorizontalPadding = 4
 
-	bashOutputMaxLines         = 16
-	bashOutputExpandedMaxLines = 200
-	diffLeftPadding            = 2
-	diffRightPadding           = 2
-	diffNumWidth               = 4
-	diffTabWidth               = 4
+	bashOutputMaxLines             = 16
+	bashOutputExpandedMaxLines     = 200
+	bashOutputMaxLineChars         = 200
+	bashOutputExpandedMaxLineChars = 2000
+	diffLeftPadding                = 2
+	diffRightPadding               = 2
+	diffNumWidth                   = 4
+	diffTabWidth                   = 4
 )
 
 func wrapAndIndent(styled string, wrapWidth int) []string {
@@ -429,9 +431,9 @@ func (sh *StreamHandler) bashOutputLines(seg *Segment, stdout, stderr []string, 
 		streams[0], streams[1] = streams[1], streams[0]
 	}
 	expanded := sh.display != nil && sh.display.BashExpanded
-	limit, hint := bashOutputMaxLines, " · ctrl+o to expand"
+	limit, lineChars, hint := bashOutputMaxLines, bashOutputMaxLineChars, " · ctrl+o to expand"
 	if expanded {
-		limit, hint = bashOutputExpandedMaxLines, ""
+		limit, lineChars, hint = bashOutputExpandedMaxLines, bashOutputExpandedMaxLineChars, ""
 	}
 
 	meta := repltheme.ToolMetaStyle.Render
@@ -444,7 +446,7 @@ func (sh *StreamHandler) bashOutputLines(seg *Segment, stdout, stderr []string, 
 			hint = ""
 		}
 		for _, line := range s.lines[len(s.lines)-budget:] {
-			body = append(body, s.style.Render(line))
+			body = append(body, truncateOutputLine(line, lineChars, s.style))
 		}
 	}
 
@@ -461,6 +463,14 @@ func (sh *StreamHandler) bashOutputLines(seg *Segment, stdout, stderr []string, 
 		}
 	}
 	return body
+}
+
+func truncateOutputLine(line string, maxChars int, style lipgloss.Style) string {
+	width := ansi.StringWidth(line)
+	if width <= maxChars {
+		return style.Render(line)
+	}
+	return style.Render(ansi.Truncate(line, maxChars, "")) + repltheme.ToolMetaStyle.Render(fmt.Sprintf(" … +%d chars", width-maxChars))
 }
 
 func bashGutter(finished, failed bool) string {

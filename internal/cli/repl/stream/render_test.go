@@ -468,3 +468,31 @@ func TestAppendedTranscriptFollowsDisplayOptions(t *testing.T) {
 		t.Fatalf("expected rerendered transcript to grow after expanding, got %d -> %d lines", before, after)
 	}
 }
+
+func TestRenderBashSegmentTruncatesLongLines(t *testing.T) {
+	display := &DisplayOptions{}
+	handler := NewStreamHandler(nil)
+	handler.SetDisplayOptions(display)
+	handler.HandleBashStart("cat bundle.min.js", "")
+	handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{
+		"stdout":    "short\n" + strings.Repeat("x", 2500),
+		"exit_code": 0,
+	}})
+	render := func() string {
+		return ansi.Strip(strings.Join(handler.renderBashSegment(&handler.segments[0], 0, false), "\n"))
+	}
+
+	collapsed := render()
+	if !strings.Contains(collapsed, strings.Repeat("x", bashOutputMaxLineChars)+" … +2300 chars") || strings.Contains(collapsed, strings.Repeat("x", bashOutputMaxLineChars+1)) {
+		t.Fatalf("expected long line cut at %d chars, got %q", bashOutputMaxLineChars, collapsed)
+	}
+	if !strings.Contains(collapsed, "short") || strings.Contains(collapsed, "short …") {
+		t.Fatalf("short lines should be untouched, got %q", collapsed)
+	}
+
+	display.BashExpanded = true
+	expanded := render()
+	if !strings.Contains(expanded, strings.Repeat("x", bashOutputExpandedMaxLineChars)+" … +500 chars") {
+		t.Fatalf("expected expanded line cut at %d chars, got %q", bashOutputExpandedMaxLineChars, expanded)
+	}
+}

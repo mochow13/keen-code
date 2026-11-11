@@ -237,9 +237,7 @@ func (sh *StreamHandler) HandleBashStart(command, summary string) {
 }
 
 func (sh *StreamHandler) HandleBashEnd(toolCall *agentcore.ToolCall) {
-	n := len(sh.segments)
-	if n > 0 && sh.segments[n-1].Kind == SegmentBash {
-		seg := &sh.segments[n-1]
+	if seg := sh.pendingBashSegment(toolCall); seg != nil {
 		if result, ok := toolCall.Output.(map[string]any); ok {
 			stdout, _ := result["stdout"].(string)
 			stderr, _ := result["stderr"].(string)
@@ -250,6 +248,24 @@ func (sh *StreamHandler) HandleBashEnd(toolCall *agentcore.ToolCall) {
 		}
 		seg.ToolCall = toolCall
 	}
+}
+
+func (sh *StreamHandler) pendingBashSegment(toolCall *agentcore.ToolCall) *Segment {
+	command, _ := toolCall.Input["command"].(string)
+	var fallback *Segment
+	for i := len(sh.segments) - 1; i >= 0; i-- {
+		seg := &sh.segments[i]
+		if seg.Kind != SegmentBash || seg.ToolCall != nil {
+			continue
+		}
+		if command == "" || seg.Command == command {
+			return seg
+		}
+		if fallback == nil {
+			fallback = seg
+		}
+	}
+	return fallback
 }
 
 func (sh *StreamHandler) HandleDiff(lines []agentcore.EditDiffLine) {

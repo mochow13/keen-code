@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mochow13/keen-code/internal/agentcore"
+	replpermissions "github.com/mochow13/keen-code/internal/cli/repl/permissions"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 	"strings"
 	"testing"
@@ -776,5 +777,40 @@ func TestStreamHandler_CheckpointIgnoresHiddenMarkerPhase(t *testing.T) {
 	lines, _, _ := sh.Checkpoint()
 	if got := ansi.Strip(strings.Join(lines, "\n")); !strings.Contains(got, "● Run → running tests") {
 		t.Fatalf("checkpoint transcript should keep the running marker, got %q", got)
+	}
+}
+
+func TestHandleBashEndAfterPermissionPrompt(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan agentcore.StreamEvent), "Brewing...")
+	sh.HandleBashStart("rm -rf build", "Clean build output")
+	sh.HandlePermissionRequest(&replpermissions.Request{ToolName: "bash", Path: "rm -rf build", IsDangerous: true, Status: replpermissions.StatusAllowed})
+	sh.HandleBashEnd(&agentcore.ToolCall{
+		Name:     agentcore.ToolNameBash,
+		Input:    map[string]any{"command": "rm -rf build"},
+		Output:   map[string]any{"stdout": "", "exit_code": 0},
+		Duration: 5 * time.Millisecond,
+	})
+
+	view := ansi.Strip(sh.View(80))
+	if !strings.Contains(view, "✓ Run → Clean build output") || strings.Contains(view, "● Run") {
+		t.Fatalf("expected bash block to finish after permission prompt, got %q", view)
+	}
+	if sh.HasRunningTool() {
+		t.Fatal("expected no running tool after the approved command finished")
+	}
+}
+
+func TestHandleBashEndMatchesCommand(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.HandleBashStart("first", "")
+	sh.HandleBashStart("second", "")
+	sh.HandleBashEnd(&agentcore.ToolCall{Input: map[string]any{"command": "first"}, Output: map[string]any{"stdout": "1"}})
+	if sh.segments[0].ToolCall == nil || sh.segments[0].Output != "1" || sh.segments[1].ToolCall != nil {
+		t.Fatalf("expected result attached to the matching command, got %#v", sh.segments)
+	}
+	sh.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{"stdout": "2"}})
+	if sh.segments[1].Output != "2" {
+		t.Fatalf("expected result without input to attach to the latest unfinished block, got %#v", sh.segments)
 	}
 }
