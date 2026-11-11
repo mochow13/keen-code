@@ -1150,6 +1150,7 @@ func (m *replModel) replayLoadedSession(loaded *session.LoadedSession) {
 
 	replay := newSessionReplay(m.width, m.mdRenderer, m.ctx.workingDir)
 	replay.handler.SetShowThinking(m.showThinking)
+	replay.handler.SetDisplayOptions(m.stream.handler.DisplayOptions())
 
 	for _, event := range loaded.Events {
 		replay.applyEvent(event)

@@ -17,11 +17,12 @@ const (
 	DefaultWidth             = 120
 	ContentHorizontalPadding = 4
 
-	bashOutputMaxLines = 16
-	diffLeftPadding    = 2
-	diffRightPadding   = 2
-	diffNumWidth       = 4
-	diffTabWidth       = 4
+	bashOutputMaxLines         = 16
+	bashOutputExpandedMaxLines = 200
+	diffLeftPadding            = 2
+	diffRightPadding           = 2
+	diffNumWidth               = 4
+	diffTabWidth               = 4
 )
 
 func wrapAndIndent(styled string, wrapWidth int) []string {
@@ -375,13 +376,13 @@ func (sh *StreamHandler) RenderSegments(segments []Segment, width int) []string 
 	if sh.mdRenderer != nil {
 		_ = sh.mdRenderer.UpdateWidth(width)
 	}
-	handler := &StreamHandler{segments: segments, mdRenderer: sh.mdRenderer, workingDir: sh.workingDir, showThinking: sh.showThinking, lastWidth: width}
+	handler := &StreamHandler{segments: segments, mdRenderer: sh.mdRenderer, workingDir: sh.workingDir, showThinking: sh.showThinking, display: sh.display, lastWidth: width}
 	return handler.renderTranscriptAtWidth(width)
 }
 
 func (sh *StreamHandler) AppendTranscript(output *reploutput.OutputBuilder, segments []Segment) {
 	snapshot := CloneSegments(segments)
-	handler := &StreamHandler{mdRenderer: sh.mdRenderer, workingDir: sh.workingDir, showThinking: sh.showThinking}
+	handler := &StreamHandler{mdRenderer: sh.mdRenderer, workingDir: sh.workingDir, showThinking: sh.showThinking, display: sh.display}
 	output.AddResponsive(func(width int) []string { return handler.RenderSegments(snapshot, width) })
 }
 
@@ -396,72 +397,95 @@ func (sh *StreamHandler) blinkRunning(line string) string {
 func (sh *StreamHandler) renderBashSegment(seg *Segment, width int, live bool) []string {
 	finished := seg.ToolCall != nil
 	failed := reploutput.BashFailed(seg.ToolCall)
-	collapsed := finished && !failed && strings.TrimSpace(seg.Output+seg.Stderr) == ""
+	stdout, stderr := splitOutputLines(seg.Output), splitOutputLines(seg.Stderr)
+	collapsed := finished && !failed && len(stdout)+len(stderr) == 0
 
-	header := reploutput.FormatBashStatus(seg.Summary, seg.Command, seg.ToolCall, collapsed)
-	if live && !finished {
-		header = sh.blinkRunning(header)
-	}
-	var lines []string
-	if width > 0 {
-		lines = renderToolStatusLines(header, width)
-	} else {
-		lines = []string{header}
-	}
+	lines := sh.renderBashHeader(seg, width, live && !finished, collapsed)
 	if collapsed {
 		return lines
 	}
+	body := append([]string{repltheme.BashCommandStyle.Render("$ " + seg.Command)}, sh.bashOutputLines(seg, stdout, stderr, failed)...)
+	return append(lines, withGutter(body, bashGutter(finished, failed), width)...)
+}
 
-	gutterStyle := repltheme.ToolMetaStyle
-	switch {
-	case failed:
-		gutterStyle = repltheme.ToolErrorStyle
-	case finished:
-		gutterStyle = repltheme.RuleStyle
+func (sh *StreamHandler) renderBashHeader(seg *Segment, width int, running, collapsed bool) []string {
+	header := reploutput.FormatBashStatus(seg.Summary, seg.Command, seg.ToolCall, collapsed)
+	if running {
+		header = sh.blinkRunning(header)
 	}
-	gutter := "  " + gutterStyle.Render("│") + " "
-	contentWidth := max(1, width-ContentHorizontalPadding-2)
-	addBody := func(styled string) {
-		if width <= 0 {
-			lines = append(lines, gutter+styled)
-			return
-		}
-		for _, part := range strings.Split(lipgloss.NewStyle().Width(contentWidth).Render(styled), "\n") {
-			lines = append(lines, gutter+part)
-		}
+	if width <= 0 {
+		return []string{header}
 	}
+	return renderToolStatusLines(header, width)
+}
 
-	addBody(repltheme.BashCommandStyle.Render("$ " + seg.Command))
-
-	stdout := splitOutputLines(seg.Output)
-	stderr := splitOutputLines(seg.Stderr)
-	type outputBlock struct {
+func (sh *StreamHandler) bashOutputLines(seg *Segment, stdout, stderr []string, failed bool) []string {
+	type stream struct {
 		lines []string
 		style lipgloss.Style
 	}
-	blocks := []outputBlock{{stdout, repltheme.BashOutputStyle}, {stderr, repltheme.ToolErrorStyle}}
+	streams := [2]stream{{stdout, repltheme.BashOutputStyle}, {stderr, repltheme.ToolErrorStyle}}
 	if failed {
-		blocks[0], blocks[1] = blocks[1], blocks[0]
+		streams[0], streams[1] = streams[1], streams[0]
 	}
-	firstBudget, secondBudget := splitLineBudget(len(blocks[0].lines), len(blocks[1].lines), bashOutputMaxLines)
-	for i, budget := range []int{firstBudget, secondBudget} {
-		block := blocks[i]
-		if hidden := len(block.lines) - budget; hidden > 0 {
-			addBody(repltheme.ToolMetaStyle.Render(fmt.Sprintf("… %d earlier lines", hidden)))
+	expanded := sh.display != nil && sh.display.BashExpanded
+	limit, hint := bashOutputMaxLines, " · ctrl+o to expand"
+	if expanded {
+		limit, hint = bashOutputExpandedMaxLines, ""
+	}
+
+	meta := repltheme.ToolMetaStyle.Render
+	var body []string
+	first, second := splitLineBudget(len(streams[0].lines), len(streams[1].lines), limit)
+	for i, budget := range [2]int{first, second} {
+		s := streams[i]
+		if hidden := len(s.lines) - budget; hidden > 0 {
+			body = append(body, meta(fmt.Sprintf("… %d earlier lines", hidden)+hint))
+			hint = ""
 		}
-		for _, line := range block.lines[len(block.lines)-budget:] {
-			addBody(block.style.Render(line))
-		}
-	}
-	if failed && len(stdout) == 0 && len(stderr) == 0 {
-		addBody(repltheme.ToolMetaStyle.Render("(no output)"))
-	}
-	for _, saved := range []struct{ stream, file string }{{"stdout", seg.StdoutFile}, {"stderr", seg.StderrFile}} {
-		if saved.file != "" {
-			addBody(repltheme.ToolMetaStyle.Render("full " + saved.stream + ": " + displayHomePath(saved.file)))
+		for _, line := range s.lines[len(s.lines)-budget:] {
+			body = append(body, s.style.Render(line))
 		}
 	}
 
+	total := len(stdout) + len(stderr)
+	switch {
+	case failed && total == 0:
+		body = append(body, meta("(no output)"))
+	case expanded && total > bashOutputMaxLines:
+		body = append(body, meta("ctrl+o to collapse"))
+	}
+	for _, saved := range [2]struct{ stream, file string }{{"stdout", seg.StdoutFile}, {"stderr", seg.StderrFile}} {
+		if saved.file != "" {
+			body = append(body, meta("full "+saved.stream+": "+displayHomePath(saved.file)))
+		}
+	}
+	return body
+}
+
+func bashGutter(finished, failed bool) string {
+	style := repltheme.ToolMetaStyle
+	switch {
+	case failed:
+		style = repltheme.ToolErrorStyle
+	case finished:
+		style = repltheme.RuleStyle
+	}
+	return "  " + style.Render("│") + " "
+}
+
+func withGutter(body []string, gutter string, width int) []string {
+	lines := make([]string, 0, len(body))
+	wrap := lipgloss.NewStyle().Width(max(1, width-ContentHorizontalPadding-2))
+	for _, styled := range body {
+		if width <= 0 {
+			lines = append(lines, gutter+styled)
+			continue
+		}
+		for _, part := range strings.Split(wrap.Render(styled), "\n") {
+			lines = append(lines, gutter+part)
+		}
+	}
 	return lines
 }
 

@@ -394,3 +394,77 @@ func TestSanitizeCommandOutput(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderBashSegmentExpandsWithDisplayOptions(t *testing.T) {
+	output := make([]string, 250)
+	for i := range output {
+		output[i] = fmt.Sprintf("line %03d", i)
+	}
+	display := &DisplayOptions{}
+	handler := NewStreamHandler(nil)
+	handler.SetDisplayOptions(display)
+	handler.HandleBashStart("go test ./...", "")
+	handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{"stdout": strings.Join(output, "\n"), "exit_code": 0}})
+	render := func() string {
+		return ansi.Strip(strings.Join(handler.renderBashSegment(&handler.segments[0], 80, false), "\n"))
+	}
+
+	collapsed := render()
+	if !strings.Contains(collapsed, "… 234 earlier lines · ctrl+o to expand") || strings.Contains(collapsed, "collapse") {
+		t.Fatalf("collapsed block = %q", collapsed)
+	}
+
+	display.BashExpanded = true
+	expanded := render()
+	for _, want := range []string{"… 50 earlier lines", "line 050", "line 249", "ctrl+o to collapse"} {
+		if !strings.Contains(expanded, want) {
+			t.Fatalf("expanded block missing %q: %q", want, expanded)
+		}
+	}
+	if strings.Contains(expanded, "line 049") || strings.Contains(expanded, "to expand") {
+		t.Fatalf("expanded block should cap at %d lines without an expand hint: %q", bashOutputExpandedMaxLines, expanded)
+	}
+}
+
+func TestRenderBashSegmentHintsOnlyWhenTruncated(t *testing.T) {
+	display := &DisplayOptions{BashExpanded: true}
+	handler := NewStreamHandler(nil)
+	handler.SetDisplayOptions(display)
+	handler.HandleBashStart("echo hi", "")
+	handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{"stdout": "hi", "exit_code": 0}, Duration: 1})
+	handler.HandleBashStart("make", "")
+	handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{
+		"stdout":    strings.Repeat("out\n", 30),
+		"stderr":    strings.Repeat("err\n", 30),
+		"exit_code": 1,
+	}})
+
+	if got := ansi.Strip(strings.Join(handler.renderBashSegment(&handler.segments[0], 80, false), "\n")); strings.Contains(got, "ctrl+o") {
+		t.Fatalf("short output should not show a ctrl+o hint: %q", got)
+	}
+	display.BashExpanded = false
+	got := ansi.Strip(strings.Join(handler.renderBashSegment(&handler.segments[1], 80, false), "\n"))
+	if strings.Count(got, "earlier lines") != 2 || strings.Count(got, "ctrl+o to expand") != 1 {
+		t.Fatalf("expected one expand hint across both truncated streams: %q", got)
+	}
+}
+
+func TestAppendedTranscriptFollowsDisplayOptions(t *testing.T) {
+	display := &DisplayOptions{}
+	handler := NewStreamHandler(nil)
+	handler.SetDisplayOptions(display)
+	handler.HandleBashStart("seq 40", "")
+	handler.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{"stdout": strings.Repeat("n\n", 40), "exit_code": 0}})
+	segments := handler.Snapshot()
+	handler.HandleDone()
+
+	output := reploutput.NewOutputBuilder(80, "")
+	handler.AppendTranscript(output, segments)
+	before := len(output.GetLines())
+
+	display.BashExpanded = true
+	output.Rerender()
+	if after := len(output.GetLines()); after <= before {
+		t.Fatalf("expected rerendered transcript to grow after expanding, got %d -> %d lines", before, after)
+	}
+}

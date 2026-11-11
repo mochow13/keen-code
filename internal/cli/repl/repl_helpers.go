@@ -867,6 +867,17 @@ func waitForAdversaryEvent(llmCh <-chan agentcore.StreamEvent) tea.Cmd {
 	}
 }
 
+func (m *replModel) toggleBashExpanded() {
+	display := m.stream.handler.DisplayOptions()
+	display.BashExpanded = !display.BashExpanded
+	m.selection.clear()
+	if m.output != nil {
+		m.output.Rerender()
+	}
+	m.updateViewportContent()
+	m.scrollToBottomIfFollowing()
+}
+
 func (m *replModel) scrollToBottomIfFollowing() {
 	if !m.userScrolled {
 		m.viewport.GotoBottom()

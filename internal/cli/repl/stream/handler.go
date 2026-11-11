@@ -21,6 +21,11 @@ type StreamHandler struct {
 	showThinking    bool
 	markerHidden    bool
 	hasRunningTool  bool
+	display         *DisplayOptions
+}
+
+type DisplayOptions struct {
+	BashExpanded bool
 }
 
 // Option configures a StreamHandler without exposing its fields.
@@ -49,6 +54,7 @@ func NewStreamHandler(mdRenderer *replmarkdown.Renderer, opts ...Option) *Stream
 		mdRenderer:   mdRenderer,
 		segments:     make([]Segment, 0),
 		showThinking: true,
+		display:      &DisplayOptions{},
 	}
 	for _, opt := range opts {
 		opt(sh)
@@ -112,6 +118,17 @@ func (sh *StreamHandler) ShowThinking() bool {
 		return false
 	}
 	return sh.showThinking
+}
+
+func (sh *StreamHandler) DisplayOptions() *DisplayOptions {
+	return sh.display
+}
+
+func (sh *StreamHandler) SetDisplayOptions(display *DisplayOptions) {
+	if sh == nil || display == nil {
+		return
+	}
+	sh.display = display
 }
 
 func (sh *StreamHandler) SetShowThinking(show bool) {

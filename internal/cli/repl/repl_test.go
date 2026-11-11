@@ -1326,3 +1326,32 @@ func BenchmarkMainSpinnerTick(b *testing.B) {
 		})
 	}
 }
+
+func TestCtrlOTogglesBashOutputExpansion(t *testing.T) {
+	m := newTestModel()
+	m.stream.handler.HandleBashStart("seq 40", "Count")
+	m.stream.handler.HandleBashEnd(&agentcore.ToolCall{
+		Name:   agentcore.ToolNameBash,
+		Output: map[string]any{"stdout": strings.Repeat("n\n", 40), "exit_code": 0},
+	})
+	segments := m.stream.handler.Snapshot()
+	m.stream.handler.HandleDone()
+	m.stream.handler.AppendTranscript(m.output, segments)
+	collapsed := ansi.Strip(m.output.Join())
+	if !strings.Contains(collapsed, "ctrl+o to expand") {
+		t.Fatalf("expected collapsed bash block with expand hint, got %q", collapsed)
+	}
+
+	m, _ = m.handleKeyMsg(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+	if !m.stream.handler.DisplayOptions().BashExpanded {
+		t.Fatal("expected ctrl+o to expand bash output")
+	}
+	if expanded := ansi.Strip(m.output.Join()); !strings.Contains(expanded, "ctrl+o to collapse") || strings.Contains(expanded, "earlier lines") {
+		t.Fatalf("expected finished transcript to rerender expanded, got %q", expanded)
+	}
+
+	m, _ = m.handleKeyMsg(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+	if m.stream.handler.DisplayOptions().BashExpanded || ansi.Strip(m.output.Join()) != collapsed {
+		t.Fatal("expected second ctrl+o to restore the collapsed view")
+	}
+}

@@ -244,6 +244,8 @@ The `line_number` and `line_hash` pair forms a `LINE:HASH` edit anchor usable di
 
 Executes shell commands with timeout and bounded inline output. Large stdout is saved to an artifact file so the model can inspect it later without flooding the prompt.
 
+The REPL shows the last 16 lines of each command's output; press Ctrl+O to expand every bash block to its last 200 lines, and again to collapse.
+
 ```go
 type BashTool struct {
     guard               *filesystem.Guard

@@ -23,6 +23,7 @@ const (
 	keyEnter     = "enter"
 	keyCtrlC     = "ctrl+c"
 	keyCtrlD     = "ctrl+d"
+	keyCtrlO     = "ctrl+o"
 	keyEsc       = "esc"
 	keyTab       = "tab"
 	keyUp        = "up"
@@ -654,6 +655,11 @@ func (m *replModel) handleKeyMsg(msg tea.Msg) (replModel, tea.Cmd) {
 
 	if keyMsg.String() == keyCtrlT && m.todoPanelVisible() {
 		m.toggleTodoPanel()
+		return *m, nil
+	}
+
+	if keyMsg.String() == keyCtrlO {
+		m.toggleBashExpanded()
 		return *m, nil
 	}
 

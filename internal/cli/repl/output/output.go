@@ -84,6 +84,11 @@ func (ob *OutputBuilder) SetWidth(width int) {
 		return
 	}
 	ob.width = width
+	ob.Rerender()
+}
+
+func (ob *OutputBuilder) Rerender() {
+	width := ob.width
 	offset := 0
 	for i := range ob.inputs {
 		block := &ob.inputs[i]
