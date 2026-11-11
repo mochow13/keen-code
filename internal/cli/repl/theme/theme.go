@@ -16,6 +16,10 @@ type Theme struct {
 	OnAccent     compat.AdaptiveColor
 	OnError      compat.AdaptiveColor
 	OnPrimary    compat.AdaptiveColor
+	DiffAdd      compat.AdaptiveColor
+	DiffRemove   compat.AdaptiveColor
+	DiffAddBg    compat.AdaptiveColor
+	DiffRemoveBg compat.AdaptiveColor
 }
 
 const DefaultThemeName = "default"
@@ -32,6 +36,10 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#000000"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    WhiteColor,
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#2E7D32"), Dark: lipgloss.Color("#66BB6A")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#C62828"), Dark: lipgloss.Color("#EF5350")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#DFF5E1"), Dark: lipgloss.Color("#1F3A24")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#FBE3E3"), Dark: lipgloss.Color("#3D1F22")},
 	},
 	{
 		Name:         "claude",
@@ -44,6 +52,10 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#000000"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    WhiteColor,
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#2F7D3B"), Dark: lipgloss.Color("#7BC88B")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#B3261E"), Dark: lipgloss.Color("#E8706B")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#DCF2DF"), Dark: lipgloss.Color("#24402A")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#F8DEDD"), Dark: lipgloss.Color("#4A2328")},
 	},
 	{
 		Name:         "dracula",
@@ -56,6 +68,10 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#000000"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    WhiteColor,
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#1F8F3A"), Dark: lipgloss.Color("#50FA7B")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#CC2F2F"), Dark: lipgloss.Color("#FF5555")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#DDF5E3"), Dark: lipgloss.Color("#2B4A3A")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#FADDE1"), Dark: lipgloss.Color("#4D2A35")},
 	},
 	{
 		Name:         "tokyonight",
@@ -68,6 +84,10 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    WhiteColor,
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#485E30"), Dark: lipgloss.Color("#9ECE6A")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#C53B53"), Dark: lipgloss.Color("#F7768E")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#DCE9CF"), Dark: lipgloss.Color("#20303B")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#F3D9DE"), Dark: lipgloss.Color("#37222C")},
 	},
 	{
 		Name:         "catppuccin",
@@ -80,6 +100,10 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#000000"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    WhiteColor,
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#2E8A1E"), Dark: lipgloss.Color("#A6E3A1")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#D20F39"), Dark: lipgloss.Color("#F38BA8")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#D9EED5"), Dark: lipgloss.Color("#2F3F35")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#F5D6DD"), Dark: lipgloss.Color("#4A2E3A")},
 	},
 	{
 		Name:         "github",
@@ -92,6 +116,10 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#0D1117")},
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#1A7F37"), Dark: lipgloss.Color("#3FB950")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#CF222E"), Dark: lipgloss.Color("#F85149")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#DAFBE1"), Dark: lipgloss.Color("#12261E")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#FFEBE9"), Dark: lipgloss.Color("#25171C")},
 	},
 	{
 		Name:         "nord",
@@ -104,6 +132,26 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#000000"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#2E3440")},
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#4F6B3A"), Dark: lipgloss.Color("#A3BE8C")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#B04A55"), Dark: lipgloss.Color("#BF616A")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#E1EBD9"), Dark: lipgloss.Color("#3B4A3F")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#F2DEE0"), Dark: lipgloss.Color("#3B2C33")},
+	},
+	{
+		Name:         "atom",
+		Label:        "Atom One",
+		Primary:      compat.AdaptiveColor{Light: lipgloss.Color("#356AD8"), Dark: lipgloss.Color("#61AFEF")},
+		PrimaryLight: compat.AdaptiveColor{Light: lipgloss.Color("#4078F2"), Dark: lipgloss.Color("#8CC5F4")},
+		Secondary:    compat.AdaptiveColor{Light: lipgloss.Color("#A626A4"), Dark: lipgloss.Color("#C678DD")},
+		Accent:       compat.AdaptiveColor{Light: lipgloss.Color("#986801"), Dark: lipgloss.Color("#E5C07B")},
+		Error:        compat.AdaptiveColor{Light: lipgloss.Color("#CA1243"), Dark: lipgloss.Color("#E06C75")},
+		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
+		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
+		OnPrimary:    compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#282C34")},
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#3E8A3D"), Dark: lipgloss.Color("#98C379")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#CA1243"), Dark: lipgloss.Color("#E06C75")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#E3F2E2"), Dark: lipgloss.Color("#2C3B2D")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#FBE1E5"), Dark: lipgloss.Color("#45282D")},
 	},
 	{
 		Name:         "monochrome",
@@ -116,6 +164,10 @@ var Themes = []Theme{
 		OnAccent:     compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnError:      compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#000000")},
 		OnPrimary:    compat.AdaptiveColor{Light: lipgloss.Color("#FFFFFF"), Dark: lipgloss.Color("#121212")},
+		DiffAdd:      compat.AdaptiveColor{Light: lipgloss.Color("#000000"), Dark: lipgloss.Color("#F5F5F5")},
+		DiffRemove:   compat.AdaptiveColor{Light: lipgloss.Color("#616161"), Dark: lipgloss.Color("#9E9E9E")},
+		DiffAddBg:    compat.AdaptiveColor{Light: lipgloss.Color("#E0E0E0"), Dark: lipgloss.Color("#3A3A3A")},
+		DiffRemoveBg: compat.AdaptiveColor{Light: lipgloss.Color("#F5F5F5"), Dark: lipgloss.Color("#262626")},
 	},
 }
 
@@ -149,6 +201,10 @@ func ApplyTheme(name string) bool {
 	AccentColor = t.Accent
 	ErrorColor = t.Error
 	OnPrimaryColor = t.OnPrimary
+	DiffAddColor = t.DiffAdd
+	DiffRemoveColor = t.DiffRemove
+	DiffAddBgColor = t.DiffAddBg
+	DiffRemoveBgColor = t.DiffRemoveBg
 	rebuildThemedStyles(t.OnAccent, t.OnError)
 	CurrentThemeName = t.Name
 	return true
@@ -207,6 +263,11 @@ func rebuildThemedStyles(onAccent, onError compat.AdaptiveColor) {
 	InputRulePlanStyle = lipgloss.NewStyle().Foreground(SecondaryColor)
 	PromptPlanStyle = lipgloss.NewStyle().Bold(true).Foreground(SecondaryColor).MarginTop(2)
 	ModeBuildChipStyle = lipgloss.NewStyle().Background(PrimaryColor).Foreground(OnPrimaryColor).Bold(true).Padding(0, 1)
+
+	DiffAddStyle = lipgloss.NewStyle().Foreground(DiffAddColor)
+	DiffRemoveStyle = lipgloss.NewStyle().Foreground(DiffRemoveColor)
+	DiffAddLineStyle = lipgloss.NewStyle().Background(DiffAddBgColor)
+	DiffRemoveLineStyle = lipgloss.NewStyle().Background(DiffRemoveBgColor)
 
 	AccentStyle = lipgloss.NewStyle().Foreground(AccentColor)
 	ShellPromptStyle = lipgloss.NewStyle().Bold(true).Foreground(AccentColor).MarginTop(2)

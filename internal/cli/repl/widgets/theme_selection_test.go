@@ -53,7 +53,7 @@ func TestThemeSelectionEnterAndEsc(t *testing.T) {
 func TestThemeSelectionViewListsOptions(t *testing.T) {
 	sel := NewThemeSelection("default")
 	view := sel.View(80)
-	for _, opt := range []string{"Default (Indigo)", "Claude Code", "Dracula", "Tokyo Night", "Catppuccin", "GitHub", "Nord", "Monochrome"} {
+	for _, opt := range []string{"Default (Indigo)", "Claude Code", "Dracula", "Tokyo Night", "Catppuccin", "GitHub", "Nord", "Atom One", "Monochrome"} {
 		if !strings.Contains(view, opt) {
 			t.Fatalf("view missing %q", opt)
 		}

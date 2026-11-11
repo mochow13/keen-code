@@ -85,9 +85,13 @@ var (
 		Light: lipgloss.Color("#616161"),
 		Dark:  lipgloss.Color("#9E9E9E"),
 	}
-	DiffHunkColor = compat.AdaptiveColor{
-		Light: lipgloss.Color("#1565C0"),
-		Dark:  lipgloss.Color("#42A5F5"),
+	DiffAddBgColor = compat.AdaptiveColor{
+		Light: lipgloss.Color("#DFF5E1"),
+		Dark:  lipgloss.Color("#1F3A24"),
+	}
+	DiffRemoveBgColor = compat.AdaptiveColor{
+		Light: lipgloss.Color("#FBE3E3"),
+		Dark:  lipgloss.Color("#3D1F22"),
 	}
 
 	NormalStyle    = lipgloss.NewStyle()
@@ -177,12 +181,13 @@ var (
 	BashOutputStyle  = lipgloss.NewStyle().Foreground(TextDimColor)
 	BashSummaryStyle = lipgloss.NewStyle().Foreground(MutedColor).Faint(true)
 
-	DiffAddStyle     = lipgloss.NewStyle().Foreground(DiffAddColor)
-	DiffRemoveStyle  = lipgloss.NewStyle().Foreground(DiffRemoveColor)
-	DiffContextStyle = lipgloss.NewStyle().Foreground(DiffContextColor)
-	DiffHunkStyle    = lipgloss.NewStyle().Foreground(DiffHunkColor).Bold(true)
-	DiffLineNumStyle = lipgloss.NewStyle().Foreground(TextDimColor)
-	RuleStyle        = lipgloss.NewStyle().Foreground(RuleColor)
+	DiffAddStyle        = lipgloss.NewStyle().Foreground(DiffAddColor)
+	DiffRemoveStyle     = lipgloss.NewStyle().Foreground(DiffRemoveColor)
+	DiffAddLineStyle    = lipgloss.NewStyle().Background(DiffAddBgColor)
+	DiffRemoveLineStyle = lipgloss.NewStyle().Background(DiffRemoveBgColor)
+	DiffContextStyle    = lipgloss.NewStyle().Foreground(DiffContextColor)
+	DiffLineNumStyle    = lipgloss.NewStyle().Foreground(TextDimColor)
+	RuleStyle           = lipgloss.NewStyle().Foreground(RuleColor)
 
 	ModelChipStyle                  = lipgloss.NewStyle().Background(PrimaryColor).Foreground(WhiteColor).Bold(true).Padding(0, 1)
 	ModelSelectionCursorStyle       = SuggestionSelectedStyle

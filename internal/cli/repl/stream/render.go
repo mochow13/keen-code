@@ -7,6 +7,7 @@ import (
 	"github.com/mochow13/keen-code/internal/agentcore"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
 	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 )
@@ -18,6 +19,8 @@ const (
 	bashOutputMaxLines = 16
 	diffLeftPadding    = 2
 	diffRightPadding   = 2
+	diffNumWidth       = 4
+	diffTabWidth       = 4
 )
 
 func wrapAndIndent(styled string, wrapWidth int) []string {
@@ -432,81 +435,78 @@ func (sh *StreamHandler) renderBashSegment(seg *Segment, width int) []string {
 	return lines
 }
 
-func renderWrappedDiffLine(prefix string, content string, contentStyle lipgloss.Style, width int) []string {
-	renderedPrefix := prefix
-	if width <= 0 {
-		return []string{renderedPrefix + contentStyle.Render(content)}
-	}
-
-	contentWidth := width - lipgloss.Width(renderedPrefix) - diffRightPadding
-	if contentWidth < 1 {
-		contentWidth = 1
-	}
-
-	wrapped := lipgloss.NewStyle().Width(contentWidth).Render(contentStyle.Render(content))
-	wrappedLines := strings.Split(strings.TrimRight(wrapped, "\n"), "\n")
-	if len(wrappedLines) == 0 {
-		return []string{renderedPrefix}
-	}
-
-	lines := make([]string, 0, len(wrappedLines))
-	lines = append(lines, renderedPrefix+wrappedLines[0])
-
-	continuationPrefix := strings.Repeat(" ", lipgloss.Width(renderedPrefix))
-	for _, line := range wrappedLines[1:] {
-		lines = append(lines, continuationPrefix+line)
-	}
-
-	return lines
-}
-
-func renderDiffLines(dl agentcore.EditDiffLine, width int) []string {
-	switch dl.Kind {
-	case agentcore.EditDiffLineHunk:
-		return renderWrappedDiffLine("  ", dl.Content, repltheme.DiffHunkStyle, width)
-	case agentcore.EditDiffLineAdded:
-		lineNum := fmt.Sprintf("%4d", dl.NewLineNum)
-		prefix := repltheme.DiffLineNumStyle.Render("     "+lineNum) + " " + repltheme.DiffAddStyle.Render("+ ")
-		return renderWrappedDiffLine(prefix, dl.Content, repltheme.DiffAddStyle, width)
-	case agentcore.EditDiffLineRemoved:
-		lineNum := fmt.Sprintf("%4d", dl.OldLineNum)
-		prefix := repltheme.DiffLineNumStyle.Render(lineNum+"     ") + " " + repltheme.DiffRemoveStyle.Render("- ")
-		return renderWrappedDiffLine(prefix, dl.Content, repltheme.DiffRemoveStyle, width)
-	default:
-		prefix := repltheme.DiffLineNumStyle.Render(fmt.Sprintf("%4d %4d", dl.OldLineNum, dl.NewLineNum)) + " " + repltheme.DiffContextStyle.Render("  ")
-		return renderWrappedDiffLine(prefix, dl.Content, repltheme.DiffContextStyle, width)
-	}
-}
-
 func renderDiffSegment(seg *Segment, width int) []string {
-	if len(seg.DiffLines) == 0 {
+	if !hasDiffChanges(seg.DiffLines) {
 		return nil
 	}
+	if width <= 0 {
+		width = DefaultWidth
+	}
+	rowWidth := max(width-diffLeftPadding-diffRightPadding, 1)
+	padding := strings.Repeat(" ", diffLeftPadding)
+	rule := padding + repltheme.RuleStyle.Render(strings.Repeat("─", rowWidth))
 
-	rendered := make([]string, 0, len(seg.DiffLines))
+	lines := make([]string, 0, len(seg.DiffLines)+3)
+	lines = append(lines, "", rule)
+	rendered := false
 	for _, dl := range seg.DiffLines {
-		if dl.Kind != agentcore.EditDiffLineAdded && dl.Kind != agentcore.EditDiffLineRemoved {
+		if dl.Kind == agentcore.EditDiffLineHunk {
+			if rendered {
+				lines = append(lines, padding+repltheme.DiffLineNumStyle.Render(fmt.Sprintf("%*s", diffNumWidth, "⋮")))
+			}
 			continue
 		}
-		rendered = append(rendered, renderDiffLines(dl, width)...)
+		lines = append(lines, renderDiffRow(dl, rowWidth, padding)...)
+		rendered = true
 	}
-	if len(rendered) == 0 {
-		return nil
+	return append(lines, rule)
+}
+
+func hasDiffChanges(lines []agentcore.EditDiffLine) bool {
+	for _, dl := range lines {
+		if dl.Kind == agentcore.EditDiffLineAdded || dl.Kind == agentcore.EditDiffLineRemoved {
+			return true
+		}
+	}
+	return false
+}
+
+func renderDiffRow(dl agentcore.EditDiffLine, rowWidth int, padding string) []string {
+	var gutter, sign string
+	signStyle := repltheme.DiffContextStyle
+	textStyle := lipgloss.NewStyle()
+	tinted := true
+	switch dl.Kind {
+	case agentcore.EditDiffLineAdded:
+		gutter = fmt.Sprintf("%*s %*d", diffNumWidth, "", diffNumWidth, dl.NewLineNum)
+		sign, signStyle, textStyle = "+", repltheme.DiffAddStyle, repltheme.DiffAddLineStyle
+	case agentcore.EditDiffLineRemoved:
+		gutter = fmt.Sprintf("%*d %*s", diffNumWidth, dl.OldLineNum, diffNumWidth, "")
+		sign, signStyle, textStyle = "-", repltheme.DiffRemoveStyle, repltheme.DiffRemoveLineStyle
+	default:
+		gutter = fmt.Sprintf("%*d %*d", diffNumWidth, dl.OldLineNum, diffNumWidth, dl.NewLineNum)
+		sign, textStyle, tinted = " ", repltheme.DiffContextStyle, false
 	}
 
-	ruleWidth := DefaultWidth - diffLeftPadding - diffRightPadding
-	if width > 0 {
-		ruleWidth = width - diffLeftPadding - diffRightPadding
-	}
-	if ruleWidth < 1 {
-		ruleWidth = 1
-	}
+	bg := textStyle.GetBackground()
+	numStyle := repltheme.DiffLineNumStyle.Background(bg)
+	signStyle = signStyle.Background(bg)
+	contentWidth := max(rowWidth-lipgloss.Width(gutter)-3, 1)
+	content := strings.ReplaceAll(dl.Content, "\t", strings.Repeat(" ", diffTabWidth))
+	chunks := strings.Split(ansi.Wrap(content, contentWidth, ""), "\n")
 
-	rule := strings.Repeat(" ", diffLeftPadding) + repltheme.RuleStyle.Render(strings.Repeat("─", ruleWidth))
-	lines := make([]string, 0, len(rendered)+3)
-	lines = append(lines, "")
-	lines = append(lines, rule)
-	lines = append(lines, rendered...)
-	lines = append(lines, rule)
-	return lines
+	rows := make([]string, 0, len(chunks))
+	for i, chunk := range chunks {
+		if i == 1 {
+			gutter, sign = strings.Repeat(" ", lipgloss.Width(gutter)), " "
+		}
+		row := padding + numStyle.Render(gutter+" ") + signStyle.Render(sign+" ") + textStyle.Render(chunk)
+		if tinted {
+			if fill := contentWidth - ansi.StringWidth(chunk); fill > 0 {
+				row += textStyle.Render(strings.Repeat(" ", fill))
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }

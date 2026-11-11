@@ -1,10 +1,13 @@
 package stream
 
 import (
-	"github.com/mochow13/keen-code/internal/agentcore"
-	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/mochow13/keen-code/internal/agentcore"
+	reploutput "github.com/mochow13/keen-code/internal/cli/repl/output"
+	repltheme "github.com/mochow13/keen-code/internal/cli/repl/theme"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -134,14 +137,71 @@ func TestRenderDiffBoundaryBranches(t *testing.T) {
 	if lines := renderDiffSegment(&Segment{}, 20); lines != nil {
 		t.Fatalf("empty diff segment = %#v", lines)
 	}
-	lines := renderWrappedDiffLine("prefix", "content", replthemeZeroStyle(), 0)
-	if len(lines) != 1 || lines[0] != "prefixcontent" {
-		t.Fatalf("unbounded wrapped diff = %#v", lines)
+	contextOnly := &Segment{DiffLines: []agentcore.EditDiffLine{{Kind: agentcore.EditDiffLineContext, Content: "same", OldLineNum: 1, NewLineNum: 1}}}
+	if lines := renderDiffSegment(contextOnly, 20); lines != nil {
+		t.Fatalf("context-only diff segment = %#v", lines)
+	}
+	unbounded := &Segment{DiffLines: []agentcore.EditDiffLine{{Kind: agentcore.EditDiffLineAdded, Content: "content", NewLineNum: 1}}}
+	lines := renderDiffSegment(unbounded, 0)
+	if len(lines) != 4 || lipgloss.Width(lines[2]) != DefaultWidth-diffRightPadding {
+		t.Fatalf("unbounded diff should fall back to default width, got %#v", lines)
 	}
 }
 
-func replthemeZeroStyle() lipgloss.Style {
-	return lipgloss.NewStyle()
+func TestRenderDiffSegment_TintsChangedRowsToFullWidth(t *testing.T) {
+	seg := &Segment{DiffLines: []agentcore.EditDiffLine{
+		{Kind: agentcore.EditDiffLineHunk, Content: "@@ -1,2 +1,2 @@"},
+		{Kind: agentcore.EditDiffLineContext, Content: "keep", OldLineNum: 1, NewLineNum: 1},
+		{Kind: agentcore.EditDiffLineRemoved, Content: "old", OldLineNum: 2},
+		{Kind: agentcore.EditDiffLineAdded, Content: "\tnew", NewLineNum: 2},
+		{Kind: agentcore.EditDiffLineHunk, Content: "@@ -40,1 +40,1 @@"},
+		{Kind: agentcore.EditDiffLineAdded, Content: "later", NewLineNum: 40},
+	}}
+	lines := renderDiffSegment(seg, 40)
+	plain := make([]string, len(lines))
+	for i, line := range lines {
+		plain[i] = ansi.Strip(line)
+	}
+	want := []string{
+		"",
+		"  " + strings.Repeat("─", 36),
+		"     1    1   keep",
+		"     2      - old" + strings.Repeat(" ", 21),
+		"          2 +     new" + strings.Repeat(" ", 17),
+		"     ⋮",
+		"         40 + later" + strings.Repeat(" ", 19),
+		"  " + strings.Repeat("─", 36),
+	}
+	if !reflect.DeepEqual(plain, want) {
+		t.Fatalf("diff rows = %q, want %q", plain, want)
+	}
+	for _, i := range []int{3, 4, 6} {
+		if !strings.Contains(lines[i], "\x1b[48;") {
+			t.Fatalf("changed row %d should carry a background color, got %q", i, lines[i])
+		}
+	}
+	if strings.Contains(lines[2], "\x1b[48;") {
+		t.Fatalf("context row should not be tinted, got %q", lines[2])
+	}
+}
+
+func TestRenderDiffSegment_FollowsTheme(t *testing.T) {
+	prev := repltheme.CurrentThemeName
+	t.Cleanup(func() { repltheme.ApplyTheme(prev) })
+	seg := &Segment{DiffLines: []agentcore.EditDiffLine{
+		{Kind: agentcore.EditDiffLineRemoved, Content: "old", OldLineNum: 1},
+		{Kind: agentcore.EditDiffLineAdded, Content: "new", NewLineNum: 1},
+	}}
+
+	repltheme.ApplyTheme("default")
+	before := renderDiffSegment(seg, 40)
+	repltheme.ApplyTheme("dracula")
+	after := renderDiffSegment(seg, 40)
+	for _, i := range []int{2, 3} {
+		if before[i] == after[i] {
+			t.Fatalf("diff row %d did not change with theme: %q", i, after[i])
+		}
+	}
 }
 
 func TestRenderDiffSegment_RendersRulesUsingViewportWidth(t *testing.T) {
@@ -170,10 +230,11 @@ func TestRenderDiffSegment_RendersRulesUsingViewportWidth(t *testing.T) {
 		t.Fatalf("expected non-empty diff lines, got %v", nonEmpty)
 	}
 	plainWideView := ansi.Strip(wideView)
-	for _, hidden := range []string{"@@ -1,2 +1,3 @@", "unchanged context"} {
-		if strings.Contains(plainWideView, hidden) {
-			t.Fatalf("diff view should omit unchanged lines and hunk headers, got %q", plainWideView)
-		}
+	if strings.Contains(plainWideView, "@@ -1,2 +1,3 @@") {
+		t.Fatalf("diff view should omit hunk headers, got %q", plainWideView)
+	}
+	if !strings.Contains(plainWideView, "unchanged context") {
+		t.Fatalf("diff view should show context lines, got %q", plainWideView)
 	}
 	for _, shown := range []string{"short ", "shorter "} {
 		if !strings.Contains(plainWideView, shown) {

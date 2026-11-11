@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add a `todo_write` tool so the agent can track multi-step work, with a compact task panel above the input (Ctrl+T to collapse), the active task shown in the spinner, and the list restored on resume and preserved across compaction.
+- Add an Atom One theme based on the One Dark and One Light palettes.
+
+### Changed
+- Render file diffs with full-width added/removed line tints and surrounding context lines, colored by the active theme.
 
 ## [0.68.0] - 2026-11-28
 

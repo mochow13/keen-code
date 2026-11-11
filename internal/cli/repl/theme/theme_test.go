@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
 )
 
@@ -181,4 +182,54 @@ func TestChipColorsHaveContrast(t *testing.T) {
 			t.Errorf("%s chip foregrounds do not match theme", theme.Name)
 		}
 	}
+}
+
+func TestApplyThemeSetsDiffColors(t *testing.T) {
+	previous := CurrentThemeName
+	t.Cleanup(func() { ApplyTheme(previous) })
+	for _, theme := range Themes {
+		ApplyTheme(theme.Name)
+		for _, pair := range []struct {
+			name   string
+			fg, bg compat.AdaptiveColor
+			style  lipgloss.Style
+		}{
+			{"add", theme.DiffAdd, theme.DiffAddBg, DiffAddLineStyle},
+			{"remove", theme.DiffRemove, theme.DiffRemoveBg, DiffRemoveLineStyle},
+		} {
+			if pair.fg.Light == nil || pair.fg.Dark == nil || pair.bg.Light == nil || pair.bg.Dark == nil {
+				t.Fatalf("%s diff %s colors are not set", theme.Name, pair.name)
+			}
+			if !reflect.DeepEqual(pair.style.GetBackground(), pair.bg) {
+				t.Errorf("%s diff %s line background not applied", theme.Name, pair.name)
+			}
+			for _, colors := range [][2]color.Color{{pair.fg.Light, pair.bg.Light}, {pair.fg.Dark, pair.bg.Dark}} {
+				if ratio := contrastRatio(colors[0], colors[1]); ratio < 3 {
+					t.Errorf("%s diff %s sign contrast = %.2f", theme.Name, pair.name, ratio)
+				}
+			}
+		}
+		if !reflect.DeepEqual(DiffAddStyle.GetForeground(), theme.DiffAdd) || !reflect.DeepEqual(DiffRemoveStyle.GetForeground(), theme.DiffRemove) {
+			t.Errorf("%s diff sign colors not applied", theme.Name)
+		}
+	}
+}
+
+func contrastRatio(a, b color.Color) float64 {
+	luminance := func(c color.Color) float64 {
+		r, g, bl, _ := c.RGBA()
+		linear := func(v uint32) float64 {
+			x := float64(v) / 65535
+			if x <= 0.04045 {
+				return x / 12.92
+			}
+			return math.Pow((x+0.055)/1.055, 2.4)
+		}
+		return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(bl)
+	}
+	la, lb := luminance(a), luminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
 }
