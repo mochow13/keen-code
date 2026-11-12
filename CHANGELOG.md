@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-11-12
+
+### Added
+- Expand bash output blocks with Ctrl+O.
+- Enable thinking efforts for OpenCode Go Claude Haiku 5.5.
+
+### Changed
+- Redesign bash tool blocks, show output tails with stderr separate, and blink running tool markers.
+- Update the Go toolchain to patched Go 1.26.11.
+
+### Fixed
+- Finish bash blocks after permission prompts, cap output line length, and space blocks with bodies.
+
 ## [0.69.0] - 2026-11-11
 
 ### Added
@@ -1185,7 +1198,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.69.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.70.0...HEAD
+[0.70.0]: https://github.com/mochow13/keen-code/compare/v0.69.0...v0.70.0
 [0.68.0]: https://github.com/mochow13/keen-code/compare/v0.67.0...v0.68.0
 [0.69.0]: https://github.com/mochow13/keen-code/compare/v0.68.0...v0.69.0
 [0.67.0]: https://github.com/mochow13/keen-code/compare/v0.66.0...v0.67.0
