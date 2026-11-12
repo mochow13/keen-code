@@ -435,7 +435,7 @@ func TestOAuthCallbackHandlersRejectInvalidCallbacks(t *testing.T) {
 
 func TestAuthorizationCallbackHandlerCompletesAndCancels(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		results := make(chan oauthCallbackResult)
+		results := make(chan oauthCallbackResult, 1)
 		done := make(chan *httptest.ResponseRecorder, 1)
 		handler := newAuthorizationCallbackHandler(context.Background(), "/callback", results)
 		go func() {
@@ -455,7 +455,7 @@ func TestAuthorizationCallbackHandlerCompletesAndCancels(t *testing.T) {
 
 	t.Run("canceled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
-		results := make(chan oauthCallbackResult)
+		results := make(chan oauthCallbackResult, 1)
 		done := make(chan *httptest.ResponseRecorder, 1)
 		handler := newAuthorizationCallbackHandler(ctx, "/callback", results)
 		go func() {
