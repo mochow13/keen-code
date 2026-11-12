@@ -3,6 +3,7 @@ package stream
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
@@ -57,6 +58,7 @@ func renderToolStatusLines(line string, width int) []string {
 
 func (sh *StreamHandler) renderViewLines(width int) []string {
 	lines := make([]string, 0)
+	var gaps []int
 	sh.hasRunningTool = false
 
 	lastAssistantIdx := -1
@@ -100,7 +102,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 				}
 			}
 		case SegmentBash:
-			lines = append(lines, sh.renderBashSegment(seg, width, true)...)
+			lines, gaps = appendSpacedBlock(lines, gaps, sh.renderBashSegment(seg, width, true))
 		case SegmentSubagent:
 			if isHiddenToolFailure(seg.EndToolCall) {
 				continue
@@ -140,7 +142,7 @@ func (sh *StreamHandler) renderViewLines(width int) []string {
 		}
 	}
 
-	return lines
+	return insertGaps(lines, gaps)
 }
 
 func (sh *StreamHandler) renderTranscriptLines() []string {
@@ -149,6 +151,7 @@ func (sh *StreamHandler) renderTranscriptLines() []string {
 
 func (sh *StreamHandler) renderTranscriptAtWidth(width int) []string {
 	lines := make([]string, 0)
+	var gaps []int
 
 	for i := 0; i < len(sh.segments); i++ {
 		seg := &sh.segments[i]
@@ -180,7 +183,7 @@ func (sh *StreamHandler) renderTranscriptAtWidth(width int) []string {
 				}
 			}
 		case SegmentBash:
-			lines = append(lines, sh.renderBashSegment(seg, width, false)...)
+			lines, gaps = appendSpacedBlock(lines, gaps, sh.renderBashSegment(seg, width, false))
 		case SegmentSubagent:
 			if isHiddenToolFailure(seg.EndToolCall) {
 				continue
@@ -223,7 +226,7 @@ func (sh *StreamHandler) renderTranscriptAtWidth(width int) []string {
 		}
 	}
 
-	return lines
+	return insertGaps(lines, gaps)
 }
 
 func consecutiveReadCalls(segments []Segment, startIndex int) ([]*agentcore.ToolCall, int) {
@@ -386,6 +389,28 @@ func (sh *StreamHandler) AppendTranscript(output *reploutput.OutputBuilder, segm
 	snapshot := CloneSegments(segments)
 	handler := &StreamHandler{mdRenderer: sh.mdRenderer, workingDir: sh.workingDir, showThinking: sh.showThinking, display: sh.display}
 	output.AddResponsive(func(width int) []string { return handler.RenderSegments(snapshot, width) })
+}
+
+func appendSpacedBlock(lines []string, gaps []int, block []string) ([]string, []int) {
+	if len(block) > 1 {
+		gaps = append(gaps, len(lines), len(lines)+len(block))
+	}
+	return append(lines, block...), gaps
+}
+
+func insertGaps(lines []string, gaps []int) []string {
+	for i := len(gaps) - 1; i >= 0; i-- {
+		at := gaps[i]
+		if at <= 0 || at >= len(lines) || isBlankLine(lines[at-1]) || isBlankLine(lines[at]) {
+			continue
+		}
+		lines = slices.Insert(lines, at, "")
+	}
+	return lines
+}
+
+func isBlankLine(line string) bool {
+	return strings.TrimSpace(ansi.Strip(line)) == ""
 }
 
 func (sh *StreamHandler) blinkRunning(line string) string {

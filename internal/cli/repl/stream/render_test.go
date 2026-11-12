@@ -496,3 +496,48 @@ func TestRenderBashSegmentTruncatesLongLines(t *testing.T) {
 		t.Fatalf("expected expanded line cut at %d chars, got %q", bashOutputExpandedMaxLineChars, expanded)
 	}
 }
+
+func TestBashBlocksWithBodyAreSpaced(t *testing.T) {
+	handler := NewStreamHandler(nil)
+	done := func(command, stdout string) {
+		handler.HandleBashStart(command, command)
+		handler.HandleBashEnd(&agentcore.ToolCall{Input: map[string]any{"command": command}, Output: map[string]any{"stdout": stdout, "exit_code": 0}})
+	}
+	handler.HandleChunk("Checking history.")
+	done("git log", "abc first\ndef second")
+	done("git status", "?? notes.md")
+	done("git add .", "")
+	done("git commit", "")
+	handler.HandleToolStart(&agentcore.ToolCall{Name: agentcore.ToolNameGrep, Input: map[string]any{"pattern": "foo"}})
+	done("git show", "abc first")
+
+	want := strings.Join([]string{
+		"  Checking history.",
+		"",
+		"  ✓ Run → git log",
+		"  │ $ git log",
+		"  │ abc first",
+		"  │ def second",
+		"",
+		"  ✓ Run → git status",
+		"  │ $ git status",
+		"  │ ?? notes.md",
+		"",
+		"  ✓ Run → git add . · $ git add .",
+		"  ✓ Run → git commit · $ git commit",
+		"  ● Search → foo...",
+		"",
+		"  ✓ Run → git show",
+		"  │ $ git show",
+		"  │ abc first",
+	}, "\n")
+	for name, lines := range map[string][]string{"view": handler.renderViewLines(80), "transcript": handler.renderTranscriptAtWidth(80)} {
+		trimmed := make([]string, len(lines))
+		for i, line := range lines {
+			trimmed[i] = strings.TrimRight(ansi.Strip(line), " ")
+		}
+		if got := strings.Join(trimmed, "\n"); got != want {
+			t.Fatalf("%s spacing:\n%s\nwant:\n%s", name, got, want)
+		}
+	}
+}
