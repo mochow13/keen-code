@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
@@ -181,7 +182,29 @@ func (sh *StreamHandler) HandleToolStart(toolCall *agentcore.ToolCall) {
 }
 
 func (sh *StreamHandler) HandleToolEnd(toolCall *agentcore.ToolCall) {
-	sh.segments = append(sh.segments, Segment{Kind: SegmentToolEnd, ToolCall: toolCall})
+	end := Segment{Kind: SegmentToolEnd, ToolCall: toolCall}
+	if at := sh.unfinishedToolStart(toolCall); at >= 0 && at+1 < len(sh.segments) {
+		sh.segments = slices.Insert(sh.segments, at+1, end)
+		return
+	}
+	sh.segments = append(sh.segments, end)
+}
+
+func (sh *StreamHandler) unfinishedToolStart(toolCall *agentcore.ToolCall) int {
+	if toolCall == nil || toolCall.Name == agentcore.ToolNameAskUser {
+		return -1
+	}
+	for i := len(sh.segments) - 1; i >= 0; i-- {
+		seg := sh.segments[i]
+		if seg.Kind != SegmentToolStart || seg.ToolCall == nil || seg.ToolCall.Name != toolCall.Name {
+			continue
+		}
+		if i+1 < len(sh.segments) && sh.segments[i+1].Kind == SegmentToolEnd {
+			return -1
+		}
+		return i
+	}
+	return -1
 }
 
 func (sh *StreamHandler) SetAskUser(card *replaskuser.Card) {

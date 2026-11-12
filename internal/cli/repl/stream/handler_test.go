@@ -233,7 +233,7 @@ func TestStreamHandler_RewindForRetry_LeavesSealedTailUnchanged(t *testing.T) {
 	}
 }
 
-func TestStreamHandler_HandleDone_MixedSegmentsChronological(t *testing.T) {
+func TestStreamHandler_HandleDone_ToolEndPairsWithStartAcrossChunks(t *testing.T) {
 	sh := NewStreamHandler(nil)
 	eventCh := make(chan agentcore.StreamEvent)
 	sh.Start(eventCh, "Loading...")
@@ -249,22 +249,20 @@ func TestStreamHandler_HandleDone_MixedSegmentsChronological(t *testing.T) {
 		t.Fatalf("unexpected full response: %q", fullResponse)
 	}
 
-	// start and end are not adjacent (chunk between them), so both lines are emitted
-	if len(lines) != 4 {
-		t.Fatalf("expected 4 transcript lines, got %d", len(lines))
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 transcript lines, got %d: %q", len(lines), lines)
 	}
-
 	if !strings.Contains(lines[0], "First chunk") {
 		t.Fatalf("expected first line to be first assistant chunk, got %q", lines[0])
 	}
-	if !strings.Contains(lines[1], "Read") || !strings.Contains(lines[1], "●") {
-		t.Fatalf("expected second line to be tool start, got %q", lines[1])
+	if !strings.Contains(lines[1], "Read") || !strings.Contains(lines[1], "✓") || !strings.Contains(lines[1], "go.mod") {
+		t.Fatalf("expected tool end to collapse into its start line, got %q", lines[1])
 	}
 	if !strings.Contains(lines[2], "Second chunk") {
 		t.Fatalf("expected third line to be second assistant chunk, got %q", lines[2])
 	}
-	if !strings.Contains(lines[3], "Read") || !strings.Contains(lines[3], "✓") {
-		t.Fatalf("expected fourth line to be tool end, got %q", lines[3])
+	if strings.Contains(strings.Join(lines, "\n"), "●") {
+		t.Fatalf("expected no stale running marker, got %q", lines)
 	}
 }
 
@@ -812,5 +810,28 @@ func TestHandleBashEndMatchesCommand(t *testing.T) {
 	sh.HandleBashEnd(&agentcore.ToolCall{Output: map[string]any{"stdout": "2"}})
 	if sh.segments[1].Output != "2" {
 		t.Fatalf("expected result without input to attach to the latest unfinished block, got %#v", sh.segments)
+	}
+}
+
+func TestHandleToolEndAfterPermissionPrompt(t *testing.T) {
+	sh := NewStreamHandler(nil)
+	sh.Start(make(<-chan agentcore.StreamEvent), "Brewing...")
+	input := map[string]any{"server": "linear", "tool": "create_issue"}
+	sh.HandleToolStart(&agentcore.ToolCall{Name: agentcore.ToolNameCallMCP, Input: input})
+	sh.HandlePermissionRequest(&replpermissions.Request{ToolName: agentcore.ToolNameCallMCP, Path: "linear/create_issue", Status: replpermissions.StatusAllowed})
+	sh.HandleToolEnd(&agentcore.ToolCall{Name: agentcore.ToolNameCallMCP, Input: input, Output: map[string]any{}, Duration: 1200 * time.Millisecond})
+
+	view := ansi.Strip(sh.View(80))
+	if strings.Contains(view, "●") {
+		t.Fatalf("expected MCP start line to finish after permission prompt, got %q", view)
+	}
+	if !strings.Contains(view, "✓ MCP → linear/create_issue · 1.2s") {
+		t.Fatalf("expected finished MCP line with its input detail, got %q", view)
+	}
+	if sh.HasRunningTool() {
+		t.Fatal("expected no running tool after the approved MCP call finished")
+	}
+	if sh.segments[1].Kind != SegmentToolEnd || sh.segments[2].Kind != SegmentPermission {
+		t.Fatalf("expected tool end paired with its start, got %v, %v", sh.segments[1].Kind, sh.segments[2].Kind)
 	}
 }
