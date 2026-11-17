@@ -18,6 +18,10 @@ providers:
         name: Claude Fable 5.1
         context_window: 1000000
         thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
+      - id: claude-fable-5-2
+        name: Claude Fable 5.2
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: claude-opus-5
         name: Claude Opus 5
         context_window: 1000000
@@ -55,6 +59,10 @@ providers:
         thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: global.anthropic.claude-fable-5-1
         name: Claude Fable 5.1
+        context_window: 1000000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
+      - id: global.anthropic.claude-fable-5-2
+        name: Claude Fable 5.2
         context_window: 1000000
         thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: global.anthropic.claude-opus-5

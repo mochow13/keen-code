@@ -461,3 +461,32 @@ func TestGeminiAndKimiK31ProModels(t *testing.T) {
 		})
 	}
 }
+
+func TestClaudeFable52Registry(t *testing.T) {
+	reg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	for _, tt := range []struct {
+		provider string
+		model    string
+	}{
+		{"anthropic", "claude-fable-5-2"},
+		{"amazon-bedrock", "global.anthropic.claude-fable-5-2"},
+	} {
+		t.Run(tt.provider, func(t *testing.T) {
+			model, ok := reg.GetModel(tt.provider, tt.model)
+			if !ok {
+				t.Fatalf("missing model %s/%s", tt.provider, tt.model)
+			}
+			if model.Name != "Claude Fable 5.2" || model.ContextWindow != 1000000 {
+				t.Errorf("unexpected model metadata: %+v", model)
+			}
+			wantEfforts := []string{"low", "medium", "high", "xhigh", "max"}
+			if !slices.Equal(model.ThinkingEfforts, wantEfforts) {
+				t.Errorf("thinking efforts = %v, want %v", model.ThinkingEfforts, wantEfforts)
+			}
+		})
+	}
+}
