@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-11-17
+
+### Added
+- Add Claude Fable 5.2 to the Anthropic and Amazon Bedrock model registries.
+
 ## [0.70.1] - 2026-11-12
 
 ### Fixed
@@ -1204,8 +1209,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.70.1...HEAD
-[0.70.1]: https://github.com/mochow13/keen-code/compare/v0.70.0...v0.70.1
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.71.0...HEAD
+[0.71.0]: https://github.com/mochow13/keen-code/compare/v0.70.1...v0.71.0
 [0.70.0]: https://github.com/mochow13/keen-code/compare/v0.69.0...v0.70.0
 [0.68.0]: https://github.com/mochow13/keen-code/compare/v0.67.0...v0.68.0
 [0.69.0]: https://github.com/mochow13/keen-code/compare/v0.68.0...v0.69.0
