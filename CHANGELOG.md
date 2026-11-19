@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-11-19
+
+### Added
+- Add GPT-6.2 Astra and GPT-6.2 Sol model support to the OpenAI provider.
 ## [0.71.0] - 2026-11-17
 
 ### Added
@@ -1209,7 +1213,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GoReleaser config for cross-platform binary distribution
 - npm wrapper package for installation via `npm install -g keen-code`
 
-[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.71.0...HEAD
+[Unreleased]: https://github.com/mochow13/keen-code/compare/v0.72.0...HEAD
+[0.72.0]: https://github.com/mochow13/keen-code/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/mochow13/keen-code/compare/v0.70.1...v0.71.0
 [0.70.0]: https://github.com/mochow13/keen-code/compare/v0.69.0...v0.70.0
 [0.68.0]: https://github.com/mochow13/keen-code/compare/v0.67.0...v0.68.0
