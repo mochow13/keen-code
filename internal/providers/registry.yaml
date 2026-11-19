@@ -96,6 +96,14 @@ providers:
   - id: openai
     name: OpenAI
     models:
+      - id: gpt-6.2-astra
+        name: GPT-6.2 Astra
+        context_window: 1050000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
+      - id: gpt-6.2-sol
+        name: GPT-6.2 Sol
+        context_window: 1050000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
       - id: gpt-6.1-sol
         name: GPT-6.1 Sol
         context_window: 1050000
@@ -140,6 +148,14 @@ providers:
   - id: openai-codex
     name: Codex (ChatGPT OAuth)
     models:
+      - id: gpt-6.2-astra
+        name: GPT-6.2 Astra
+        context_window: 872000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]
+      - id: gpt-6.2-sol
+        name: GPT-6.2 Sol
+        context_window: 872000
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]
       - id: gpt-6.1-sol
         name: GPT-6.1 Sol
         context_window: 872000
@@ -159,7 +175,7 @@ providers:
       - id: gpt-6-astra
         name: GPT-6 Astra
         context_window: 872000
-        thinking_efforts: ["low", "medium", "high", "xhigh", "max"]
+        thinking_efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]
       - id: gpt-5.6-sol
         name: GPT-5.6 Sol
         context_window: 872000

@@ -95,6 +95,8 @@ func TestCodexMaximumContextWindows(t *testing.T) {
 	}
 
 	for modelID, want := range map[string]int{
+		"gpt-6.2-astra": 872000,
+		"gpt-6.2-sol":   872000,
 		"gpt-6.1-sol":   872000,
 		"gpt-6.1-terra": 872000,
 		"gpt-6-sol":     872000,
@@ -486,6 +488,40 @@ func TestClaudeFable52Registry(t *testing.T) {
 			wantEfforts := []string{"low", "medium", "high", "xhigh", "max"}
 			if !slices.Equal(model.ThinkingEfforts, wantEfforts) {
 				t.Errorf("thinking efforts = %v, want %v", model.ThinkingEfforts, wantEfforts)
+			}
+		})
+	}
+}
+
+func TestGPT62ModelsRegistry(t *testing.T) {
+	reg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	for _, tt := range []struct {
+		provider string
+		model    string
+		name     string
+		context  int
+		efforts  []string
+	}{
+		{"openai", "gpt-6.2-astra", "GPT-6.2 Astra", 1050000, []string{"low", "medium", "high", "xhigh", "max"}},
+		{"openai", "gpt-6.2-sol", "GPT-6.2 Sol", 1050000, []string{"low", "medium", "high", "xhigh", "max"}},
+		{"openai-codex", "gpt-6.2-astra", "GPT-6.2 Astra", 872000, []string{"low", "medium", "high", "xhigh", "max", "ultra"}},
+		{"openai-codex", "gpt-6.2-sol", "GPT-6.2 Sol", 872000, []string{"low", "medium", "high", "xhigh", "max", "ultra"}},
+		{"openai-codex", "gpt-6-astra", "GPT-6 Astra", 872000, []string{"low", "medium", "high", "xhigh", "max", "ultra"}},
+	} {
+		t.Run(tt.provider+"/"+tt.model, func(t *testing.T) {
+			model, ok := reg.GetModel(tt.provider, tt.model)
+			if !ok {
+				t.Fatalf("missing model %s/%s", tt.provider, tt.model)
+			}
+			if model.Name != tt.name || model.ContextWindow != tt.context {
+				t.Errorf("unexpected model metadata: %+v", model)
+			}
+			if !slices.Equal(model.ThinkingEfforts, tt.efforts) {
+				t.Errorf("thinking efforts = %v, want %v", model.ThinkingEfforts, tt.efforts)
 			}
 		})
 	}
