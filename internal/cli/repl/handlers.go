@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/mochow13/keen-code/internal/agentcore"
-	"github.com/mochow13/keen-code/internal/tools"
 
 	tea "charm.land/bubbletea/v2"
 	replcommands "github.com/mochow13/keen-code/internal/cli/repl/commands"
@@ -277,8 +276,7 @@ func (m *replModel) handleCompactionDone() (replModel, tea.Cmd) {
 	m.stopLoading()
 	m.compaction.cancel = nil
 	m.clearStreamCancel()
-	summary = tools.AppendTodoContext(summary, m.sessions.Todos())
-	if err := m.agentCore.ApplyCompaction(summary); err != nil {
+	if err := m.agentCore.ApplyCompaction(summary, m.sessions.Todos()); err != nil {
 		return m.handleCompactionError(err)
 	}
 	m.router.pendingTurns = nil

@@ -7,6 +7,7 @@ import (
 
 	"github.com/mochow13/keen-code/internal/config"
 	"github.com/mochow13/keen-code/internal/llm"
+	"github.com/mochow13/keen-code/internal/llm/compaction"
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/skills"
 	"github.com/mochow13/keen-code/internal/subagents"
@@ -312,15 +313,12 @@ func btwContext(messages []core.Message, max int) []core.Message {
 	return result
 }
 
-func (s *AppState) ApplyCompaction(summary string) error {
-	compacted := strings.TrimSpace(summary)
-	if compacted == "" {
-		return fmt.Errorf("compaction returned empty summary")
+func (s *AppState) ApplyCompaction(summary string, todos tools.TodoList) error {
+	message, err := compaction.ManualReplacement(summary, todos)
+	if err != nil {
+		return err
 	}
-	s.messages = []core.Message{{
-		Role:    core.RoleUser,
-		Content: compacted,
-	}}
+	s.messages = []core.Message{message}
 	return nil
 }
 

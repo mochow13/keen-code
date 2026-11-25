@@ -5,6 +5,7 @@ import (
 
 	"github.com/mochow13/keen-code/internal/config"
 	keenmcp "github.com/mochow13/keen-code/internal/mcp"
+	"github.com/mochow13/keen-code/internal/tools"
 	"github.com/mochow13/keen-code/internal/usage"
 )
 
@@ -26,7 +27,7 @@ type AgentCore interface {
 	GetMessageText() []Message
 	ClearMessages()
 	ReplaceMessages(messages []Message)
-	ApplyCompaction(summary string) error
+	ApplyCompaction(summary string, todos tools.TodoList) error
 	ClearContextMetrics()
 	WithoutSystemMessages(messages []Message) []Message
 

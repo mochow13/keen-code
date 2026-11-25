@@ -144,7 +144,7 @@ func (m *mockAgentCore) GetMessageText() []agentcore.Message {
 	return messages
 }
 func (m *mockAgentCore) ReplaceMessages(messages []agentcore.Message) { m.messages = messages }
-func (m *mockAgentCore) ApplyCompaction(summary string) error {
+func (m *mockAgentCore) ApplyCompaction(summary string, _ tools.TodoList) error {
 	if strings.TrimSpace(summary) == "" {
 		return fmt.Errorf("compaction returned empty summary")
 	}

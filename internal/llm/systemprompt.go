@@ -50,31 +50,36 @@ Active mode: plan. Read-only, plan instead of modifying files; write_file and ed
 `
 
 const compactionSections = `## Goal
-User objectives.
+What the user is trying to achieve, including the larger purpose behind the current task if they stated one.
 
-## Key Instructions
-Important user constraints.
+## User Instructions
+Requirements, constraints, preferences, and corrections the user gave. Quote the user's own wording where it carries the requirement.
 
-## Discoveries
-Relevant codebase facts and requirements.
+## State of the Work
+What is done, what is in progress, and what remains. Say what was verified (tests run, output checked) and what is still assumed. If a todo_write list exists, reproduce its latest state with each task's status.
 
-## Accomplished
-Completed and remaining work, active progress, and next action. If a todo_write task list exists, reproduce its latest state with each task's status.
+## Decisions and Discoveries
+Facts learned about the codebase and environment, decisions made and why, and approaches that were tried and rejected, with the reason.
 
-## Relevant Files
-Relevant files, commands, errors, and tool results.`
+## Files and Commands
+Each file that matters: its path, why it matters, and what was changed in it. Commands that were run and their outcome, with exact error text for failures that are still open.
 
-const compactionGuidance = `This is a context compaction request: the earlier history will be discarded and replaced by your reply, which becomes the only record carried forward.
+## Next Step
+The immediate next action, specific enough to start without re-reading anything.`
 
-Never use any tools for this compaction request; work from the existing conversation history alone.
+const compactionGuidance = `This is a context compaction request. The conversation history above will be discarded and replaced by your reply. The reader is you, continuing this work with only the system prompt and this summary, so anything you leave out is lost.
 
-Summarize concisely but completely so work can continue without the earlier history. Keep exact file paths, commands, identifiers, and error text, and do not reference the discarded history (no "as discussed" or "the file above").
+Do not call tools; work from the existing history alone.
 
-Cover at least the sections below, adding extra sections or detail when the work needs it:
+Spend the words on what would be expensive to rediscover: in-flight work, exact file paths, commands, identifiers, error text, and the user's requirements. Keep finished and settled work brief. Write a standalone record: do not refer to the discarded history ("as discussed", "the file above").
+
+If the history contains a <compacted_context> summary from an earlier compaction, it is discarded too. Merge what is still relevant from it and drop what later work has superseded.
+
+Use the sections below, adding others if the work needs them:
 
 ` + compactionSections
 
-const compactionPrompt = `Compact this conversation. ` + compactionGuidance
+const compactionClosing = "\n\nReply with only the summary, no preamble."
 
 const maxInstructionsSize = 8 * 1024
 
@@ -124,19 +129,16 @@ func Build(workingDir, skillsCatalog, subagentsCatalog string) string {
 
 // BuildCompactionPrompt builds the manual compaction instruction sent as the final user message.
 func BuildCompactionPrompt(extraPrompt string) string {
-	instruction := `Please compact this conversation. ` + compactionGuidance + `
-
-Respond with only the structured summary, with no preamble.`
+	instruction := compactionGuidance
 	if trimmed := strings.TrimSpace(extraPrompt); trimmed != "" {
-		instruction += "\n\nIMPORTANT: Take the following instruction into consideration: " + trimmed
+		instruction += "\n\nThe user asked for this in the summary: " + trimmed
 	}
-	return instruction
+	return instruction + compactionClosing
 }
 
+// BuildAutoCompactionPrompt builds the instruction for compaction triggered mid-turn by the agent loop.
 func BuildAutoCompactionPrompt() string {
-	return compactionPrompt + `
-
-This is an internal agent checkpoint. Keen retains the most recent user message verbatim outside this summary. Do not reproduce that user message verbatim. Preserve active-loop progress and meaningful tool results. Output only the structured summary with no preamble.`
+	return compactionGuidance + "\n\nKeen keeps the most recent user message verbatim alongside your summary (the contents of <last_user_message> if the history has one), so do not repeat it." + compactionClosing
 }
 
 const btwPrompt = `You answer a quick side question ("btw") separate from Keen Code's main task.

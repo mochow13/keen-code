@@ -10,6 +10,7 @@ import (
 	"github.com/mochow13/keen-code/internal/llm/core"
 	"github.com/mochow13/keen-code/internal/skills"
 	"github.com/mochow13/keen-code/internal/subagents"
+	"github.com/mochow13/keen-code/internal/tools"
 )
 
 type adapter struct {
@@ -118,8 +119,8 @@ func (a *adapter) ReplaceMessages(messages []Message) {
 	a.appState.ReplaceMessages(fromMessages(messages))
 }
 
-func (a *adapter) ApplyCompaction(summary string) error {
-	return a.appState.ApplyCompaction(summary)
+func (a *adapter) ApplyCompaction(summary string, todos tools.TodoList) error {
+	return a.appState.ApplyCompaction(summary, todos)
 }
 
 func (a *adapter) ClearContextMetrics() {

@@ -566,7 +566,7 @@ func TestAppState_ApplyCompactionReplacesHistoryWithSingleSummaryMessage(t *test
 	state.AddMessage(core.RoleUser, "hello")
 	state.AddMessage(core.RoleAssistant, "world")
 
-	if err := state.ApplyCompaction("  compacted summary  "); err != nil {
+	if err := state.ApplyCompaction("  compacted summary  ", nil); err != nil {
 		t.Fatalf("ApplyCompaction() returned error: %v", err)
 	}
 
@@ -574,7 +574,7 @@ func TestAppState_ApplyCompactionReplacesHistoryWithSingleSummaryMessage(t *test
 	if len(compacted) != 1 {
 		t.Fatalf("expected compacted history to contain one summary message, got %d", len(compacted))
 	}
-	if compacted[0].Role != core.RoleUser || compacted[0].Content != "compacted summary" {
+	if compacted[0].Role != core.RoleUser || !strings.HasPrefix(compacted[0].Content, "<compacted_context>\n") || !strings.HasSuffix(compacted[0].Content, "\n\ncompacted summary\n</compacted_context>") {
 		t.Fatalf("unexpected summary message: %#v", compacted[0])
 	}
 }
@@ -745,7 +745,7 @@ func TestAppState_ApplyCompactionLeavesMessagesUntouchedOnError(t *testing.T) {
 	state.AddMessage(core.RoleAssistant, "world")
 	original := state.GetMessages()
 
-	err := state.ApplyCompaction(" \n\t ")
+	err := state.ApplyCompaction(" \n\t ", nil)
 	if err == nil || err.Error() != "compaction returned empty summary" {
 		t.Fatalf("expected empty summary error, got %v", err)
 	}

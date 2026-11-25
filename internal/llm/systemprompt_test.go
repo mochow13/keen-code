@@ -222,46 +222,41 @@ func TestProjectInstructionsReadsNearestInstructions(t *testing.T) {
 
 func TestBuildCompactionPromptTrimsExtraInstruction(t *testing.T) {
 	got := BuildCompactionPrompt("  preserve failures  ")
-	if !strings.Contains(got, "preserve failures") || strings.Contains(got, "  preserve failures  ") {
+	if !strings.Contains(got, "The user asked for this in the summary: preserve failures\n") {
 		t.Fatalf("BuildCompactionPrompt() = %q", got)
 	}
 	for _, expected := range []string{
-		"Please compact this conversation",
 		"context compaction request",
-		"only record carried forward",
-		"Never use any tools for this compaction request",
-		"work from the existing conversation history alone",
-		"Cover at least the sections",
+		"Do not call tools",
+		"<compacted_context>",
+		"adding others if the work needs them",
 		"## Goal",
-		"## Relevant Files",
+		"## Next Step",
 	} {
 		if !strings.Contains(got, expected) {
 			t.Fatalf("expected %q in compaction prompt, got %q", expected, got)
 		}
 	}
-	for _, unexpected := range []string{"Use exactly these sections"} {
-		if strings.Contains(got, unexpected) {
-			t.Fatalf("expected %q to be absent from compaction prompt, got %q", unexpected, got)
-		}
+	if !strings.HasSuffix(got, compactionClosing) {
+		t.Fatalf("expected compaction prompt to end with the closing line, got %q", got)
+	}
+	if strings.Contains(got, "<last_user_message>") {
+		t.Fatalf("manual compaction prompt mentions the retained user message: %q", got)
+	}
+}
+
+func TestBuildCompactionPromptWithoutExtraInstruction(t *testing.T) {
+	if got := BuildCompactionPrompt(" \n "); got != compactionGuidance+compactionClosing {
+		t.Fatalf("BuildCompactionPrompt() = %q", got)
 	}
 }
 
 func TestBuildAutoCompactionPromptSharesCompactionFraming(t *testing.T) {
 	got := BuildAutoCompactionPrompt()
-	for _, expected := range []string{
-		"Compact this conversation",
-		"context compaction request",
-		"only record carried forward",
-		"Never use any tools for this compaction request",
-		"Cover at least the sections",
-		"## Relevant Files",
-		"internal agent checkpoint",
-	} {
-		if !strings.Contains(got, expected) {
-			t.Fatalf("expected %q in automatic compaction prompt, got %q", expected, got)
-		}
+	if !strings.HasPrefix(got, compactionGuidance) || !strings.HasSuffix(got, compactionClosing) {
+		t.Fatalf("automatic compaction prompt does not share the manual framing: %q", got)
 	}
-	if strings.Contains(got, "Use exactly these sections") {
-		t.Fatalf("expected flexible sections in automatic compaction prompt, got %q", got)
+	if !strings.Contains(got, "<last_user_message>") || !strings.Contains(got, "do not repeat it") {
+		t.Fatalf("expected retained user message note in automatic compaction prompt, got %q", got)
 	}
 }
