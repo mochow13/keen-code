@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -73,7 +74,19 @@ func cap(content string, max int) string {
 	if len(content) <= max {
 		return content
 	}
-	return content[:max] + "\n[truncated — memory exceeds size cap]"
+	cut := strings.LastIndex(content[:max+1], "\n")
+	if cut <= 0 {
+		cut = max
+		for cut > 0 && !utf8.RuneStart(content[cut]) {
+			cut--
+		}
+	}
+	return strings.TrimRight(content[:cut], "\n") + "\n[truncated — memory exceeds size cap; read the full file with read_file, then merge, trim, or remove entries with the memory_write tool]"
+}
+
+func heading(f File) string {
+	max := CapFor(f.Scope)
+	return fmt.Sprintf("# %s memory (%s, %s of %s)", f.Scope, f.Path, FormatSize(len(f.Content)), FormatSize(max))
 }
 
 func Load(workingDir string) string {
@@ -84,13 +97,13 @@ func LoadAt(globalPath, projectPath string) string {
 	global, project := FilesAt(globalPath, projectPath)
 	var sb strings.Builder
 	if global.Exists {
-		sb.WriteString(fmt.Sprintf("# %s memory\n\n%s", global.Scope, cap(global.Content, GlobalMaxBytes)))
+		sb.WriteString(fmt.Sprintf("%s\n\n%s", heading(global), cap(global.Content, GlobalMaxBytes)))
 	}
 	if project.Exists {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
-		sb.WriteString(fmt.Sprintf("# %s memory\n\n%s", project.Scope, cap(project.Content, ProjectMaxBytes)))
+		sb.WriteString(fmt.Sprintf("%s\n\n%s", heading(project), cap(project.Content, ProjectMaxBytes)))
 	}
 	return sb.String()
 }

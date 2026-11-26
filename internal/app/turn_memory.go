@@ -17,7 +17,7 @@ var retainedHistoricalToolInputs = map[string]struct{}{
 	agentcore.ToolNameReadFile: {}, agentcore.ToolNameGrep: {}, agentcore.ToolNameGlob: {},
 	agentcore.ToolNameWebFetch: {}, agentcore.ToolNameBash: {}, agentcore.ToolNameDelegate: {},
 	agentcore.ToolNameCallMCP: {}, agentcore.ToolNameWriteFile: {}, agentcore.ToolNameEditFile: {},
-	agentcore.ToolNameAskUser: {}, agentcore.ToolNameTodoWrite: {},
+	agentcore.ToolNameAskUser: {}, agentcore.ToolNameTodoWrite: {}, agentcore.ToolNameMemory: {},
 }
 
 type turnMemory struct {

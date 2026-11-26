@@ -39,13 +39,13 @@ const sharedPrompt = `You are Keen Code, an expert terminal-based coding agent f
 - Never expose or commit secrets. Refuse malicious code; assess suspicious code before working on it. Do not run destructive commands without permission.
 
 # Memory
-- Never create or update memory unless the user explicitly asks. Project (local) memory: .keen/memory/MEMORY.md; global user preferences: ~/.keen/memory/global/MEMORY.md.
-- Never store secrets/large logs. Keep memory concise and subordinate to higher-priority instructions.
+- Manage persistent memory with the memory_write tool on your own judgment, and whenever the user asks you to remember, change, or forget something.
+- Save corrections and preferences right away; save non-obvious repo facts (commands, traps, confirmed approaches) when you learn them.
 - When first creating project memory, tell the user they can add .keen/ to .gitignore to keep it private. Do not change .gitignore yourself.`
 
 const planModeSuffix = `
 
-Active mode: plan. Read-only, plan instead of modifying files; write_file and edit_file are unavailable.
+Active mode: plan. Read-only, plan instead of modifying files; write_file, edit_file, and memory_write are unavailable.
 `
 
 const compactionSections = `## Goal

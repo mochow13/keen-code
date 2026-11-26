@@ -173,3 +173,14 @@ func TestLoadEmptyFileSkipped(t *testing.T) {
 		t.Fatalf("empty/whitespace file should be skipped, got %q", got)
 	}
 }
+
+func TestLoadAtHeadingShowsPathAndSize(t *testing.T) {
+	dir := t.TempDir()
+	projectPath := filepath.Join(dir, "project", "MEMORY.md")
+	writeTestFile(t, projectPath, "- run make test")
+	got := LoadAt(filepath.Join(dir, "global", "MEMORY.md"), projectPath)
+	want := "# Project memory (" + projectPath + ", 15 B of 16 KB)"
+	if !strings.Contains(got, want) {
+		t.Fatalf("expected heading %q in %q", want, got)
+	}
+}

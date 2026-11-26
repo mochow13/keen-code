@@ -98,6 +98,8 @@ func (a *adapter) SetupTools(
 
 	appState.RegisterTool(tools.NewTodoWriteTool())
 
+	appState.RegisterTool(tools.NewMemoryTool(guard, workingDir, &diffEmitterAdapter{inner: diffEmitter}, permAdapter))
+
 	if !isNilInterface(askUserRequester) {
 		appState.RegisterTool(tools.NewAskUserTool(&askUserRequesterAdapter{inner: askUserRequester}))
 	}

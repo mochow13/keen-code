@@ -169,6 +169,7 @@ const (
 	ToolNameEditFile  = tools.EditFileToolName
 	ToolNameGlob      = tools.GlobToolName
 	ToolNameGrep      = tools.GrepToolName
+	ToolNameMemory    = tools.MemoryToolName
 	ToolNameReadFile  = tools.ReadFileToolName
 	ToolNameTodoWrite = tools.TodoWriteToolName
 	ToolNameWebFetch  = tools.WebFetchToolName
