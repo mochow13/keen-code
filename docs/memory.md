@@ -16,7 +16,7 @@ Missing or empty files are skipped silently during prompt assembly.
 ## How Memory Differs From AGENTS.md
 
 - **AGENTS.md** is static, hand-written by the user, and acts as developer/system instructions (high authority).
-- **Memory** is accumulated by the agent when the user asks it to remember or forget things, and is treated as context — subordinate to system and developer instructions.
+- **Memory** is accumulated by the agent for durable, useful context, including when the user asks it to remember or forget something, and is treated as context — subordinate to system and developer instructions.
 
 ## Commands
 
@@ -51,18 +51,31 @@ Memory is empty.
 
 ## Writing Memory
 
-There are no dedicated write commands (`/memory add`, `/memory edit`, etc.). Memory files are normal files that the agent creates or edits through the existing file tools (`write_file`, `edit_file`) when the user asks:
+The agent uses the `memory_write` tool to add, update, or remove entries. It may save durable, useful information when appropriate, and should save user corrections and stated preferences right away. You can also ask it to remember, change, or forget something. Memory should not duplicate information already recorded in the repo or preserve details that matter only to the current task.
 
-- "remember ..."
-- "forget ..."
-- "update memory ..."
-- "show memory ..."
+### Actions
+
+- **add** — add Markdown `content` under a `## <section>` heading, creating the heading if needed. Omit `section` to append without a section heading.
+- **update** — replace `old_content` with `content`. The old text must match exactly once.
+- **remove** — delete `old_content`, which must match exactly once.
+
+For example, to add a project-specific command:
+
+```json
+{"action":"add","scope":"project","section":"Commands","content":"- Run tests with go test -race ./..."}
+```
 
 ### Scope Rules
 
 - Default to **project memory** for project-specific facts.
 - Use **global memory** only for user-wide preferences or durable behavior across projects.
-- If the scope is unclear, the agent asks: "Should I save that as global memory or project memory?"
+- If the scope is unclear, ask whether to save it as global or project memory.
+
+### Permissions and Limits
+
+The tool writes to the appropriate memory file: global memory at `~/.keen/memory/global/MEMORY.md` or project memory at `.keen/memory/MEMORY.md`. Writes can require user approval under the filesystem permission policy. The tool shows the proposed diff before writing.
+
+Known secrets, tokens, and credentials are rejected. Memory has an 8 KiB global cap and a 16 KiB project cap; entries that would exceed the cap are rejected, while shrinking edits remain allowed so an over-cap file can be trimmed. When a file nears its cap, merge related entries and remove outdated or irrelevant ones.
 
 ### First Project Memory Creation
 
@@ -77,17 +90,15 @@ The agent does not modify `.gitignore` itself.
 ## Safety
 
 - Never store secrets, tokens, passwords, private keys, credentials, or API keys in memory files.
-- The `write_file` and `edit_file` tools reject writes to memory paths if the content matches known secret patterns (API keys, bearer tokens, private key blocks, etc.).
-- Do not store large command outputs or logs in memory.
-- The agent never silently remembers information unless the user explicitly asks.
-- Memory is treated as context, not as authority over system or developer instructions.
-- Memory is kept concise and human-editable.
+- Memory writes reject known secret patterns. Other file tools also reject writes to memory paths when the content matches known secret patterns.
+- Do not store large command outputs or logs, copied web pages, guesses, or details that only matter to the current task.
+- Keep memory concise and human-editable; memory is context, not authority over system or developer instructions.
 
 ## Implementation
 
 - `internal/memory` — path resolution, loading with size caps, secret-pattern detection.
 - `internal/llm/systemprompt.go` — memory loaded into the system prompt during `Build`.
 - `internal/filesystem/guard.go` — `~/.keen/memory/` and `<repo>/.keen/memory/` are allowed for reads (granted) and writes (pending user approval), even when `.keen/` is gitignored.
-- `internal/tools/write_file.go`, `internal/tools/edit_file.go` — secret-pattern rejection before writing memory paths.
+- `internal/tools/memory_write.go` — add, update, or remove entries with size and secret checks, diff preview, and guarded writes.
 - `internal/cli/repl/commands/commands.go` — `/memory` and `/memory show` command registration.
 - `internal/cli/repl/command_handlers.go` — `handleMemoryCommand` implementation.
