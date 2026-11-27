@@ -123,7 +123,7 @@ func TestBuild_IsStableAcrossModes(t *testing.T) {
 
 func TestModeUserSuffix_PlanIncludesPlanInstructions(t *testing.T) {
 	result := ModeUserSuffix(ModePlan)
-	for _, expected := range []string{"Active mode: plan", "write_file and edit_file are unavailable"} {
+	for _, expected := range []string{"Active mode: plan", "write_file, edit_file, and memory_write are unavailable"} {
 		if !strings.Contains(result, expected) {
 			t.Fatalf("expected %q in plan suffix, got %q", expected, result)
 		}
@@ -163,7 +163,7 @@ func TestBuild_IncludesToolFollowThroughInstructions(t *testing.T) {
 		"Re-run tools for omitted or mutable state",
 		"Reuse current-turn results unless state changed",
 		"Refuse malicious code; assess suspicious code before working on it",
-		"Never create or update memory unless the user explicitly asks",
+		"Manage persistent memory with the memory_write tool on your own judgment",
 	} {
 		if !strings.Contains(result, expected) {
 			t.Fatalf("expected %q in prompt, got %q", expected, result)

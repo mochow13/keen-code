@@ -292,6 +292,7 @@ func (s *AppState) StreamAdversary(ctx context.Context, focus string) (<-chan co
 		tools.CallMCPToolName,
 		tools.DelegateToolName,
 		tools.TodoWriteToolName,
+		tools.MemoryToolName,
 	)
 	return s.adversaryClient.StreamChat(ctx, messages, readOnlyRegistry, core.StreamOptions{OneShot: true})
 }
@@ -349,7 +350,7 @@ func (s *AppState) GetToolRegistry() *tools.Registry {
 // EffectiveToolRegistry is for display/subagents; chat requests use the full registry.
 func (s *AppState) EffectiveToolRegistry() *tools.Registry {
 	if s.mode == llm.ModePlan {
-		return s.toolRegistry.Without(tools.WriteFileToolName, tools.EditFileToolName)
+		return s.toolRegistry.Without(tools.WriteFileToolName, tools.EditFileToolName, tools.MemoryToolName)
 	}
 	return s.toolRegistry
 }

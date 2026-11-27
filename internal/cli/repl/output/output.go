@@ -217,6 +217,7 @@ var toolDisplayNames = map[string]string{
 	agentcore.ToolNameCallMCP:   "MCP",
 	agentcore.ToolNameDelegate:  "Delegate",
 	agentcore.ToolNameTodoWrite: "Tasks",
+	agentcore.ToolNameMemory:    "Memory",
 }
 
 var toolLabelCaser = cases.Title(language.English)
@@ -407,6 +408,8 @@ func formatToolInputDetail(toolName string, input map[string]any, workingDir str
 		return formatDelegateTaskInput(input)
 	case agentcore.ToolNameTodoWrite:
 		return formatTodoWriteInput(input)
+	case agentcore.ToolNameMemory:
+		return formatMemoryInput(input)
 	case agentcore.ToolNameReadFile, agentcore.ToolNameWriteFile, agentcore.ToolNameEditFile:
 		if path, ok := input["path"].(string); ok && path != "" {
 			return compactDisplayPath(formatToolPathForUI(path, workingDir))
@@ -427,6 +430,16 @@ func formatToolInputDetail(toolName string, input map[string]any, workingDir str
 	}
 
 	return formatGenericInput(input)
+}
+
+func formatMemoryInput(input map[string]any) string {
+	var parts []string
+	for _, key := range []string{"action", "scope", "section"} {
+		if value, ok := input[key].(string); ok && strings.TrimSpace(value) != "" {
+			parts = append(parts, compactDisplayValue(strings.TrimSpace(value), maxDisplayValueRunes))
+		}
+	}
+	return strings.Join(parts, " · ")
 }
 
 func formatTodoWriteInput(input map[string]any) string {
@@ -844,5 +857,11 @@ func formatToolPathForUI(path, _ string) string {
 	if path == "" {
 		return ""
 	}
-	return filepath.Base(path)
+	base := filepath.Base(path)
+	if strings.EqualFold(base, "SKILL.md") {
+		if dir := filepath.Base(filepath.Dir(path)); dir != "" && dir != "." {
+			return dir + "/" + base
+		}
+	}
+	return base
 }

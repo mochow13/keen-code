@@ -131,6 +131,35 @@ func TestFormatToolInput_WriteFileShowsOnlyPathBaseName(t *testing.T) {
 	}
 }
 
+func TestFormatToolInput_ReadSkillFileShowsSkillName(t *testing.T) {
+	workingDir := filepath.Join(string(filepath.Separator), "tmp", "project")
+	got := FormatToolInput("read_file", map[string]any{
+		"path": filepath.Join(workingDir, ".agents", "skills", "release", "SKILL.md"),
+	}, workingDir)
+
+	if got != "release/SKILL.md" {
+		t.Fatalf("expected skill name with SKILL.md, got %q", got)
+	}
+}
+
+func TestFormatToolInput_ReadSkillFileCaseInsensitive(t *testing.T) {
+	got := FormatToolInput("read_file", map[string]any{
+		"path": "/home/user/.keen/skills/commit/skill.md",
+	}, "/tmp/project")
+
+	if got != "commit/skill.md" {
+		t.Fatalf("expected lowercase skill.md to show skill name, got %q", got)
+	}
+}
+
+func TestFormatToolInput_SkillFileWithoutDirFallsBackToBaseName(t *testing.T) {
+	got := FormatToolInput("read_file", map[string]any{"path": "SKILL.md"}, "/tmp/project")
+
+	if got != "SKILL.md" {
+		t.Fatalf("expected bare SKILL.md to fall back to base name, got %q", got)
+	}
+}
+
 func TestFormatToolInput_GrepShowsQuotedPatternInPathBaseName(t *testing.T) {
 	got := FormatToolInput("grep", map[string]any{
 		"include":     "*.go",

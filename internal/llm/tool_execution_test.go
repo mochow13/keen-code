@@ -177,17 +177,20 @@ func TestDenyWriteToolRegistry_DeniesWritesButAllowsReads(t *testing.T) {
 	if err := registry.Register(writeToolStub{name: tools.EditFileToolName}); err != nil {
 		t.Fatalf("register edit_file: %v", err)
 	}
+	if err := registry.Register(writeToolStub{name: tools.MemoryToolName}); err != nil {
+		t.Fatalf("register memory: %v", err)
+	}
 	if err := registry.Register(write); err != nil {
 		t.Fatalf("register validating: %v", err)
 	}
 
 	denied := denyWriteToolRegistry(registry)
-	for _, name := range []string{tools.WriteFileToolName, tools.EditFileToolName, "validating"} {
+	for _, name := range []string{tools.WriteFileToolName, tools.EditFileToolName, tools.MemoryToolName, "validating"} {
 		if _, ok := denied.Get(name); !ok {
 			t.Fatalf("expected %s to remain registered", name)
 		}
 	}
-	for _, name := range []string{tools.WriteFileToolName, tools.EditFileToolName} {
+	for _, name := range []string{tools.WriteFileToolName, tools.EditFileToolName, tools.MemoryToolName} {
 		got, _ := denied.Get(name)
 		if _, err := got.Execute(context.Background(), nil); err == nil || err.Error() != writeToolsDisabledMessage {
 			t.Fatalf("expected write rejection for %s, got %v", name, err)

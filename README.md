@@ -43,13 +43,13 @@ Keen Code is also an experiment to play with the *new way of working* where engi
 ## Features
 
 - **Multi-provider** — Anthropic, OpenAI, Codex (via OAuth), Gemini, DeepSeek, Kimi, GLM, MiniMax, OpenCode Go, Yolo-Auto, and Amazon Bedrock. Switch with `/model`. More providers will be added in the future.
-- **11 built-in tools** — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_fetch`, `ask_user`, `todo_write`, `delegate_task`, and `call_mcp_tool`. Core coding tools stay deliberately lean.
+- **12 built-in tools** — `read_file`, `write_file`, `edit_file`, `memory_write`, `glob`, `grep`, `bash`, `web_fetch`, `ask_user`, `todo_write`, `delegate_task`, and `call_mcp_tool`. Core coding tools stay deliberately lean.
 - **Hashline editing** — `read_file` prefixes every line with an `N:HASH|` anchor (line number + 3-character FNV-1a hash of the line), and `edit_file` applies a multi-op `ops[]` array validated against one file snapshot, atomically — stale anchors are rejected instead of editing drifted content. Inspired by [pi-hashline-edit](https://pi.dev/packages/pi-hashline-edit).
 - **MCP (Model Context Protocol)** — Connect external tool providers from `~/.keen/mcp/configs.json` (or a file selected with `--mcp-config <file_path>`) over streamable HTTP or stdio, with `none`, `api_key`, or browser-based `oauth` auth. Connect and inspect servers with `/mcp`. See [docs/mcp-servers.md](docs/mcp-servers.md).
 - **Skill-driven MCP servers** — Each connected MCP server generates an ordinary skill (`mcp:<server>`) with a tool table and JSON schemas, so tool discovery stays prompt-efficient and detailed schemas load on demand. No tool-search-tool needed to discover MCP tools. See [docs/skill-driven-mcp-impl.md](docs/skill-driven-mcp-impl.md).
 - **Skills system** — User-defined skills discovered from project and home directories (`.agents/skills`, `.keen/skills`, `.claude/skills`), activated as slash commands and managed with `/skills`. Bundled `commit` and `review` utility skills ship out of the box. See [docs/skills-system.md](docs/skills-system.md).
 - **Subagents** — Define focused profiles as markdown files in `.agents/agents/` (project or home) with their own provider, model, thinking effort, and permissions. The main agent delegates up to 10 bounded tasks in parallel with `delegate_task`. See [docs/subagents.md](docs/subagents.md).
-- **Persistent memory** — Global (`~/.keen/memory/global/MEMORY.md`) and project (`.keen/memory/MEMORY.md`) markdown files are loaded into the system prompt every session; the agent records to them when you ask it to remember. Manage with `/memory`. See [docs/memory.md](docs/memory.md).
+- **Persistent memory** — Global (`~/.keen/memory/global/MEMORY.md`) and project (`.keen/memory/MEMORY.md`) markdown files are loaded into the system prompt every session; the agent can save durable context with `memory_write`. Manage with `/memory`. See [docs/memory.md](docs/memory.md).
 - **Thinking mode** — Extended reasoning for complex tasks. Use `/thinking` to change the thinking effort level for the current model. All models that support thinking can be configured.
 - **Session management** — Persistent sessions with resume capability.
 - **Context compaction** — Summarize the conversation into a smaller continuation context with `/compact`, or let Keen compact automatically when the context approaches the model's budget. See [docs/compaction.md](docs/compaction.md).
@@ -207,6 +207,7 @@ Keen Code aims to support minimal set of useful tools for coding. Currently, the
 - `grep` — search for text patterns in files
 - `write_file` — create or overwrite files
 - `edit_file` — hash-anchored multi-op edits (`LINE:HASH` anchors in one `ops` array, applied atomically)
+- `memory_write` — add, update, or remove entries in persistent global or project memory
 - `bash` — run shell commands
 - `web_fetch` — fetch a URL and return the content as text (HTML converted to Markdown)
 - `ask_user` — ask the interactive user clarification questions with preselected recommendations

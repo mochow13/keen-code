@@ -204,6 +204,18 @@ providers:
   - id: googleai
     name: Google AI
     models:
+      - id: gemini-4-carbon
+        name: Gemini 4 Carbon
+        context_window: 1048576
+        thinking_efforts: ["low", "medium", "high"]
+      - id: gemini-4-neon
+        name: Gemini 4 Neon
+        context_window: 1048576
+        thinking_efforts: ["low", "medium", "high", "xhigh"]
+      - id: gemini-4-hydrogen
+        name: Gemini 4 Hydrogen
+        context_window: 1048576
+        thinking_efforts: ["low", "medium", "high", "xhigh"]
       - id: gemini-4-argon
         name: Gemini 4 Argon
         context_window: 1048576

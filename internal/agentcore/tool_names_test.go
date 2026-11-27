@@ -22,12 +22,13 @@ func TestToolNamesMatchToolsPackage(t *testing.T) {
 		{ToolNameEditFile, tools.EditFileToolName},
 		{ToolNameGlob, tools.GlobToolName},
 		{ToolNameGrep, tools.GrepToolName},
+		{ToolNameMemory, tools.MemoryToolName},
 		{ToolNameReadFile, tools.ReadFileToolName},
 		{ToolNameWebFetch, tools.WebFetchToolName},
 		{ToolNameWriteFile, tools.WriteFileToolName},
 	}
-	if len(pairs) != 10 {
-		t.Fatalf("expected 10 tool-name pairs, got %d; update when adding tools", len(pairs))
+	if len(pairs) != 11 {
+		t.Fatalf("expected 11 tool-name pairs, got %d; update when adding tools", len(pairs))
 	}
 	seen := make(map[string]string, len(pairs))
 	for _, p := range pairs {

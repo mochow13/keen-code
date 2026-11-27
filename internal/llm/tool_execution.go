@@ -63,7 +63,7 @@ func executeTool(ctx context.Context, registry *tools.Registry, name string, inp
 
 const toolCallsDisabledMessage = "Tool calls are disabled during compaction; use the history."
 
-const writeToolsDisabledMessage = "Write tools (write_file, edit_file) are disabled in plan mode; ask the user to switch with `/mode build` or `Shift+Tab`."
+const writeToolsDisabledMessage = "Write tools (write_file, edit_file, memory_write) are disabled in plan mode; ask the user to switch with `/mode build` or `Shift+Tab`."
 
 // denyToolRegistry preserves the tool definitions but rejects execution.
 func denyToolRegistry(registry *tools.Registry) *tools.Registry {
@@ -87,14 +87,14 @@ func (d *deniedTool) Execute(context.Context, any) (any, error) {
 	return nil, errors.New(toolCallsDisabledMessage)
 }
 
-// denyWriteToolRegistry blocks write_file/edit_file but keeps definitions stable for caching.
+// denyWriteToolRegistry blocks write_file/edit_file/memory_write but keeps definitions stable for caching.
 func denyWriteToolRegistry(registry *tools.Registry) *tools.Registry {
 	if registry == nil {
 		return nil
 	}
 	denied := tools.NewRegistry()
 	for _, tool := range registry.All() {
-		if tool.Name() == tools.WriteFileToolName || tool.Name() == tools.EditFileToolName {
+		if tool.Name() == tools.WriteFileToolName || tool.Name() == tools.EditFileToolName || tool.Name() == tools.MemoryToolName {
 			_ = denied.Register(&deniedWriteTool{Tool: tool})
 			continue
 		}
